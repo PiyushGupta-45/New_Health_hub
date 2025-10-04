@@ -2,12 +2,125 @@
 // the progress card and quick actions.
 
 import 'package:flutter/material.dart';
+import 'package:health/health.dart'; // Using the correct 'health' package
+import 'package:intl/intl.dart';    // For formatting the number with a comma
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  // State variables to hold our data and loading status
+  int? _totalSteps;
+  bool _isLoading = true;
+  String _errorMessage = '';
+  final int _stepGoal = 8000; // Example step goal
+
+  // CORRECTED: Use Health() instead of the old HealthFactory()
+  Health health = Health();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchHealthData();
+  }
+  
+  Future<void> _fetchHealthData() async {
+    if (!_isLoading) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = '';
+      });
+    }
+
+    // Define the data types we want to read
+    final types = [HealthDataType.STEPS];
+    
+    // On Android, we need to request permissions for Health Connect
+    final permissions = [HealthDataAccess.READ];
+
+    try {
+      // Request authorization. For Android, this will prompt to install Health Connect if not installed.
+      bool requested = await health.requestAuthorization(types, permissions: permissions);
+      if (!requested) {
+        throw Exception('Permissions not granted.');
+      }
+
+      // Fetch today's step data
+      final now = DateTime.now();
+      final startTime = DateTime(now.year, now.month, now.day);
+      
+      // The health package returns steps as an int, or null if no data
+      int? steps = await health.getTotalStepsInInterval(startTime, now);
+
+      setState(() {
+        _totalSteps = steps;
+      });
+
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error fetching data: ${e.toString()}';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Helper widget to display the step count or loading/error states
+  Widget _buildStepCountDisplay() {
+    if (_isLoading) {
+      return const SizedBox(
+        width: 36,
+        height: 36,
+        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+      );
+    }
+
+    if (_errorMessage.isNotEmpty) {
+      // You could show the full error for debugging, or a user-friendly message
+      return Tooltip(
+        message: _errorMessage,
+        child: const Icon(Icons.error_outline, color: Colors.white70, size: 36),
+      );
+    }
+
+    if (_totalSteps == null) {
+      return const Text(
+        '--',
+        style: TextStyle(
+          fontSize: 36,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      );
+    }
+
+    // Format the number with commas (e.g., 1,500)
+    final formattedSteps = NumberFormat.decimalPattern().format(_totalSteps);
+    return Text(
+      formattedSteps,
+      style: const TextStyle(
+        fontSize: 36,
+        fontWeight: FontWeight.bold,
+        color: Colors.white,
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Calculate progress percentage safely
+    double progress = 0.0;
+    if (_totalSteps != null && _totalSteps! > 0) {
+      progress = (_totalSteps! / _stepGoal).clamp(0.0, 1.0);
+    }
+    String progressPercentage = '${(progress * 100).toStringAsFixed(0)}% of goal';
+
     return SafeArea(
       child: SingleChildScrollView(
         child: Container(
@@ -73,7 +186,7 @@ class HomePage extends StatelessWidget {
                 ),
               ),
 
-              // Daily Progress Card
+              // Daily Progress Card - DYNAMIC
               Container(
                 padding: const EdgeInsets.all(24.0),
                 margin: const EdgeInsets.only(bottom: 24.0),
@@ -93,8 +206,8 @@ class HomePage extends StatelessWidget {
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
-                        Text(
+                      children: [
+                        const Text(
                           "Today's Progress",
                           style: TextStyle(
                             fontSize: 20,
@@ -103,8 +216,8 @@ class HomePage extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '75% of goal',
-                          style: TextStyle(
+                          _isLoading ? 'Loading...' : progressPercentage,
+                          style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w300,
                             color: Colors.white70,
@@ -116,7 +229,7 @@ class HomePage extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
                       child: LinearProgressIndicator(
-                        value: 0.75,
+                        value: _isLoading ? null : progress,
                         backgroundColor: Colors.indigo.shade500,
                         valueColor: const AlwaysStoppedAnimation<Color>(
                           Colors.white,
@@ -130,17 +243,10 @@ class HomePage extends StatelessWidget {
                       children: [
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text(
-                              '1,500',
-                              style: TextStyle(
-                                fontSize: 36,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
+                          children: [
+                            _buildStepCountDisplay(),
+                            const SizedBox(height: 4),
+                            const Text(
                               'Steps Today',
                               style: TextStyle(
                                 fontSize: 12,
@@ -185,7 +291,6 @@ class HomePage extends StatelessWidget {
               const SizedBox(height: 16),
               Column(
                 children: [
-                  // Personalized Goals Card
                   GestureDetector(
                     onTap: () {
                       print('Personalized Goals Card Tapped!');
@@ -199,7 +304,6 @@ class HomePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // Posture Analysis Card
                   GestureDetector(
                     onTap: () {
                       print('Posture Analysis Card Tapped!');
@@ -213,7 +317,6 @@ class HomePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // Track Workout Card
                   GestureDetector(
                     onTap: () {
                       print('Track Workout Card Tapped!');
@@ -228,7 +331,7 @@ class HomePage extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 80), // Space for bottom navigation
+              const SizedBox(height: 80),
             ],
           ),
         ),

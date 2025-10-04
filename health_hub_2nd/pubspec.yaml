@@ -11,7 +11,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
+  health: ^13.2.0 # Add the health_connect_plus dependency
+  intl: ^0.20.2
   cupertino_icons: ^1.0.8
 
 dev_dependencies:

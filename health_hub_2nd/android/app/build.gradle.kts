@@ -24,10 +24,10 @@ android {
         applicationId = "com.example.health_hub"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        minSdkVersion(26) 
+        targetSdkVersion(34) // It's good practice to keep this up to date
+        versionCode = 1
+        versionName = "1.0.0"
     }
 
     buildTypes {
