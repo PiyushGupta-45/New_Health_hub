@@ -1,25 +1,24 @@
 // personalized_goals_view.dart
 
 import 'package:flutter/material.dart';
-// Note: Assuming main.dart has the notification setup if you want it to truly work
 
-// Reuse constants (or redefine them if this file must be fully independent)
+// --- Global Constants ---
 const Color kPrimaryColor = Color(0xFF4C5BF1);
 const Color kBackgroundColor = Color(0xFFF7F8FC);
-const Color kAccentColor = Color(
-  0xFFFFA500,
-); // Orange for Goals (from FeaturesView)
+const Color kAccentColor = Color(0xFFFFA500); // Orange for Goals
 
-// --- GLOBAL Goal Model and Storage ---
+// --- GLOBAL Goal Model and Storage (Simplified) ---
 class Goal {
+  final String goalId;
   final String name;
   final String target;
   final String unit;
   final DateTime deadline;
   final DateTime reminderTime;
-  final bool connectToTracker; // NEW: Flag to link to Workout Logs
+  final bool connectToTracker;
 
   Goal({
+    required this.goalId,
     required this.name,
     required this.target,
     required this.unit,
@@ -29,19 +28,22 @@ class Goal {
   });
 }
 
-// Global storage list (simulating a database)
+// Global storage list. Data will NOT be saved between sessions.
 List<Goal> activeGoals = [];
 // --- END GLOBAL ---
 
-// Simulated list of activity categories for a fitness tracker
 const List<String> _activityCategories = [
   'Steps',
   'Water Intake',
   'Cardio Minutes',
   'Calorie Burn',
   'Weight Loss',
-  'Distance (km)', // Added a dedicated distance option for clarity
+  'Distance (km)',
 ];
+
+// ******************************************************
+// --- 1. PersonalizedGoalsView (The Home/List Screen) ---
+// ******************************************************
 
 class PersonalizedGoalsView extends StatefulWidget {
   const PersonalizedGoalsView({super.key});
@@ -51,24 +53,262 @@ class PersonalizedGoalsView extends StatefulWidget {
 }
 
 class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
-  String? _selectedActivity = _activityCategories.last; // Default to Distance
-  TextEditingController _targetValueController = TextEditingController(
-    text: '10',
-  );
-  TextEditingController _goalNameController = TextEditingController(
-    text: 'Daily Run Goal',
-  );
-
-  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
-  TimeOfDay _selectedTime = const TimeOfDay(hour: 20, minute: 0);
-
-  bool _connectToTracker = true; // NEW: State for the connection toggle
-
-  late DateTime _goalDeadline;
+  // Flag removed, as we no longer wait for loading
 
   @override
   void initState() {
     super.initState();
+    // Removed _loadGoals() - the app builds immediately now.
+  }
+
+  // NOTE: Persistence methods (_loadGoals, _saveGoals, _deleteGoal)
+  // have been simplified below to only manage the in-memory list.
+
+  // --- DELETE Goal Logic (simplified) ---
+  void _deleteGoal(String goalId) {
+    setState(() {
+      activeGoals.removeWhere((goal) => goal.goalId == goalId);
+      // Removed _saveGoals() call
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Goal deleted successfully.')));
+  }
+
+  // Method to navigate to the form and refresh the list upon return
+  void _navigateToAddOrEditGoal(
+    BuildContext context, {
+    Goal? goalToEdit,
+  }) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GoalSetFormView(goalToEdit: goalToEdit),
+      ),
+    );
+    // Force rebuild of the list after returning
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: kBackgroundColor,
+      appBar: AppBar(
+        title: const Text(
+          'My Active Goals',
+          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: kBackgroundColor,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black87),
+      ),
+      body: activeGoals.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.flag_outlined,
+                    size: 80,
+                    color: Colors.grey.shade300,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Tap + to set your first goal!',
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(20.0),
+              itemCount: activeGoals.length,
+              itemBuilder: (context, index) {
+                final goal = activeGoals[index];
+                return _GoalCard(
+                  goal: goal,
+                  onEdit: () =>
+                      _navigateToAddOrEditGoal(context, goalToEdit: goal),
+                  onDelete: () => _deleteGoal(goal.goalId),
+                );
+              },
+            ),
+
+      // --- Floating Action Button (FAB) ---
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _navigateToAddOrEditGoal(context), // Create new goal
+        backgroundColor: kAccentColor,
+        child: const Icon(Icons.add, color: Colors.white, size: 30),
+      ),
+    );
+  }
+}
+
+// Helper Widget to display individual goals in the list
+class _GoalCard extends StatelessWidget {
+  final Goal goal;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _GoalCard({
+    required this.goal,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  // Modal to show Edit/Delete options
+  void _showActionModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext bc) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.edit, color: kPrimaryColor),
+                title: const Text('Edit Goal'),
+                onTap: () {
+                  Navigator.pop(bc);
+                  onEdit();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Delete Goal'),
+                onTap: () {
+                  Navigator.pop(bc);
+                  onDelete();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Date format: dd/mm/yyyy
+    String formattedDeadline =
+        '${goal.deadline.day.toString().padLeft(2, '0')}/${goal.deadline.month.toString().padLeft(2, '0')}/${goal.deadline.year} at ${TimeOfDay.fromDateTime(goal.deadline).format(context)}';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      elevation: 3,
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(15),
+        leading: Icon(
+          Icons.flag,
+          color: goal.connectToTracker ? kPrimaryColor : kAccentColor,
+          size: 40,
+        ),
+        title: Text(
+          '${goal.name} (${goal.target} ${goal.unit})',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 5),
+            Text(
+              'Due: $formattedDeadline',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            Text(
+              goal.connectToTracker
+                  ? 'Status: Connected to Tracker'
+                  : 'Status: Standalone Goal',
+              style: TextStyle(
+                color: goal.connectToTracker
+                    ? Colors.green.shade600
+                    : Colors.red.shade600,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        trailing: const Icon(
+          Icons.more_vert,
+          size: 24,
+        ), // Three dots for options
+        onTap: () => _showActionModal(context), // Open action modal on tap
+      ),
+    );
+  }
+}
+
+// ****************************************************
+// --- 2. GoalSetFormView (The Form Screen, now handles Edit) ---
+// ****************************************************
+
+class GoalSetFormView extends StatefulWidget {
+  final Goal? goalToEdit; // Optional: if provided, this is an edit operation
+
+  const GoalSetFormView({super.key, this.goalToEdit});
+
+  @override
+  State<GoalSetFormView> createState() => _GoalSetFormViewState();
+}
+
+class _GoalSetFormViewState extends State<GoalSetFormView> {
+  // State variables declared late, initialized in initState
+  late String? _selectedActivity;
+  late TextEditingController _targetValueController;
+  late TextEditingController _goalNameController;
+  late DateTime _selectedDate;
+  late TimeOfDay _selectedTime;
+  late bool _connectToTracker;
+  late String _currentGoalId;
+
+  late DateTime _goalDeadline;
+
+  // Reference to the persistence methods on the parent state
+  _PersonalizedGoalsViewState? get _parentState =>
+      context.findAncestorStateOfType<_PersonalizedGoalsViewState>();
+
+  @override
+  void initState() {
+    super.initState();
+
+    final isEditing = widget.goalToEdit != null;
+    final goal = widget.goalToEdit;
+
+    // --- Core Initialization ---
+    final now = DateTime.now();
+
+    _currentGoalId = isEditing ? goal!.goalId : UniqueKey().toString();
+    _goalNameController = TextEditingController(
+      text: isEditing ? goal!.name : 'Daily Goal',
+    );
+    _targetValueController = TextEditingController(
+      text: isEditing ? goal!.target : '10',
+    );
+    _selectedActivity = isEditing
+        ? _getUnitFromValue(goal!.unit)
+        : _activityCategories.last;
+
+    // Safely set Date and Time
+    _selectedDate =
+        isEditing &&
+            goal!.deadline.isAfter(
+              now.subtract(const Duration(days: 365)),
+            ) // Check if date is reasonable
+        ? goal.deadline
+        : now.add(const Duration(days: 1));
+
+    _selectedTime =
+        isEditing &&
+            goal!.deadline.isAfter(
+              now.subtract(const Duration(hours: 1)),
+            ) // Check if time is reasonable
+        ? TimeOfDay.fromDateTime(goal.deadline)
+        : const TimeOfDay(hour: 20, minute: 0);
+
+    _connectToTracker = isEditing ? goal!.connectToTracker : true;
+
     _updateDeadline();
   }
 
@@ -89,8 +329,17 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     );
   }
 
-  // ... (Removed _selectDate and _selectTime methods for brevity, they remain unchanged)
+  // --- Helper to match unit back to activity name for dropdown ---
+  String? _getUnitFromValue(String unit) {
+    for (String activity in _activityCategories) {
+      if (_getUnit(activity) == unit) {
+        return activity;
+      }
+    }
+    return null;
+  }
 
+  // --- Date/Time Pickers (omitted for brevity, remains the same) ---
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -143,6 +392,26 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     }
   }
 
+  String _getUnit(String? activity) {
+    switch (activity) {
+      case 'Steps':
+        return 'steps';
+      case 'Water Intake':
+        return 'ml';
+      case 'Cardio Minutes':
+        return 'minutes';
+      case 'Calorie Burn':
+        return 'calories';
+      case 'Weight Loss':
+        return 'kg/lbs';
+      case 'Distance (km)':
+        return 'km';
+      default:
+        return '';
+    }
+  }
+
+  // --- Goal Setting/Updating Logic ---
   void _setGoal() {
     if (_goalNameController.text.isEmpty ||
         _targetValueController.text.isEmpty) {
@@ -158,68 +427,76 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     final DateTime notificationTime = _goalDeadline.subtract(
       const Duration(hours: 1),
     );
+    final String unit = _getUnit(_selectedActivity);
 
-    // 1. Create the Goal object with the new connection flag
-    final newGoal = Goal(
+    final newOrUpdatedGoal = Goal(
+      goalId: _currentGoalId,
       name: _goalNameController.text,
       target: _targetValueController.text,
-      unit: _getUnit(_selectedActivity),
+      unit: unit,
       deadline: _goalDeadline,
       reminderTime: notificationTime,
-      connectToTracker: _connectToTracker, // Store the connection status
+      connectToTracker: _connectToTracker,
     );
 
-    // 2. Save the goal to the global list (simulating persistence)
-    activeGoals.add(newGoal);
+    // Check if editing or creating
+    final existingIndex = activeGoals.indexWhere(
+      (g) => g.goalId == _currentGoalId,
+    );
 
-    // 3. Schedule Notification (omitted logic, just simulated confirmation)
+    if (existingIndex >= 0) {
+      activeGoals[existingIndex] = newOrUpdatedGoal;
+    } else {
+      activeGoals.add(newOrUpdatedGoal);
+    }
+
+    // The parent list view will call _loadGoals() which will internally trigger _saveGoals()
+    // on its next rebuild, but for safety, we force the rebuild logic here.
 
     // Show confirmation dialog
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Goal Set Successfully!'),
+        title: Text(
+          widget.goalToEdit != null
+              ? 'Goal Updated!'
+              : 'Goal Set Successfully!',
+        ),
         content: Text(
-          'Goal: ${newGoal.name}\nTarget: ${newGoal.target} ${newGoal.unit}\n\n'
-          'Status: ${_connectToTracker ? "Connected to Workout Tracker." : "Not connected."}',
+          'Goal: ${newOrUpdatedGoal.name}\nTarget: ${newOrUpdatedGoal.target} ${unit}',
         ),
         actions: <Widget>[
           TextButton(
             child: const Text('OK', style: TextStyle(color: kPrimaryColor)),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              // 1. Dismiss the confirmation dialog
+              Navigator.of(context).pop();
+
+              // 2. Pop the current form view to return to the Goals list
+              Navigator.of(context).pop();
+            },
           ),
         ],
       ),
     );
   }
 
-  String _getUnit(String? activity) {
-    switch (activity) {
-      case 'Steps':
-        return 'steps';
-      case 'Water Intake':
-        return 'ml';
-      case 'Cardio Minutes':
-        return 'minutes';
-      case 'Calorie Burn':
-        return 'calories';
-      case 'Weight Loss':
-        return 'kg/lbs';
-      case 'Distance (km)':
-        return 'km'; // New unit handler
-      default:
-        return '';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final String actionText = widget.goalToEdit != null ? 'UPDATE' : 'SET';
+    // Date format: dd/mm/yyyy
+    String formattedDate =
+        '${_selectedDate.day.toString().padLeft(2, '0')}/${_selectedDate.month.toString().padLeft(2, '0')}/${_selectedDate.year}';
+
     return Scaffold(
       backgroundColor: kBackgroundColor,
       appBar: AppBar(
-        title: const Text(
-          'Set New Goal',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+        title: Text(
+          '${actionText} Goal',
+          style: const TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: kBackgroundColor,
         elevation: 0,
@@ -230,13 +507,12 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            // ... (Goal Name, Activity Type, Target Value inputs remain the same)
             _buildGoalInputCard(
               title: 'Goal Name',
               child: TextField(
                 controller: _goalNameController,
                 decoration: const InputDecoration(
-                  hintText: 'e.g., Daily Step Goal, Morning Run',
+                  hintText: 'e.g., Daily Step Goal',
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.zero,
                 ),
@@ -308,8 +584,7 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
                 _buildDateSelector(
                   icon: Icons.calendar_today,
                   label: 'Date',
-                  value:
-                      '${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}',
+                  value: formattedDate,
                   onTap: () => _selectDate(context),
                 ),
                 const SizedBox(width: 15),
@@ -325,17 +600,22 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
             _buildReminderInfo(),
             const SizedBox(height: 30),
 
-            // --- NEW: Connect to Tracker Option ---
+            // --- Connect to Tracker Option ---
             _buildConnectTrackerOption(),
             const SizedBox(height: 40),
 
             // --- Set Goal Button ---
             ElevatedButton.icon(
               onPressed: _setGoal,
-              icon: const Icon(Icons.check_circle_outline, color: Colors.white),
-              label: const Text(
-                'SET GOAL & NOTIFICATION',
-                style: TextStyle(
+              icon: Icon(
+                widget.goalToEdit != null
+                    ? Icons.save
+                    : Icons.check_circle_outline,
+                color: Colors.white,
+              ),
+              label: Text(
+                '${actionText} GOAL & NOTIFICATION',
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -355,6 +635,8 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
       ),
     );
   }
+
+  // --- Helper Widgets ---
 
   Widget _buildConnectTrackerOption() {
     return Container(
@@ -392,8 +674,6 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     );
   }
 
-  // ... (Helper widgets _buildGoalInputCard, _buildDateSelector, _buildReminderInfo remain the same)
-  // Helper Widget for structured input cards
   Widget _buildGoalInputCard({required String title, required Widget child}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
@@ -426,7 +706,6 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     );
   }
 
-  // Helper Widget for date/time selector buttons
   Widget _buildDateSelector({
     required IconData icon,
     required String label,
@@ -470,7 +749,6 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     );
   }
 
-  // Helper Widget for the reminder info text
   Widget _buildReminderInfo() {
     return Padding(
       padding: const EdgeInsets.only(top: 8.0),
