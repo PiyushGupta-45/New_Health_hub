@@ -1,6 +1,7 @@
 // personalized_goals_view.dart
 
 import 'package:flutter/material.dart';
+// Note: Assuming main.dart has the notification setup if you want it to truly work
 
 // Reuse constants (or redefine them if this file must be fully independent)
 const Color kPrimaryColor = Color(0xFF4C5BF1);
@@ -9,6 +10,29 @@ const Color kAccentColor = Color(
   0xFFFFA500,
 ); // Orange for Goals (from FeaturesView)
 
+// --- GLOBAL Goal Model and Storage ---
+class Goal {
+  final String name;
+  final String target;
+  final String unit;
+  final DateTime deadline;
+  final DateTime reminderTime;
+  final bool connectToTracker; // NEW: Flag to link to Workout Logs
+
+  Goal({
+    required this.name,
+    required this.target,
+    required this.unit,
+    required this.deadline,
+    required this.reminderTime,
+    required this.connectToTracker,
+  });
+}
+
+// Global storage list (simulating a database)
+List<Goal> activeGoals = [];
+// --- END GLOBAL ---
+
 // Simulated list of activity categories for a fitness tracker
 const List<String> _activityCategories = [
   'Steps',
@@ -16,6 +40,7 @@ const List<String> _activityCategories = [
   'Cardio Minutes',
   'Calorie Burn',
   'Weight Loss',
+  'Distance (km)', // Added a dedicated distance option for clarity
 ];
 
 class PersonalizedGoalsView extends StatefulWidget {
@@ -26,24 +51,19 @@ class PersonalizedGoalsView extends StatefulWidget {
 }
 
 class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
-  // State variables for the goal inputs
-  String? _selectedActivity = _activityCategories.first;
+  String? _selectedActivity = _activityCategories.last; // Default to Distance
   TextEditingController _targetValueController = TextEditingController(
-    text: '10000',
+    text: '10',
   );
   TextEditingController _goalNameController = TextEditingController(
-    text: 'Daily Step Goal',
+    text: 'Daily Run Goal',
   );
 
-  DateTime _selectedDate = DateTime.now().add(
-    const Duration(days: 1),
-  ); // Default to tomorrow
-  TimeOfDay _selectedTime = const TimeOfDay(
-    hour: 20,
-    minute: 0,
-  ); // Default to 8:00 PM
+  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
+  TimeOfDay _selectedTime = const TimeOfDay(hour: 20, minute: 0);
 
-  // Final DateTime for the deadline
+  bool _connectToTracker = true; // NEW: State for the connection toggle
+
   late DateTime _goalDeadline;
 
   @override
@@ -59,7 +79,6 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     super.dispose();
   }
 
-  // Combines date and time into a single DateTime object
   void _updateDeadline() {
     _goalDeadline = DateTime(
       _selectedDate.year,
@@ -70,7 +89,8 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     );
   }
 
-  // --- Date Picker Function ---
+  // ... (Removed _selectDate and _selectTime methods for brevity, they remain unchanged)
+
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -99,7 +119,6 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     }
   }
 
-  // --- Time Picker Function ---
   Future<void> _selectTime(BuildContext context) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
@@ -124,7 +143,6 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     }
   }
 
-  // --- Goal Setting Logic ---
   void _setGoal() {
     if (_goalNameController.text.isEmpty ||
         _targetValueController.text.isEmpty) {
@@ -136,54 +154,45 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
       return;
     }
 
-    _updateDeadline(); // Final check
-
-    // Calculate the notification time (1 hour before deadline)
+    _updateDeadline();
     final DateTime notificationTime = _goalDeadline.subtract(
       const Duration(hours: 1),
     );
 
-    String formattedDeadline =
-        '${_selectedDate.month}/${_selectedDate.day} at ${_selectedTime.format(context)}';
-    String formattedNotification =
-        '${notificationTime.month}/${notificationTime.day} at ${TimeOfDay.fromDateTime(notificationTime).format(context)}';
+    // 1. Create the Goal object with the new connection flag
+    final newGoal = Goal(
+      name: _goalNameController.text,
+      target: _targetValueController.text,
+      unit: _getUnit(_selectedActivity),
+      deadline: _goalDeadline,
+      reminderTime: notificationTime,
+      connectToTracker: _connectToTracker, // Store the connection status
+    );
 
-    // Show confirmation dialog (simulating goal and notification setup)
+    // 2. Save the goal to the global list (simulating persistence)
+    activeGoals.add(newGoal);
+
+    // 3. Schedule Notification (omitted logic, just simulated confirmation)
+
+    // Show confirmation dialog
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Goal Set Successfully!'),
-        content: SingleChildScrollView(
-          child: ListBody(
-            children: <Widget>[
-              Text('Goal: ${_goalNameController.text}'),
-              Text(
-                'Target: ${_targetValueController.text} ${_getUnit(_selectedActivity)}',
-              ),
-              const Divider(),
-              Text('Deadline: $formattedDeadline'),
-              Text(
-                'Reminder set for: $formattedNotification (1 hour before deadline)',
-              ),
-              const Text(
-                '\n(In a real app, this would schedule a local notification.)',
-              ),
-            ],
-          ),
+        content: Text(
+          'Goal: ${newGoal.name}\nTarget: ${newGoal.target} ${newGoal.unit}\n\n'
+          'Status: ${_connectToTracker ? "Connected to Workout Tracker." : "Not connected."}',
         ),
         actions: <Widget>[
           TextButton(
             child: const Text('OK', style: TextStyle(color: kPrimaryColor)),
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
+            onPressed: () => Navigator.of(context).pop(),
           ),
         ],
       ),
     );
   }
 
-  // Helper to get unit based on activity
   String _getUnit(String? activity) {
     switch (activity) {
       case 'Steps':
@@ -196,6 +205,8 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
         return 'calories';
       case 'Weight Loss':
         return 'kg/lbs';
+      case 'Distance (km)':
+        return 'km'; // New unit handler
       default:
         return '';
     }
@@ -219,7 +230,7 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            // --- 1. Goal Name Input ---
+            // ... (Goal Name, Activity Type, Target Value inputs remain the same)
             _buildGoalInputCard(
               title: 'Goal Name',
               child: TextField(
@@ -233,8 +244,6 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // --- 2. Activity Category Dropdown ---
             _buildGoalInputCard(
               title: 'Activity Type',
               child: DropdownButtonHideUnderline(
@@ -254,19 +263,12 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
                   onChanged: (String? newValue) {
                     setState(() {
                       _selectedActivity = newValue;
-                      // Update hint text when activity changes
-                      if (newValue == 'Steps')
-                        _targetValueController.text = '10000';
-                      if (newValue == 'Water Intake')
-                        _targetValueController.text = '3000';
                     });
                   },
                 ),
               ),
             ),
             const SizedBox(height: 20),
-
-            // --- 3. Target Value Input ---
             _buildGoalInputCard(
               title: 'Target Value (${_getUnit(_selectedActivity)})',
               child: TextField(
@@ -291,7 +293,7 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
             ),
             const SizedBox(height: 30),
 
-            // --- 4. Deadline Selector (Date & Time) ---
+            // --- Deadline Selector (Date & Time) ---
             const Text(
               'Goal Deadline & Reminder',
               style: TextStyle(
@@ -321,9 +323,13 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
             ),
             const SizedBox(height: 10),
             _buildReminderInfo(),
+            const SizedBox(height: 30),
+
+            // --- NEW: Connect to Tracker Option ---
+            _buildConnectTrackerOption(),
             const SizedBox(height: 40),
 
-            // --- 5. Set Goal Button ---
+            // --- Set Goal Button ---
             ElevatedButton.icon(
               onPressed: _setGoal,
               icon: const Icon(Icons.check_circle_outline, color: Colors.white),
@@ -350,6 +356,43 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     );
   }
 
+  Widget _buildConnectTrackerOption() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: _connectToTracker ? kAccentColor : Colors.grey.shade300,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: SwitchListTile(
+        title: const Text(
+          'Connect to Workout Tracker',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: const Text(
+          'Display this goal directly in your workout tracking screen.',
+        ),
+        value: _connectToTracker,
+        activeColor: kAccentColor,
+        onChanged: (bool value) {
+          setState(() {
+            _connectToTracker = value;
+          });
+        },
+      ),
+    );
+  }
+
+  // ... (Helper widgets _buildGoalInputCard, _buildDateSelector, _buildReminderInfo remain the same)
   // Helper Widget for structured input cards
   Widget _buildGoalInputCard({required String title, required Widget child}) {
     return Container(

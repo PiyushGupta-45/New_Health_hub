@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'health_metrics_view.dart'; // Import the calculator page
 import 'posture_analysis_view.dart'; // Import the new posture page
 import 'personalized_goals_view.dart';
+import 'workout_tracker_view.dart';
 
 // --- Global Constants (for colors) ---
 const Color kPrimaryColor = Color(0xFF4C5BF1);
@@ -84,7 +85,7 @@ class FeaturesView extends StatelessWidget {
       title: 'Track Workout',
       subtitle: 'Log and analyze your workouts.',
       iconColor: Color(0xFFFF4500),
-      destination: PlaceholderFeatureView(title: 'Track Workout'),
+      destination: WorkoutTrackerView(),
     ),
   ];
 
