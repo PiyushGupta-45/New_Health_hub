@@ -18,17 +18,27 @@ class AuthService {
   String? get baseUrl {
     final url = dotenv.env['API_BASE_URL'];
     if (url == null || url.isEmpty) {
+      print('⚠️ API_BASE_URL is not set in .env file');
       return null;
     }
+    
+    // Remove trailing slash if present
+    String cleanUrl = url.trim();
+    if (cleanUrl.endsWith('/')) {
+      cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+    }
+    
     // Validate that it's a proper HTTP/HTTPS URL, not a MongoDB connection string
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
       throw Exception(
         'API_BASE_URL must be a valid HTTP/HTTPS URL (e.g., https://your-api.com). '
         'MongoDB connection strings should not be used here. '
         'Set up a backend API server that connects to MongoDB Atlas.'
       );
     }
-    return url;
+    
+    print('✅ Using API_BASE_URL: $cleanUrl');
+    return cleanUrl;
   }
   
   String? get apiKey => dotenv.env['API_KEY'];
@@ -46,8 +56,16 @@ class AuthService {
   // Store user data
   Future<void> storeUser(Map<String, dynamic> userData) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_data', json.encode(userData));
-    await prefs.setString('auth_token', userData['token'] ?? '');
+    
+    // Handle nested user object (from API response) or flat user object
+    final user = userData['user'] ?? userData;
+    final token = user['token'] ?? userData['token'] ?? '';
+    
+    // Store the user object (not the entire response)
+    await prefs.setString('user_data', json.encode(user));
+    await prefs.setString('auth_token', token);
+    
+    print('✅ Stored auth token: ${token.isNotEmpty ? "Token saved" : "No token found"}');
   }
 
   // Clear stored user data
@@ -78,8 +96,11 @@ class AuthService {
         };
       }
 
+      final endpoint = '$url/api/auth/signup';
+      print('🌐 Making request to: $endpoint');
+      
       final response = await http.post(
-        Uri.parse('$url/api/auth/signup'),
+        Uri.parse(endpoint),
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': apiKey ?? '',
@@ -91,11 +112,45 @@ class AuthService {
         }),
       );
 
-      final data = json.decode(response.body);
+      print('📡 Response status: ${response.statusCode}');
+      print('📡 Response body: ${response.body}');
+      
+      // Check if response is JSON before parsing
+      if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'error': 'Backend API not found (404).\n\n'
+              'URL tried: $endpoint\n\n'
+              'Please verify:\n'
+              '1. Your backend is running at: $url\n'
+              '2. Test in browser: $url/api/health\n'
+              '3. Check your .env file has correct API_BASE_URL'
+        };
+      }
+
+      if (response.statusCode >= 500) {
+        return {
+          'success': false,
+          'error': 'Backend server error (${response.statusCode}). Please check if your backend is running.'
+        };
+      }
+
+      // Try to parse JSON, handle non-JSON responses
+      Map<String, dynamic> data;
+      try {
+        data = json.decode(response.body);
+      } catch (e) {
+        return {
+          'success': false,
+          'error': 'Invalid response from server: ${response.body}'
+        };
+      }
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         await storeUser(data);
-        return {'success': true, 'user': data};
+        // Extract user object from response
+        final user = data['user'] ?? data;
+        return {'success': true, 'user': user};
       } else {
         return {
           'success': false,
@@ -121,8 +176,11 @@ class AuthService {
         };
       }
 
+      final endpoint = '$url/api/auth/signin';
+      print('🌐 Making request to: $endpoint');
+      
       final response = await http.post(
-        Uri.parse('$url/api/auth/signin'),
+        Uri.parse(endpoint),
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': apiKey ?? '',
@@ -133,11 +191,45 @@ class AuthService {
         }),
       );
 
-      final data = json.decode(response.body);
+      print('📡 Response status: ${response.statusCode}');
+      print('📡 Response body: ${response.body}');
+      
+      // Check if response is JSON before parsing
+      if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'error': 'Backend API not found (404).\n\n'
+              'URL tried: $endpoint\n\n'
+              'Please verify:\n'
+              '1. Your backend is running at: $url\n'
+              '2. Test in browser: $url/api/health\n'
+              '3. Check your .env file has correct API_BASE_URL'
+        };
+      }
+
+      if (response.statusCode >= 500) {
+        return {
+          'success': false,
+          'error': 'Backend server error (${response.statusCode}). Please check if your backend is running.'
+        };
+      }
+
+      // Try to parse JSON, handle non-JSON responses
+      Map<String, dynamic> data;
+      try {
+        data = json.decode(response.body);
+      } catch (e) {
+        return {
+          'success': false,
+          'error': 'Invalid response from server: ${response.body}'
+        };
+      }
 
       if (response.statusCode == 200) {
         await storeUser(data);
-        return {'success': true, 'user': data};
+        // Extract user object from response
+        final user = data['user'] ?? data;
+        return {'success': true, 'user': user};
       } else {
         return {
           'success': false,
@@ -169,8 +261,11 @@ class AuthService {
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
+      final endpoint = '$url/api/auth/google';
+      print('🌐 Making request to: $endpoint');
+      
       final response = await http.post(
-        Uri.parse('$url/api/auth/google'),
+        Uri.parse(endpoint),
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': apiKey ?? '',
@@ -184,11 +279,45 @@ class AuthService {
         }),
       );
 
-      final data = json.decode(response.body);
+      print('📡 Response status: ${response.statusCode}');
+      print('📡 Response body: ${response.body}');
+      
+      // Check if response is JSON before parsing
+      if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'error': 'Backend API not found (404).\n\n'
+              'URL tried: $endpoint\n\n'
+              'Please verify:\n'
+              '1. Your backend is running at: $url\n'
+              '2. Test in browser: $url/api/health\n'
+              '3. Check your .env file has correct API_BASE_URL'
+        };
+      }
+
+      if (response.statusCode >= 500) {
+        return {
+          'success': false,
+          'error': 'Backend server error (${response.statusCode}). Please check if your backend is running.'
+        };
+      }
+
+      // Try to parse JSON, handle non-JSON responses
+      Map<String, dynamic> data;
+      try {
+        data = json.decode(response.body);
+      } catch (e) {
+        return {
+          'success': false,
+          'error': 'Invalid response from server: ${response.body}'
+        };
+      }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         await storeUser(data);
-        return {'success': true, 'user': data};
+        // Extract user object from response
+        final user = data['user'] ?? data;
+        return {'success': true, 'user': user};
       } else {
         return {
           'success': false,

@@ -17,9 +17,28 @@ app.use(express.json());
 
 // Connect to MongoDB Atlas
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://admin:admin@cluster0.dsnzo0s.mongodb.net/?appName=Cluster0';
+
+console.log('Attempting to connect to MongoDB...');
+console.log('MongoDB URI:', MONGODB_URI ? 'Set (hidden)' : 'NOT SET');
+
 mongoose.connect(MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB Atlas'))
-  .catch(err => console.error('MongoDB connection error:', err));
+  .then(() => {
+    console.log('✅ Connected to MongoDB Atlas successfully');
+    console.log('Database:', mongoose.connection.name);
+  })
+  .catch(err => {
+    console.error('❌ MongoDB connection error:', err.message);
+    console.error('Error details:', err);
+  });
+
+// Handle connection events
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('MongoDB disconnected');
+});
 
 // User Schema
 const userSchema = new mongoose.Schema({
@@ -31,6 +50,22 @@ const userSchema = new mongoose.Schema({
 });
 
 const User = mongoose.model('User', userSchema);
+
+// Daily Steps Schema
+const dailyStepsSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  date: { type: Date, required: true },
+  steps: { type: Number, required: true, default: 0 },
+  source: { type: String, default: 'Phone Sensor' },
+  syncedAt: { type: Date, default: Date.now }
+}, {
+  timestamps: true
+});
+
+// Create compound index to ensure one entry per user per day
+dailyStepsSchema.index({ userId: 1, date: 1 }, { unique: true });
+
+const DailySteps = mongoose.model('DailySteps', dailyStepsSchema);
 
 // JWT Secret (use environment variable in production)
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
@@ -157,12 +192,23 @@ app.post('/api/auth/signin', async (req, res) => {
 // Google Sign In Endpoint
 app.post('/api/auth/google', async (req, res) => {
   try {
+    console.log('Google signin request received:', JSON.stringify(req.body));
+    
     const { email, name, idToken } = req.body;
 
     if (!email) {
       return res.status(400).json({
         success: false,
         message: 'Email is required'
+      });
+    }
+
+    // Check MongoDB connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error('MongoDB not connected. State:', mongoose.connection.readyState);
+      return res.status(500).json({
+        success: false,
+        message: 'Database connection error. Please check MongoDB connection.'
       });
     }
 
@@ -188,6 +234,7 @@ app.post('/api/auth/google', async (req, res) => {
     // Generate token
     const token = generateToken(user._id);
 
+    console.log('Google signin successful for:', email);
     res.json({
       success: true,
       user: {
@@ -199,9 +246,11 @@ app.post('/api/auth/google', async (req, res) => {
     });
   } catch (error) {
     console.error('Google signin error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
-      message: 'Server error during Google signin'
+      message: `Server error during Google signin: ${error.message}`,
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -209,6 +258,196 @@ app.post('/api/auth/google', async (req, res) => {
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
+});
+
+// Middleware to verify JWT token
+const verifyToken = (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1] || req.headers['x-auth-token'];
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'No token provided'
+      });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.userId = decoded.userId;
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid or expired token'
+    });
+  }
+};
+
+// Store daily steps endpoint
+app.post('/api/steps', verifyToken, async (req, res) => {
+  try {
+    const { steps, date, source } = req.body;
+    const userId = req.userId;
+
+    if (!steps || steps < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid steps count is required'
+      });
+    }
+
+    // Use provided date or today's date (start of day)
+    let targetDate;
+    if (date) {
+      targetDate = new Date(date);
+    } else {
+      targetDate = new Date();
+    }
+    targetDate.setHours(0, 0, 0, 0);
+    
+    const startOfDay = new Date(targetDate);
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Find or create daily steps entry
+    let dailySteps = await DailySteps.findOne({
+      userId,
+      date: {
+        $gte: startOfDay,
+        $lt: endOfDay
+      }
+    });
+
+    if (dailySteps) {
+      // Update existing entry (use higher value to handle multiple syncs)
+      dailySteps.steps = Math.max(dailySteps.steps, steps);
+      dailySteps.source = source || dailySteps.source;
+      dailySteps.syncedAt = new Date();
+      await dailySteps.save();
+    } else {
+      // Create new entry
+      dailySteps = new DailySteps({
+        userId,
+        date: targetDate,
+        steps,
+        source: source || 'Phone Sensor',
+        syncedAt: new Date()
+      });
+      await dailySteps.save();
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: dailySteps._id,
+        date: dailySteps.date,
+        steps: dailySteps.steps,
+        source: dailySteps.source
+      }
+    });
+  } catch (error) {
+    console.error('Store steps error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while storing steps'
+    });
+  }
+});
+
+// Get steps history endpoint
+app.get('/api/steps/history', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { startDate, endDate, limit = 30 } = req.query;
+
+    const query = { userId };
+
+    // Add date range if provided
+    if (startDate || endDate) {
+      query.date = {};
+      if (startDate) {
+        query.date.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        query.date.$lte = new Date(endDate);
+      }
+    }
+
+    const stepsHistory = await DailySteps.find(query)
+      .sort({ date: -1 })
+      .limit(parseInt(limit))
+      .select('date steps source syncedAt')
+      .lean();
+
+    // Format dates for response
+    const formattedHistory = stepsHistory.map(entry => ({
+      id: entry._id,
+      date: entry.date,
+      steps: entry.steps,
+      source: entry.source,
+      syncedAt: entry.syncedAt
+    }));
+
+    res.json({
+      success: true,
+      data: formattedHistory,
+      count: formattedHistory.length
+    });
+  } catch (error) {
+    console.error('Get steps history error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching steps history'
+    });
+  }
+});
+
+// Get today's steps endpoint
+app.get('/api/steps/today', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const todaySteps = await DailySteps.findOne({
+      userId,
+      date: {
+        $gte: today,
+        $lt: tomorrow
+      }
+    }).select('date steps source syncedAt').lean();
+
+    if (todaySteps) {
+      res.json({
+        success: true,
+        data: {
+          id: todaySteps._id,
+          date: todaySteps.date,
+          steps: todaySteps.steps,
+          source: todaySteps.source,
+          syncedAt: todaySteps.syncedAt
+        }
+      });
+    } else {
+      res.json({
+        success: true,
+        data: {
+          date: today,
+          steps: 0,
+          source: null,
+          syncedAt: null
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Get today steps error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching today\'s steps'
+    });
+  }
 });
 
 // Start server

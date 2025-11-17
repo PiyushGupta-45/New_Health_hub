@@ -146,57 +146,58 @@ class _AuthPageState extends State<AuthPage>
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Welcome to FitTrack',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1E293B),
-                    letterSpacing: -0.5,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Welcome to FitTrack',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E293B),
+                      letterSpacing: -0.5,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Sign in to continue or create a new account',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade600,
+                  const SizedBox(height: 8),
+                  Text(
+                    'Sign in to continue or create a new account',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey.shade600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 32),
-                TabBar(
-                  controller: _tabController,
-                  labelColor: Colors.indigo.shade600,
-                  unselectedLabelColor: Colors.grey.shade600,
-                  indicatorColor: Colors.indigo.shade600,
-                  labelStyle: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                  ),
-                  tabs: const [
-                    Tab(text: 'Sign In'),
-                    Tab(text: 'Sign Up'),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Expanded(
-                  child: TabBarView(
+                  const SizedBox(height: 32),
+                  TabBar(
                     controller: _tabController,
-                    children: [
-                      _buildSignInForm(),
-                      _buildSignUpForm(),
+                    labelColor: Colors.indigo.shade600,
+                    unselectedLabelColor: Colors.grey.shade600,
+                    indicatorColor: Colors.indigo.shade600,
+                    labelStyle: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                    tabs: const [
+                      Tab(text: 'Sign In'),
+                      Tab(text: 'Sign Up'),
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildSignInForm(),
+                  _buildSignUpForm(),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -204,6 +205,7 @@ class _AuthPageState extends State<AuthPage>
 
   Widget _buildSignInForm() {
     return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24.0, 0, 24.0, 24.0),
       child: Form(
         key: _signInFormKey,
         child: Column(
@@ -336,11 +338,12 @@ class _AuthPageState extends State<AuthPage>
 
   Widget _buildSignUpForm() {
     return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24.0, 0, 24.0, 24.0),
       child: Form(
-      key: _signUpFormKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+        key: _signUpFormKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
           _buildTextField(
             controller: _signUpNameController,
             label: 'Full Name',

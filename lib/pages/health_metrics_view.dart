@@ -5,6 +5,13 @@ import 'package:flutter/material.dart';
 const Color kPrimaryColor = Color(0xFF4C5BF1);
 const Color kBackgroundColor = Color(0xFFF7F8FC);
 
+// Workout intensity types
+enum WorkoutIntensity {
+  low,
+  medium,
+  high,
+}
+
 // --- Main Feature Screen Widget ---
 class HealthMetricsView extends StatefulWidget {
   const HealthMetricsView({super.key});
@@ -19,10 +26,13 @@ class _HealthMetricsViewState extends State<HealthMetricsView> {
   int _height = 175; // in cm
   int _age = 25;
   String _gender = 'Male'; // 'Male' or 'Female'
+  int _workoutDuration = 30; // in minutes
+  WorkoutIntensity _workoutIntensity = WorkoutIntensity.medium;
 
   // --- State Variables for Results ---
   double _bmiResult = 0.0;
   double _bmrResult = 0.0;
+  double _caloriesBurned = 0.0;
   String _bmiStatus = '';
 
   @override
@@ -54,7 +64,36 @@ class _HealthMetricsViewState extends State<HealthMetricsView> {
       _bmrResult = (10 * _weight) + (6.25 * _height) - (5 * _age) - 161;
     }
 
+    // Calculate Calories Burned based on workout intensity
+    _calculateCaloriesBurned();
+
     setState(() {});
+  }
+
+  void _calculateCaloriesBurned() {
+    // MET (Metabolic Equivalent of Task) values for different intensities
+    // MET represents the energy cost of physical activities
+    double metValue;
+    String intensityName;
+
+    switch (_workoutIntensity) {
+      case WorkoutIntensity.low:
+        metValue = 3.0; // Light activity (e.g., walking, yoga)
+        intensityName = 'Low Intensity';
+        break;
+      case WorkoutIntensity.medium:
+        metValue = 6.0; // Moderate activity (e.g., brisk walking, cycling)
+        intensityName = 'Medium Intensity';
+        break;
+      case WorkoutIntensity.high:
+        metValue = 9.0; // Vigorous activity (e.g., running, HIIT)
+        intensityName = 'High Intensity';
+        break;
+    }
+
+    // Calories burned = MET × weight (kg) × duration (hours)
+    // Duration is in minutes, so divide by 60
+    _caloriesBurned = metValue * _weight * (_workoutDuration / 60.0);
   }
 
   @override
@@ -82,6 +121,10 @@ class _HealthMetricsViewState extends State<HealthMetricsView> {
             _buildAgeInput(),
             const SizedBox(height: 20),
             _buildWeightInput(),
+            const SizedBox(height: 30),
+            
+            // Workout Section
+            _buildWorkoutSection(),
             const SizedBox(height: 40),
 
             ElevatedButton(
@@ -107,6 +150,159 @@ class _HealthMetricsViewState extends State<HealthMetricsView> {
 
             _buildResultsCard(),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkoutSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'WORKOUT CALORIE CALCULATOR',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 15),
+          
+          // Workout Intensity Selector
+          const Text(
+            'Workout Intensity',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _buildIntensityButton(
+                  'Low',
+                  WorkoutIntensity.low,
+                  Colors.green,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildIntensityButton(
+                  'Medium',
+                  WorkoutIntensity.medium,
+                  Colors.orange,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildIntensityButton(
+                  'High',
+                  WorkoutIntensity.high,
+                  Colors.red,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          
+          // Workout Duration
+          const Text(
+            'Duration (minutes)',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildRoundButton(Icons.remove, () {
+                setState(() {
+                  if (_workoutDuration > 5) _workoutDuration -= 5;
+                  _calculateMetrics();
+                });
+              }),
+              const SizedBox(width: 20),
+              Text(
+                '$_workoutDuration',
+                style: const TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.black87,
+                ),
+              ),
+              const Text(
+                ' min',
+                style: TextStyle(
+                  fontSize: 20,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 20),
+              _buildRoundButton(Icons.add, () {
+                setState(() {
+                  _workoutDuration += 5;
+                  _calculateMetrics();
+                });
+              }),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIntensityButton(
+    String label,
+    WorkoutIntensity intensity,
+    Color color,
+  ) {
+    final isSelected = _workoutIntensity == intensity;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _workoutIntensity = intensity;
+          _calculateMetrics();
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.2) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: isSelected ? color : Colors.black87,
+            ),
+          ),
         ),
       ),
     );
@@ -158,8 +354,88 @@ class _HealthMetricsViewState extends State<HealthMetricsView> {
             unit: 'Calories/day',
             status: 'Resting Energy',
           ),
+          const Divider(height: 30),
+
+          // Calories Burned Result
+          _buildCaloriesBurnedRow(),
         ],
       ),
+    );
+  }
+
+  Widget _buildCaloriesBurnedRow() {
+    String intensityName;
+    Color intensityColor;
+    
+    switch (_workoutIntensity) {
+      case WorkoutIntensity.low:
+        intensityName = 'Low Intensity';
+        intensityColor = Colors.green;
+        break;
+      case WorkoutIntensity.medium:
+        intensityName = 'Medium Intensity';
+        intensityColor = Colors.orange;
+        break;
+      case WorkoutIntensity.high:
+        intensityName = 'High Intensity';
+        intensityColor = Colors.red;
+        break;
+    }
+
+    return Column(
+      children: [
+        Text(
+          'Calories Burned (Workout)',
+          style: const TextStyle(fontSize: 16, color: Colors.grey),
+        ),
+        const SizedBox(height: 5),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _caloriesBurned.toStringAsFixed(0),
+              style: const TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.w900,
+                color: Colors.black87,
+              ),
+            ),
+            const Text(
+              ' cal',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: intensityColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: intensityColor, width: 1),
+          ),
+          child: Text(
+            intensityName,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: intensityColor,
+            ),
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          '$_workoutDuration minutes workout',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
     );
   }
 

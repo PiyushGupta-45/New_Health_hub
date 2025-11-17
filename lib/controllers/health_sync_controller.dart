@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../services/direct_step_service.dart';
 import '../services/health_sync_service.dart';
+import '../services/steps_sync_service.dart';
 
 /// High-level status for sync actions so that the UI can react accordingly.
 enum HealthSyncStatus {
@@ -28,6 +29,10 @@ class HealthSyncController extends ChangeNotifier {
 
   final HealthSyncService? _service;
   final DirectStepService _directStepService;
+  final StepsSyncService _stepsSyncService = StepsSyncService();
+  
+  DateTime? _lastSyncedToBackend;
+  static const Duration _syncInterval = Duration(minutes: 5); // Sync every 5 minutes
 
   void _initializeStepListener() {
     // Start listening to step counter for real-time updates
@@ -47,9 +52,53 @@ class HealthSyncController extends ChangeNotifier {
             primaryStepsSource: 'Phone Sensor',
           );
           notifyListeners();
+          
+          // Auto-sync to backend (throttled)
+          _syncStepsToBackend(todaySteps);
         }
       }
     });
+  }
+
+  // Sync steps to backend (throttled to avoid too many requests)
+  Future<void> _syncStepsToBackend(int steps) async {
+    // Check if user is authenticated first
+    final token = await _stepsSyncService.getAuthToken();
+    if (token == null || token.isEmpty) {
+      // User not authenticated, skip sync
+      if (kDebugMode) {
+        print('⚠️ Skipping steps sync - user not authenticated');
+      }
+      return;
+    }
+
+    // Only sync if enough time has passed since last sync
+    if (_lastSyncedToBackend != null &&
+        DateTime.now().difference(_lastSyncedToBackend!) < _syncInterval) {
+      return;
+    }
+
+    try {
+      final result = await _stepsSyncService.storeSteps(
+        steps: steps,
+        source: _snapshot?.primaryStepsSource ?? 'Phone Sensor',
+      );
+      
+      if (result['success'] == true) {
+        _lastSyncedToBackend = DateTime.now();
+        if (kDebugMode) {
+          print('✅ Steps synced to backend: $steps');
+        }
+      } else {
+        if (kDebugMode) {
+          print('⚠️ Failed to sync steps: ${result['error']}');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error syncing steps: $e');
+      }
+    }
   }
 
   HealthSyncStatus _status = HealthSyncStatus.idle;
@@ -113,6 +162,9 @@ class HealthSyncController extends ChangeNotifier {
           _lastSyncedAt = DateTime.now();
           _status = HealthSyncStatus.ready;
           notifyListeners();
+          
+          // Sync to backend
+          _syncStepsToBackend(todaySteps);
           return;
         }
       }
@@ -123,6 +175,9 @@ class HealthSyncController extends ChangeNotifier {
         _snapshot = result;
         _lastSyncedAt = DateTime.now();
         _status = HealthSyncStatus.ready;
+        
+        // Sync to backend
+        _syncStepsToBackend(result.todaySteps);
       } else {
         throw const HealthSyncException(
           HealthSyncErrorType.platformNotSupported,

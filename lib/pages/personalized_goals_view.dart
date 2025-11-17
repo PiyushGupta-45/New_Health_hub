@@ -1,6 +1,10 @@
 // personalized_goals_view.dart
 
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../services/notification_service.dart';
+import '../services/goals_storage_service.dart';
 
 // --- Global Constants ---
 const Color
@@ -81,19 +85,141 @@ class _PersonalizedGoalsViewState
         > {
   // Flag removed, as we no longer wait for loading
 
+  Timer? _notificationCheckTimer;
+
   @override
   void initState() {
     super.initState();
-    // Removed _loadGoals() - the app builds immediately now.
+    _loadGoals();
+    // Start periodic check for notifications when app is open
+    _startNotificationChecker();
+  }
+
+  @override
+  void dispose() {
+    _notificationCheckTimer?.cancel();
+    super.dispose();
+  }
+
+  /// Periodically check if any goal notifications should be shown
+  /// This is a fallback in case Android blocks scheduled notifications
+  void _startNotificationChecker() {
+    _notificationCheckTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      _checkAndShowPendingNotifications();
+    });
+  }
+
+  /// Check if any goal reminders are due and show them
+  /// This is a fallback in case Android blocks scheduled notifications
+  Future<void> _checkAndShowPendingNotifications() async {
+    final now = DateTime.now();
+    final notificationService = NotificationService();
+    await notificationService.initialize();
+    
+    for (var goal in activeGoals) {
+      // Check if reminder time has passed (within last 5 minutes to avoid duplicates)
+      final timeDiff = goal.reminderTime.difference(now);
+      if (timeDiff.isNegative && timeDiff.inMinutes.abs() <= 5) {
+        // Show the actual goal reminder notification
+        final AndroidNotificationDetails androidDetails =
+            AndroidNotificationDetails(
+          'goal_reminders',
+          'Goal Reminders',
+          channelDescription: 'Notifications for goal reminders',
+          importance: Importance.high,
+          priority: Priority.high,
+          showWhen: true,
+          enableVibration: true,
+          playSound: true,
+        );
+
+        final DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        );
+
+        final NotificationDetails notificationDetails = NotificationDetails(
+          android: androidDetails,
+          iOS: iosDetails,
+        );
+
+        await notificationService.notifications.show(
+          goal.goalId.hashCode + 1000000, // Use different ID to avoid conflicts
+          'Goal Reminder: ${goal.name}',
+          'You have 1 hour left to complete your goal: ${goal.target} ${goal.unit}',
+          notificationDetails,
+        );
+        
+        print('🔔 Showing reminder for goal: ${goal.name} (fallback method)');
+      }
+    }
+  }
+
+  /// Load goals from local storage
+  Future<void> _loadGoals() async {
+    final storage = GoalsStorageService();
+    final savedGoals = await storage.loadGoals();
+    
+    setState(() {
+      activeGoals.clear();
+      activeGoals.addAll(savedGoals);
+    });
+    
+    // Reschedule notifications for all loaded goals
+    await _rescheduleAllNotifications();
+  }
+
+  /// Save goals to local storage
+  Future<void> _saveGoals() async {
+    final storage = GoalsStorageService();
+    await storage.saveGoals(activeGoals);
+  }
+
+  /// Reschedule notifications for all active goals
+  Future<void> _rescheduleAllNotifications() async {
+    final notificationService = NotificationService();
+    await notificationService.initialize();
+    
+    final now = DateTime.now();
+    
+    for (var goal in activeGoals) {
+      // Only reschedule if reminder time is in the future
+      if (goal.reminderTime.isAfter(now)) {
+        print('🔄 Rescheduling notification for goal: ${goal.name}');
+        print('   Reminder time: ${goal.reminderTime}');
+        print('   Current time: $now');
+        print('   Time until: ${goal.reminderTime.difference(now).inMinutes} minutes');
+        
+        final scheduled = await notificationService.scheduleNotification(
+          id: goal.goalId.hashCode,
+          title: 'Goal Reminder: ${goal.name}',
+          body: 'You have 1 hour left to complete your goal: ${goal.target} ${goal.unit}',
+          scheduledDate: goal.reminderTime,
+          payload: goal.goalId,
+        );
+        
+        if (scheduled) {
+          print('✅ Rescheduled notification for goal: ${goal.name}');
+        } else {
+          print('⚠️ Failed to reschedule notification for goal: ${goal.name}');
+        }
+      } else {
+        print('⏭️ Skipped past reminder for goal: ${goal.name} (${goal.reminderTime})');
+      }
+    }
   }
 
   // NOTE: Persistence methods (_loadGoals, _saveGoals, _deleteGoal)
   // have been simplified below to only manage the in-memory list.
 
   // --- DELETE Goal Logic (simplified) ---
-  void _deleteGoal(
+  Future<void> _deleteGoal(
     String goalId,
-  ) {
+  ) async {
+    // Cancel notification before deleting
+    await NotificationService().cancelNotification(goalId.hashCode);
+    
     setState(
       () {
         activeGoals.removeWhere(
@@ -103,9 +229,12 @@ class _PersonalizedGoalsViewState
               goal.goalId ==
               goalId,
         );
-        // Removed _saveGoals() call
       },
     );
+    
+    // Save to local storage
+    await _saveGoals();
+    
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(
@@ -133,10 +262,8 @@ class _PersonalizedGoalsViewState
             ),
       ),
     );
-    // Force rebuild of the list after returning
-    setState(
-      () {},
-    );
+    // Reload goals from storage and refresh the list
+    await _loadGoals();
   }
 
   @override
@@ -207,16 +334,96 @@ class _PersonalizedGoalsViewState
             ),
 
       // --- Floating Action Button (FAB) ---
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _navigateToAddOrEditGoal(
-          context,
-        ), // Create new goal
-        backgroundColor: kAccentColor,
-        child: const Icon(
-          Icons.add,
-          color: Colors.white,
-          size: 30,
-        ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // Test scheduled notification button
+          FloatingActionButton(
+            heroTag: "test_scheduled",
+            onPressed: () async {
+              final notificationService = NotificationService();
+              await notificationService.initialize();
+              final success = await notificationService.testScheduledNotification();
+              
+              // Show detailed message
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        success
+                            ? '✅ Test notification scheduled!'
+                            : '❌ Failed to schedule. Check console.',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      if (success) ...[
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Wait 10 seconds. If it doesn\'t appear:\n'
+                          '1. Check Settings → Apps → FitTrack → Alarms & reminders\n'
+                          '2. Disable battery optimization\n'
+                          '3. Keep app in foreground',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                      ],
+                    ],
+                  ),
+                  duration: const Duration(seconds: 8),
+                ),
+              );
+            },
+            backgroundColor: Colors.green,
+            mini: true,
+            child: const Icon(
+              Icons.schedule,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Test immediate notification button
+          FloatingActionButton(
+            heroTag: "test_notification",
+            onPressed: () async {
+              final notificationService = NotificationService();
+              await notificationService.initialize();
+              final success = await notificationService.showTestNotification();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    success
+                        ? 'Test notification sent! Check your notification bar.'
+                        : 'Failed to show test notification. Check console for details.',
+                  ),
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            },
+            backgroundColor: Colors.blue,
+            mini: true,
+            child: const Icon(
+              Icons.notifications_active,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Add goal button
+          FloatingActionButton(
+            heroTag: "add_goal",
+            onPressed: () => _navigateToAddOrEditGoal(
+              context,
+            ), // Create new goal
+            backgroundColor: kAccentColor,
+            child: const Icon(
+              Icons.add,
+              color: Colors.white,
+              size: 30,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -623,7 +830,7 @@ class _GoalSetFormViewState
   }
 
   // --- Goal Setting/Updating Logic ---
-  void _setGoal() {
+  Future<void> _setGoal() async {
     if (_goalNameController.text.isEmpty ||
         _targetValueController.text.isEmpty) {
       ScaffoldMessenger.of(
@@ -667,6 +874,14 @@ class _GoalSetFormViewState
           _currentGoalId,
     );
 
+    // Cancel old notification if editing
+    if (existingIndex >= 0) {
+      final oldGoal = activeGoals[existingIndex];
+      await NotificationService().cancelNotification(
+        oldGoal.goalId.hashCode,
+      );
+    }
+
     if (existingIndex >=
         0) {
       activeGoals[existingIndex] = newOrUpdatedGoal;
@@ -676,8 +891,44 @@ class _GoalSetFormViewState
       );
     }
 
-    // The parent list view will call _loadGoals() which will internally trigger _saveGoals()
-    // on its next rebuild, but for safety, we force the rebuild logic here.
+    // Save goals to local storage first
+    final storage = GoalsStorageService();
+    await storage.saveGoals(activeGoals);
+    print('💾 Goals saved to local storage');
+
+    // Schedule notification 1 hour before deadline
+    final notificationService = NotificationService();
+    await notificationService.initialize();
+    
+    // Debug: Print notification time details
+    print('🔔 Scheduling notification:');
+    print('   Goal Deadline: ${newOrUpdatedGoal.deadline}');
+    print('   Notification Time (1 hour before): $notificationTime');
+    print('   Current Time: ${DateTime.now()}');
+    print('   Time until notification: ${notificationTime.difference(DateTime.now()).inMinutes} minutes');
+    
+    // Only schedule if notification time is in the future
+    bool notificationScheduled = false;
+    if (notificationTime.isAfter(DateTime.now())) {
+      notificationScheduled = await notificationService.scheduleNotification(
+        id: newOrUpdatedGoal.goalId.hashCode,
+        title: 'Goal Reminder: ${newOrUpdatedGoal.name}',
+        body: 'You have 1 hour left to complete your goal: ${newOrUpdatedGoal.target} ${unit}',
+        scheduledDate: notificationTime,
+        payload: newOrUpdatedGoal.goalId,
+      );
+      
+      if (notificationScheduled) {
+        print('✅ Notification scheduled successfully');
+      } else {
+        print('⚠️ Failed to schedule notification');
+      }
+      
+      // Debug: Print all pending notifications
+      await notificationService.debugPrintPendingNotifications();
+    } else {
+      print('⚠️ Notification time is in the past, skipping schedule');
+    }
 
     // Show confirmation dialog
     showDialog(
@@ -692,8 +943,59 @@ class _GoalSetFormViewState
                   ? 'Goal Updated!'
                   : 'Goal Set Successfully!',
             ),
-            content: Text(
-              'Goal: ${newOrUpdatedGoal.name}\nTarget: ${newOrUpdatedGoal.target} ${unit}',
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Goal: ${newOrUpdatedGoal.name}\nTarget: ${newOrUpdatedGoal.target} ${unit}',
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Goal saved to local storage ✅',
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (notificationScheduled)
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.notifications_active,
+                        color: Colors.green,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Reminder scheduled',
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.notifications_off,
+                        color: Colors.orange,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Reminder not scheduled',
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
             ),
             actions:
                 <

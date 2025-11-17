@@ -10,6 +10,7 @@ import 'workout_tracker_view.dart';
 import 'personalized_goals_view.dart';
 import 'posture_analysis_view.dart';
 import 'auth_page.dart';
+import 'steps_history_view.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({
@@ -654,6 +655,49 @@ class _HomePageState extends State<HomePage> {
                                 WorkoutTrackerView(controller: widget.controller),
                           ),
                         );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    ListenableBuilder(
+                      listenable: widget.authController,
+                      builder: (context, child) {
+                        if (widget.authController.isAuthenticated) {
+                          return _buildModernActionCard(
+                            context: context,
+                            icon: Icons.history_rounded,
+                            iconColor: Colors.purple.shade600,
+                            iconBgColor: Colors.purple.shade600.withOpacity(0.1),
+                            title: 'Steps History',
+                            subtitle: 'View your daily steps history',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => StepsHistoryView(
+                                    authController: widget.authController,
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        } else {
+                          return _buildModernActionCard(
+                            context: context,
+                            icon: Icons.history_rounded,
+                            iconColor: Colors.grey.shade400,
+                            iconBgColor: Colors.grey.shade100,
+                            title: 'Steps History',
+                            subtitle: 'Sign in to view your steps history',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => AuthPage(
+                                    authController: widget.authController,
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        }
                       },
                     ),
                   ],
