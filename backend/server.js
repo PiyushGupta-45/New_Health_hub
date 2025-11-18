@@ -752,7 +752,7 @@ app.post('/api/community/leave', verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Community ID required' });
     }
 
-    const communityObjectId = ObjectId(communityId);
+    const communityObjectId = new ObjectId(communityId);
     const community = await Community.findById(communityObjectId);
     
     if (!community) {
@@ -767,7 +767,6 @@ app.post('/api/community/leave', verifyToken, async (req, res) => {
       });
     }
 
-    // Remove user from members array
     community.members = (community.members || []).filter(
       (m) => m.userId.toString() !== req.userId.toString()
     );
@@ -786,7 +785,7 @@ app.delete('/api/community/delete/:communityId', verifyToken, async (req, res) =
   try {
     const { communityId } = req.params;
 
-    const communityObjectId = ObjectId(communityId);
+    const communityObjectId = new ObjectId(communityId);
     const community = await Community.findById(communityObjectId);
     
     if (!community) return res.status(404).json({ success: false, message: 'Not found' });
@@ -811,8 +810,8 @@ app.post('/api/community/transfer-owner', verifyToken, async (req, res) => {
   try {
     const { communityId, newOwnerId } = req.body;
 
-    const communityObjectId = ObjectId(communityId);
-    const newOwnerObjectId = ObjectId(newOwnerId);
+    const communityObjectId = new ObjectId(communityId);
+    const newOwnerObjectId = new ObjectId(newOwnerId);
     const community = await Community.findById(communityObjectId);
     
     if (!community) return res.status(404).json({ success: false, message: 'Not found' });
