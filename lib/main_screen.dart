@@ -7,6 +7,7 @@ import 'controllers/auth_controller.dart';
 import 'pages/about_page.dart';
 import 'pages/features_view.dart';
 import 'pages/home_page.dart';
+import 'pages/community_page.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -50,6 +51,7 @@ class _MainScreenState extends State<MainScreen> {
           ),
           FeaturesView(controller: _healthSyncController),
           const AboutPage(),
+          const CommunityPage(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -59,12 +61,17 @@ class _MainScreenState extends State<MainScreen> {
         showUnselectedLabels: true,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
+        type: BottomNavigationBarType.fixed,
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.star), label: 'Features'),
           BottomNavigationBarItem(
             icon: Icon(Icons.info_outline),
             label: 'About',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.people),
+            label: 'Community',
           ),
         ],
       ),
