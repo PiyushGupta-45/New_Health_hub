@@ -28,7 +28,7 @@ class _CommunityPageState extends State<CommunityPage> {
   Map<String, dynamic>? _selectedCommunity;
   bool _isLoading = false;
   bool _isLoadingMessages = false;
-  bool _isGoogleUser = false;
+  bool _isAuthenticated = false;
   String? _userId;
   Timer? _messageRefreshTimer;
   Timer? _checkTimer;
@@ -36,11 +36,11 @@ class _CommunityPageState extends State<CommunityPage> {
   @override
   void initState() {
     super.initState();
-    _checkGoogleSignIn();
-    // Refresh check periodically in case user signs in
-    Timer.periodic(const Duration(seconds: 2), (timer) {
-      if (!_isGoogleUser && mounted) {
-        _checkGoogleSignIn();
+    _checkAuthStatus();
+    // Refresh auth status periodically in case user signs in/out elsewhere
+    _checkTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (!_isAuthenticated && mounted) {
+        _checkAuthStatus();
       } else {
         timer.cancel();
       }
@@ -58,82 +58,46 @@ class _CommunityPageState extends State<CommunityPage> {
     super.dispose();
   }
 
-  Future<void> _checkGoogleSignIn() async {
+  Future<void> _checkAuthStatus() async {
     final user = await _authService.getStoredUser();
-    if (user == null) {
-      setState(() {
-        _isGoogleUser = false;
-        _userId = null;
-      });
-      return;
-    }
+    final token = await _authService.getAuthToken();
 
-    final userId = user['id']?.toString();
-    if (userId == null) {
+    if (!mounted) return;
+
+    if (user == null || token == null || token.isEmpty) {
       setState(() {
-        _isGoogleUser = false;
+        _isAuthenticated = false;
         _userId = null;
+        _myCommunities.clear();
+        _publicCommunities.clear();
+        _messages.clear();
+        _selectedCommunity = null;
       });
       return;
     }
 
     setState(() {
-      _userId = userId;
+      _userId = user['id']?.toString();
+      _isAuthenticated = true;
     });
 
-    // Check if user has googleId in stored data
-    final googleId = user['googleId'];
-    final hasGoogleId = googleId != null && googleId.toString().isNotEmpty;
+    await _loadMyCommunities();
+    await _loadPublicCommunities();
+  }
 
-    // If we have googleId, user is definitely a Google user
-    if (hasGoogleId) {
-      setState(() {
-        _isGoogleUser = true;
-      });
-      _loadMyCommunities();
-      _loadPublicCommunities();
-      return;
-    }
-
-    // If no googleId in stored data, verify by making an API call
-    // The backend will verify if user is actually a Google user
-    try {
-      final result = await _communityService.getMyCommunities();
-      
-      // Debug logging
-      print('🔍 Community API Result: ${result['success']}');
-      print('🔍 Error: ${result['error']}');
-      
-      // If API call succeeds, user is a Google user (backend verified)
-      if (result['success'] == true) {
-        setState(() {
-          _isGoogleUser = true;
-        });
-        _loadMyCommunities();
-        _loadPublicCommunities();
-      } else {
-        // Check if error is specifically about Google sign-in
-        final error = result['error']?.toString().toLowerCase() ?? '';
-        final isGoogleError = error.contains('google') || error.contains('sign-in');
-        
-        print('🔍 Is Google Error: $isGoogleError');
-        print('🔍 Full Error: $error');
-        
-        setState(() {
-          _isGoogleUser = false;
-        });
-      }
-    } catch (e) {
-      // On error, assume not a Google user
-      print('🔍 Exception during Google check: $e');
-      setState(() {
-        _isGoogleUser = false;
-      });
-    }
+  bool _isAuthError(String? error) {
+    if (error == null) return false;
+    final normalized = error.toLowerCase();
+    return normalized.contains('auth') ||
+        normalized.contains('token') ||
+        normalized.contains('sign in') ||
+        normalized.contains('signin') ||
+        normalized.contains('unauthorized') ||
+        normalized.contains('expired');
   }
 
   Future<void> _loadMyCommunities() async {
-    if (!_isGoogleUser) return;
+    if (!_isAuthenticated) return;
     setState(() => _isLoading = true);
 
     final result = await _communityService.getMyCommunities();
@@ -143,12 +107,27 @@ class _CommunityPageState extends State<CommunityPage> {
         _isLoading = false;
       });
     } else {
+      final error = result['error']?.toString();
+      if (_isAuthError(error)) {
+        await _authService.clearUser();
+        if (mounted) {
+          setState(() {
+            _isAuthenticated = false;
+            _userId = null;
+          });
+        }
+      }
       setState(() => _isLoading = false);
+      if (mounted && error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error)),
+        );
+      }
     }
   }
 
   Future<void> _loadPublicCommunities() async {
-    if (!_isGoogleUser) return;
+    if (!_isAuthenticated) return;
 
     final result = await _communityService.getPublicCommunities();
     if (result['success'] == true && mounted) {
@@ -157,6 +136,22 @@ class _CommunityPageState extends State<CommunityPage> {
           result['data'] ?? [],
         );
       });
+    } else {
+      final error = result['error']?.toString();
+      if (_isAuthError(error)) {
+        await _authService.clearUser();
+        if (mounted) {
+          setState(() {
+            _isAuthenticated = false;
+            _userId = null;
+          });
+        }
+      }
+      if (mounted && error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error)),
+        );
+      }
     }
   }
 
@@ -491,8 +486,8 @@ class _CommunityPageState extends State<CommunityPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Check if user is signed in with Google
-    if (!_isGoogleUser) {
+    // Check if user is signed in
+    if (!_isAuthenticated) {
       return Scaffold(
         backgroundColor: const Color(0xFFF4F6F9),
         appBar: AppBar(
@@ -503,7 +498,7 @@ class _CommunityPageState extends State<CommunityPage> {
             IconButton(
               icon: const Icon(Icons.refresh),
               onPressed: () {
-                _checkGoogleSignIn();
+                _checkAuthStatus();
               },
               tooltip: 'Refresh',
             ),
@@ -518,7 +513,7 @@ class _CommunityPageState extends State<CommunityPage> {
                 Icon(Icons.lock_outline, size: 64, color: Colors.grey.shade400),
                 const SizedBox(height: 16),
                 Text(
-                  'Google Sign-In Required',
+                  'Sign-In Required',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -527,14 +522,14 @@ class _CommunityPageState extends State<CommunityPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Please sign in with Google to access the community features.',
+                  'Please sign in to access the community features.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton.icon(
                   onPressed: () {
-                    _checkGoogleSignIn();
+                    _checkAuthStatus();
                   },
                   icon: const Icon(Icons.refresh),
                   label: const Text('Check Again'),
@@ -549,7 +544,7 @@ class _CommunityPageState extends State<CommunityPage> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'If you just signed in with Google, click "Check Again" to refresh.',
+                  'If you just signed in, click "Check Again" to refresh.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.grey.shade500,

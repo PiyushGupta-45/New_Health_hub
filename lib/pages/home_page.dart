@@ -53,6 +53,7 @@ class _HomePageState extends State<HomePage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         // Clear any old cached data and force a fresh sync
         widget.controller.clearCache();
+        widget.controller.hydrateFromBackend();
         widget.controller.sync(force: true);
       });
     }
@@ -70,6 +71,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _onSyncPressed() {
+    widget.controller.hydrateFromBackend();
     widget.controller.sync(force: true);
   }
 

@@ -86,6 +86,15 @@ class _PersonalizedGoalsViewState
   // Flag removed, as we no longer wait for loading
 
   Timer? _notificationCheckTimer;
+  final Map<
+    String,
+    DateTime
+  >
+  _fallbackReminderShownAt = {};
+  final Set<
+    String
+  >
+  _goalsWithScheduledNotifications = {};
 
   @override
   void initState() {
@@ -104,25 +113,88 @@ class _PersonalizedGoalsViewState
   /// Periodically check if any goal notifications should be shown
   /// This is a fallback in case Android blocks scheduled notifications
   void _startNotificationChecker() {
-    _notificationCheckTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      _checkAndShowPendingNotifications();
-    });
+    _notificationCheckTimer = Timer.periodic(
+      const Duration(
+        seconds: 30,
+      ),
+      (
+        timer,
+      ) {
+        _checkAndShowPendingNotifications();
+      },
+    );
+  }
+
+  void _updateGoalScheduleStatus(
+    String goalId,
+    bool scheduled,
+  ) {
+    if (scheduled) {
+      _goalsWithScheduledNotifications.add(
+        goalId,
+      );
+    } else {
+      _goalsWithScheduledNotifications.remove(
+        goalId,
+      );
+    }
   }
 
   /// Check if any goal reminders are due and show them
   /// This is a fallback in case Android blocks scheduled notifications
-  Future<void> _checkAndShowPendingNotifications() async {
+  Future<
+    void
+  >
+  _checkAndShowPendingNotifications() async {
     final now = DateTime.now();
     final notificationService = NotificationService();
     await notificationService.initialize();
-    
+    final pendingIds = (await notificationService.getPendingNotifications())
+        .map(
+          (
+            n,
+          ) => n.id,
+        )
+        .toSet();
+
     for (var goal in activeGoals) {
+      if (_goalsWithScheduledNotifications.contains(
+        goal.goalId,
+      )) {
+        continue;
+      }
+
+      final reminderId = NotificationService.stableIdFromKey(
+        goal.goalId,
+        scope: 'goal',
+      );
+      // Skip fallback if the platform still has a pending scheduled notification
+      if (pendingIds.contains(
+        reminderId,
+      )) {
+        continue;
+      }
+
       // Check if reminder time has passed (within last 5 minutes to avoid duplicates)
-      final timeDiff = goal.reminderTime.difference(now);
-      if (timeDiff.isNegative && timeDiff.inMinutes.abs() <= 5) {
+      final timeDiff = now.difference(
+        goal.reminderTime,
+      );
+      final alreadyShownTime = _fallbackReminderShownAt[goal.goalId];
+      final reminderAlreadyShown =
+          alreadyShownTime !=
+              null &&
+          alreadyShownTime.isAtSameMomentAs(
+            goal.reminderTime,
+          );
+
+      if (!timeDiff.isNegative &&
+          timeDiff <=
+              const Duration(
+                minutes: 5,
+              ) &&
+          !reminderAlreadyShown) {
         // Show the actual goal reminder notification
-        final AndroidNotificationDetails androidDetails =
-            AndroidNotificationDetails(
+        final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
           'goal_reminders',
           'Goal Reminders',
           channelDescription: 'Notifications for goal reminders',
@@ -143,69 +215,124 @@ class _PersonalizedGoalsViewState
           android: androidDetails,
           iOS: iosDetails,
         );
+        final fallbackId = NotificationService.stableIdFromKey(
+          goal.goalId,
+          scope: 'goal_fallback',
+        );
 
         await notificationService.notifications.show(
-          goal.goalId.hashCode + 1000000, // Use different ID to avoid conflicts
+          fallbackId,
           'Goal Reminder: ${goal.name}',
           'You have 1 hour left to complete your goal: ${goal.target} ${goal.unit}',
           notificationDetails,
         );
-        
-        print('🔔 Showing reminder for goal: ${goal.name} (fallback method)');
+        _fallbackReminderShownAt[goal.goalId] = goal.reminderTime;
+
+        print(
+          '🔔 Showing reminder for goal: ${goal.name} (fallback method)',
+        );
       }
     }
   }
 
   /// Load goals from local storage
-  Future<void> _loadGoals() async {
+  Future<
+    void
+  >
+  _loadGoals() async {
     final storage = GoalsStorageService();
     final savedGoals = await storage.loadGoals();
-    
-    setState(() {
-      activeGoals.clear();
-      activeGoals.addAll(savedGoals);
-    });
-    
+
+    setState(
+      () {
+        activeGoals.clear();
+        activeGoals.addAll(
+          savedGoals,
+        );
+        _goalsWithScheduledNotifications.clear();
+      },
+    );
+
     // Reschedule notifications for all loaded goals
     await _rescheduleAllNotifications();
   }
 
   /// Save goals to local storage
-  Future<void> _saveGoals() async {
+  Future<
+    void
+  >
+  _saveGoals() async {
     final storage = GoalsStorageService();
-    await storage.saveGoals(activeGoals);
+    await storage.saveGoals(
+      activeGoals,
+    );
   }
 
   /// Reschedule notifications for all active goals
-  Future<void> _rescheduleAllNotifications() async {
+  Future<
+    void
+  >
+  _rescheduleAllNotifications() async {
     final notificationService = NotificationService();
     await notificationService.initialize();
-    
+
     final now = DateTime.now();
-    
+
     for (var goal in activeGoals) {
       // Only reschedule if reminder time is in the future
-      if (goal.reminderTime.isAfter(now)) {
-        print('🔄 Rescheduling notification for goal: ${goal.name}');
-        print('   Reminder time: ${goal.reminderTime}');
-        print('   Current time: $now');
-        print('   Time until: ${goal.reminderTime.difference(now).inMinutes} minutes');
-        
+      if (goal.reminderTime.isAfter(
+        now,
+      )) {
+        print(
+          '🔄 Rescheduling notification for goal: ${goal.name}',
+        );
+        print(
+          '   Reminder time: ${goal.reminderTime}',
+        );
+        print(
+          '   Current time: $now',
+        );
+        print(
+          '   Time until: ${goal.reminderTime.difference(now).inMinutes} minutes',
+        );
+        final notificationId = NotificationService.stableIdFromKey(
+          goal.goalId,
+          scope: 'goal',
+        );
+
         final scheduled = await notificationService.scheduleNotification(
-          id: goal.goalId.hashCode,
+          id: notificationId,
           title: 'Goal Reminder: ${goal.name}',
           body: 'You have 1 hour left to complete your goal: ${goal.target} ${goal.unit}',
           scheduledDate: goal.reminderTime,
           payload: goal.goalId,
         );
-        
+
         if (scheduled) {
-          print('✅ Rescheduled notification for goal: ${goal.name}');
+          print(
+            '✅ Rescheduled notification for goal: ${goal.name}',
+          );
+          _updateGoalScheduleStatus(
+            goal.goalId,
+            true,
+          );
         } else {
-          print('⚠️ Failed to reschedule notification for goal: ${goal.name}');
+          print(
+            '⚠️ Failed to reschedule notification for goal: ${goal.name}',
+          );
+          _updateGoalScheduleStatus(
+            goal.goalId,
+            false,
+          );
         }
       } else {
-        print('⏭️ Skipped past reminder for goal: ${goal.name} (${goal.reminderTime})');
+        print(
+          '⏭️ Skipped past reminder for goal: ${goal.name} (${goal.reminderTime})',
+        );
+        _updateGoalScheduleStatus(
+          goal.goalId,
+          false,
+        );
       }
     }
   }
@@ -214,12 +341,25 @@ class _PersonalizedGoalsViewState
   // have been simplified below to only manage the in-memory list.
 
   // --- DELETE Goal Logic (simplified) ---
-  Future<void> _deleteGoal(
+  Future<
+    void
+  >
+  _deleteGoal(
     String goalId,
   ) async {
     // Cancel notification before deleting
-    await NotificationService().cancelNotification(goalId.hashCode);
-    
+    final notificationId = NotificationService.stableIdFromKey(
+      goalId,
+      scope: 'goal',
+    );
+    await NotificationService().cancelNotification(
+      notificationId,
+    );
+    _updateGoalScheduleStatus(
+      goalId,
+      false,
+    );
+
     setState(
       () {
         activeGoals.removeWhere(
@@ -231,10 +371,10 @@ class _PersonalizedGoalsViewState
         );
       },
     );
-    
+
     // Save to local storage
     await _saveGoals();
-    
+
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(
@@ -344,9 +484,11 @@ class _PersonalizedGoalsViewState
               final notificationService = NotificationService();
               await notificationService.initialize();
               final success = await notificationService.testScheduledNotification();
-              
+
               // Show detailed message
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(
                 SnackBar(
                   content: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -356,21 +498,29 @@ class _PersonalizedGoalsViewState
                         success
                             ? '✅ Test notification scheduled!'
                             : '❌ Failed to schedule. Check console.',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       if (success) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(
+                          height: 4,
+                        ),
                         const Text(
                           'Wait 10 seconds. If it doesn\'t appear:\n'
                           '1. Check Settings → Apps → FitTrack → Alarms & reminders\n'
                           '2. Disable battery optimization\n'
                           '3. Keep app in foreground',
-                          style: TextStyle(fontSize: 11),
+                          style: TextStyle(
+                            fontSize: 11,
+                          ),
                         ),
                       ],
                     ],
                   ),
-                  duration: const Duration(seconds: 8),
+                  duration: const Duration(
+                    seconds: 8,
+                  ),
                 ),
               );
             },
@@ -382,7 +532,9 @@ class _PersonalizedGoalsViewState
               size: 20,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(
+            height: 10,
+          ),
           // Test immediate notification button
           FloatingActionButton(
             heroTag: "test_notification",
@@ -390,14 +542,18 @@ class _PersonalizedGoalsViewState
               final notificationService = NotificationService();
               await notificationService.initialize();
               final success = await notificationService.showTestNotification();
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(
                 SnackBar(
                   content: Text(
                     success
                         ? 'Test notification sent! Check your notification bar.'
                         : 'Failed to show test notification. Check console for details.',
                   ),
-                  duration: const Duration(seconds: 3),
+                  duration: const Duration(
+                    seconds: 3,
+                  ),
                 ),
               );
             },
@@ -409,7 +565,9 @@ class _PersonalizedGoalsViewState
               size: 20,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(
+            height: 10,
+          ),
           // Add goal button
           FloatingActionButton(
             heroTag: "add_goal",
@@ -830,7 +988,10 @@ class _GoalSetFormViewState
   }
 
   // --- Goal Setting/Updating Logic ---
-  Future<void> _setGoal() async {
+  Future<
+    void
+  >
+  _setGoal() async {
     if (_goalNameController.text.isEmpty ||
         _targetValueController.text.isEmpty) {
       ScaffoldMessenger.of(
@@ -875,10 +1036,15 @@ class _GoalSetFormViewState
     );
 
     // Cancel old notification if editing
-    if (existingIndex >= 0) {
+    if (existingIndex >=
+        0) {
       final oldGoal = activeGoals[existingIndex];
+      final oldNotificationId = NotificationService.stableIdFromKey(
+        oldGoal.goalId,
+        scope: 'goal',
+      );
       await NotificationService().cancelNotification(
-        oldGoal.goalId.hashCode,
+        oldNotificationId,
       );
     }
 
@@ -893,42 +1059,74 @@ class _GoalSetFormViewState
 
     // Save goals to local storage first
     final storage = GoalsStorageService();
-    await storage.saveGoals(activeGoals);
-    print('💾 Goals saved to local storage');
+    await storage.saveGoals(
+      activeGoals,
+    );
+    print(
+      '💾 Goals saved to local storage',
+    );
 
     // Schedule notification 1 hour before deadline
     final notificationService = NotificationService();
     await notificationService.initialize();
-    
+
     // Debug: Print notification time details
-    print('🔔 Scheduling notification:');
-    print('   Goal Deadline: ${newOrUpdatedGoal.deadline}');
-    print('   Notification Time (1 hour before): $notificationTime');
-    print('   Current Time: ${DateTime.now()}');
-    print('   Time until notification: ${notificationTime.difference(DateTime.now()).inMinutes} minutes');
-    
+    print(
+      '🔔 Scheduling notification:',
+    );
+    print(
+      '   Goal Deadline: ${newOrUpdatedGoal.deadline}',
+    );
+    print(
+      '   Notification Time (1 hour before): $notificationTime',
+    );
+    print(
+      '   Current Time: ${DateTime.now()}',
+    );
+    print(
+      '   Time until notification: ${notificationTime.difference(DateTime.now()).inMinutes} minutes',
+    );
+
     // Only schedule if notification time is in the future
     bool notificationScheduled = false;
-    if (notificationTime.isAfter(DateTime.now())) {
+    if (notificationTime.isAfter(
+      DateTime.now(),
+    )) {
+      final notificationId = NotificationService.stableIdFromKey(
+        newOrUpdatedGoal.goalId,
+        scope: 'goal',
+      );
       notificationScheduled = await notificationService.scheduleNotification(
-        id: newOrUpdatedGoal.goalId.hashCode,
+        id: notificationId,
         title: 'Goal Reminder: ${newOrUpdatedGoal.name}',
         body: 'You have 1 hour left to complete your goal: ${newOrUpdatedGoal.target} ${unit}',
         scheduledDate: notificationTime,
         payload: newOrUpdatedGoal.goalId,
       );
-      
+
       if (notificationScheduled) {
-        print('✅ Notification scheduled successfully');
+        print(
+          '✅ Notification scheduled successfully',
+        );
       } else {
-        print('⚠️ Failed to schedule notification');
+        print(
+          '⚠️ Failed to schedule notification',
+        );
       }
-      
+
       // Debug: Print all pending notifications
       await notificationService.debugPrintPendingNotifications();
     } else {
-      print('⚠️ Notification time is in the past, skipping schedule');
+      print(
+        '⚠️ Notification time is in the past, skipping schedule',
+      );
     }
+
+    // Update the parent state's goal schedule status
+    _parentState?._updateGoalScheduleStatus(
+      newOrUpdatedGoal.goalId,
+      notificationScheduled,
+    );
 
     // Show confirmation dialog
     showDialog(
@@ -950,7 +1148,9 @@ class _GoalSetFormViewState
                 Text(
                   'Goal: ${newOrUpdatedGoal.name}\nTarget: ${newOrUpdatedGoal.target} ${unit}',
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(
+                  height: 10,
+                ),
                 Text(
                   'Goal saved to local storage ✅',
                   style: TextStyle(
@@ -958,7 +1158,9 @@ class _GoalSetFormViewState
                     fontSize: 12,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(
+                  height: 10,
+                ),
                 if (notificationScheduled)
                   Row(
                     children: [
@@ -967,7 +1169,9 @@ class _GoalSetFormViewState
                         color: Colors.green,
                         size: 20,
                       ),
-                      const SizedBox(width: 5),
+                      const SizedBox(
+                        width: 5,
+                      ),
                       Text(
                         'Reminder scheduled',
                         style: TextStyle(
@@ -985,7 +1189,9 @@ class _GoalSetFormViewState
                         color: Colors.orange,
                         size: 20,
                       ),
-                      const SizedBox(width: 5),
+                      const SizedBox(
+                        width: 5,
+                      ),
                       Text(
                         'Reminder not scheduled',
                         style: TextStyle(

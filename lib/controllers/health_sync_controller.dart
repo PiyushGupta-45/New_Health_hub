@@ -33,6 +33,8 @@ class HealthSyncController extends ChangeNotifier {
   
   DateTime? _lastSyncedToBackend;
   static const Duration _syncInterval = Duration(minutes: 5); // Sync every 5 minutes
+  bool _hydratedFromBackend = false;
+  bool _hydratingFromBackend = false;
 
   void _initializeStepListener() {
     // Start listening to step counter for real-time updates
@@ -58,6 +60,73 @@ class HealthSyncController extends ChangeNotifier {
         }
       }
     });
+  }
+
+  Future<void> hydrateFromBackend() async {
+    if (_hydratedFromBackend || _hydratingFromBackend) return;
+    _hydratingFromBackend = true;
+    try {
+      final token = await _stepsSyncService.getAuthToken();
+      if (token == null || token.isEmpty) {
+        return;
+      }
+
+      final result = await _stepsSyncService.getTodaySteps();
+      if (result['success'] == true) {
+        final data = result['data'] as Map<String, dynamic>? ?? {};
+        final steps = (data['steps'] is num) ? (data['steps'] as num).toInt() : 0;
+        final source = data['source']?.toString() ?? 'Cloud Sync';
+        final dateString = data['date']?.toString();
+        final dataDate = dateString != null ? DateTime.tryParse(dateString) : null;
+        final now = DateTime.now();
+        final referenceDate = dataDate ?? now;
+        final rangeStart = referenceDate.subtract(const Duration(days: 7));
+
+        if (_snapshot == null || steps > (_snapshot?.todaySteps ?? 0)) {
+          _snapshot = HealthSyncSnapshot(
+            todaySteps: steps,
+            workouts: _snapshot?.workouts ?? const [],
+            rangeStart: rangeStart,
+            rangeEnd: referenceDate,
+            locationPermissionGranted: _snapshot?.locationPermissionGranted ?? false,
+            stepsBySource: {
+              'Cloud Sync': steps,
+            },
+            primaryStepsSource: source,
+          );
+          _status = HealthSyncStatus.ready;
+          _lastSyncedAt = referenceDate;
+          notifyListeners();
+        }
+
+        await _alignSensorBaselineWithServer(steps);
+        _hydratedFromBackend = true;
+      } else {
+        final error = result['error']?.toString().toLowerCase() ?? '';
+        if (error.contains('auth') ||
+            error.contains('token') ||
+            error.contains('unauthorized')) {
+          _hydratedFromBackend = true; // avoid repeated unauthorized calls
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Failed to hydrate steps from backend: $e');
+      }
+    } finally {
+      _hydratingFromBackend = false;
+    }
+  }
+
+  Future<void> _alignSensorBaselineWithServer(int steps) async {
+    if (steps <= 0) return;
+    final currentCount = await _directStepService.getCurrentStepCount();
+    if (currentCount == null || currentCount <= 0) return;
+    final targetBaseline = currentCount - steps;
+    if (targetBaseline < 0) return;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    await _directStepService.setBaseline(targetBaseline, today);
   }
 
   // Sync steps to backend (throttled to avoid too many requests)
@@ -246,6 +315,7 @@ class HealthSyncController extends ChangeNotifier {
     _status = HealthSyncStatus.idle;
     _errorMessage = null;
     _lastError = null;
+    _hydratedFromBackend = false;
     notifyListeners();
   }
 

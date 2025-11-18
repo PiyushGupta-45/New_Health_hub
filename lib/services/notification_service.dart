@@ -9,35 +9,65 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _notifications =
-      FlutterLocalNotificationsPlugin();
+  /// Generates a deterministic (and platform-stable) notification id from
+  /// a unique string key. This avoids relying on `hashCode`, whose value can
+  /// change across app launches and lead to duplicate or orphaned schedules.
+  static int stableIdFromKey(
+    String key, {
+    String scope = 'default',
+  }) {
+    final effectiveKey = '$scope::$key';
+    int hash = 5381;
+    for (final codeUnit in effectiveKey.codeUnits) {
+      hash =
+          ((hash <<
+                  5) +
+              hash) ^
+          codeUnit; // djb2 with xor for better spread
+    }
+    return hash &
+        0x7fffffff; // keep it positive and within 32-bit range
+  }
+
+  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
-  
+
   // Expose notifications plugin for fallback use
   FlutterLocalNotificationsPlugin get notifications => _notifications;
 
   /// Initialize the notification service
-  Future<void> initialize() async {
+  Future<
+    void
+  >
+  initialize() async {
     if (_initialized) return;
 
     // Initialize timezone data
     tz.initializeTimeZones();
-    
-    // Set default timezone to IST (Asia/Kolkata)
     try {
-      tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
-      print('✅ Timezone set to IST (Asia/Kolkata)');
-    } catch (e) {
-      print('⚠️ Could not set IST timezone, using system default: $e');
+      tz.setLocalLocation(
+        tz.getLocation(
+          'Asia/Kolkata',
+        ),
+      );
+      print(
+        '✅ Timezone set to IST (Asia/Kolkata)',
+      );
+    } catch (
+      e
+    ) {
+      print(
+        '⚠️ Could not set IST timezone, using system default: $e',
+      );
     }
 
     // Android initialization settings
-    const AndroidInitializationSettings androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const AndroidInitializationSettings androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
 
     // iOS initialization settings
-    const DarwinInitializationSettings iosSettings =
-        DarwinInitializationSettings(
+    const DarwinInitializationSettings iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
@@ -58,9 +88,11 @@ class NotificationService {
     // Create notification channel for Android (required for notifications to show)
     final androidImplementation = _notifications
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-    
-    if (androidImplementation != null) {
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+
+    if (androidImplementation !=
+        null) {
       // Create the notification channel
       await androidImplementation.createNotificationChannel(
         const AndroidNotificationChannel(
@@ -73,31 +105,53 @@ class NotificationService {
           showBadge: true,
         ),
       );
-      print('✅ Notification channel created');
+      print(
+        '✅ Notification channel created',
+      );
     }
 
     // Request permissions (Android 13+)
-    final permissionGranted = await androidImplementation
-            ?.requestNotificationsPermission() ??
+    final permissionGranted =
+        await androidImplementation?.requestNotificationsPermission() ??
         false;
-    
-    if (permissionGranted) {
-      print('✅ Notification permission granted');
-    } else {
-      print('⚠️ Notification permission not granted');
+    try {
+      await androidImplementation?.requestExactAlarmsPermission();
+    } catch (
+      e
+    ) {
+      print(
+        '⚠️ Exact alarm permission request failed (likely not needed): $e',
+      );
     }
-    
+
+    if (permissionGranted) {
+      print(
+        '✅ Notification permission granted',
+      );
+    } else {
+      print(
+        '⚠️ Notification permission not granted',
+      );
+    }
+
     _initialized = true;
   }
 
   /// Handle notification tap
-  void _onNotificationTapped(NotificationResponse response) {
+  void _onNotificationTapped(
+    NotificationResponse response,
+  ) {
     // Handle notification tap if needed
-    print('Notification tapped: ${response.payload}');
+    print(
+      'Notification tapped: ${response.payload}',
+    );
   }
 
   /// Schedule a notification for a specific date and time
-  Future<bool> scheduleNotification({
+  Future<
+    bool
+  >
+  scheduleNotification({
     required int id,
     required String title,
     required String body,
@@ -108,18 +162,44 @@ class NotificationService {
       await initialize();
     }
 
+    // Prevent duplicate scheduled notifications for the same id.
+    try {
+      final pendingBefore = await getPendingNotifications();
+      if (pendingBefore.any(
+        (
+          n,
+        ) =>
+            n.id ==
+            id,
+      )) {
+        // ✅ Fixed: added n.id ==
+        print(
+          '🔁 Found existing pending notification with id $id — cancelling it before scheduling a new one',
+        );
+        await cancelNotification(
+          id,
+        );
+      }
+    } catch (
+      e
+    ) {
+      print(
+        '⚠️ Could not check/cancel existing pending notifications: $e',
+      );
+      // Continue and attempt to schedule anyway
+    }
+
     try {
       // Get IST timezone location
-      final istLocation = tz.getLocation('Asia/Kolkata');
-      
+      final istLocation = tz.getLocation(
+        'Asia/Kolkata',
+      );
+
       // Ensure we're working with IST timezone
-      // If scheduledDate is already in local time, convert it properly
       DateTime localDateTime;
       if (scheduledDate.isUtc) {
-        // Convert UTC to IST
         localDateTime = scheduledDate.toLocal();
       } else {
-        // Already in local time, use as is
         localDateTime = scheduledDate;
       }
 
@@ -129,28 +209,51 @@ class NotificationService {
         istLocation,
       );
 
-      final now = tz.TZDateTime.now(istLocation);
-      
+      final now = tz.TZDateTime.now(
+        istLocation,
+      );
+
       // Debug logging
-      print('📅 Notification scheduling details (IST):');
-      print('   Input DateTime (UTC): ${scheduledDate.toUtc()}');
-      print('   Input DateTime (Local): $localDateTime');
-      print('   Scheduled Time (IST): $scheduledTime');
-      print('   Current Time (IST): $now');
-      print('   Time until notification: ${scheduledTime.difference(now).inMinutes} minutes');
+      print(
+        '📅 Notification scheduling details (IST):',
+      );
+      print(
+        '   Input DateTime (UTC): ${scheduledDate.toUtc()}',
+      );
+      print(
+        '   Input DateTime (Local): $localDateTime',
+      );
+      print(
+        '   Scheduled Time (IST): $scheduledTime',
+      );
+      print(
+        '   Current Time (IST): $now',
+      );
+      print(
+        '   Time until notification: ${scheduledTime.difference(now).inMinutes} minutes',
+      );
 
       // Check if the scheduled time is in the past
-      if (scheduledTime.isBefore(now)) {
-        print('⚠️ Cannot schedule notification in the past');
-        print('   Scheduled: $scheduledTime');
-        print('   Now: $now');
-        print('   Difference: ${now.difference(scheduledTime).inMinutes} minutes ago');
+      if (scheduledTime.isBefore(
+        now,
+      )) {
+        print(
+          '⚠️ Cannot schedule notification in the past',
+        );
+        print(
+          '   Scheduled: $scheduledTime',
+        );
+        print(
+          '   Now: $now',
+        );
+        print(
+          '   Difference: ${now.difference(scheduledTime).inMinutes} minutes ago',
+        );
         return false;
       }
 
       // Android notification details
-      const AndroidNotificationDetails androidDetails =
-          AndroidNotificationDetails(
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
         'goal_reminders',
         'Goal Reminders',
         channelDescription: 'Notifications for goal reminders',
@@ -184,13 +287,18 @@ class NotificationService {
           scheduledTime,
           notificationDetails,
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
+          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
           payload: payload,
         );
-        print('   📌 Scheduled with EXACT alarm mode');
-      } catch (e) {
-        print('   ⚠️ Exact alarm failed (may need permission), trying inexact: $e');
+        print(
+          '   📌 Scheduled with EXACT alarm mode',
+        );
+      } catch (
+        e
+      ) {
+        print(
+          '   ⚠️ Exact alarm failed (may need permission), trying inexact: $e',
+        );
         // Fallback to inexact if exact fails
         await _notifications.zonedSchedule(
           id,
@@ -199,87 +307,162 @@ class NotificationService {
           scheduledTime,
           notificationDetails,
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
+          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
           payload: payload,
         );
-        print('   📌 Scheduled with INEXACT alarm mode (may have delay)');
+        print(
+          '   📌 Scheduled with INEXACT alarm mode (may have delay)',
+        );
       }
 
-      print('✅ Notification scheduled successfully!');
-      print('   ID: $id');
-      print('   Scheduled for: $scheduledTime (IST)');
-      print('   Title: $title');
-      
+      print(
+        '✅ Notification scheduled successfully!',
+      );
+      print(
+        '   ID: $id',
+      );
+      print(
+        '   Scheduled for: $scheduledTime (IST)',
+      );
+      print(
+        '   Title: $title',
+      );
+
       // Verify it was scheduled by checking pending notifications
       try {
         // Wait a moment for the notification to be registered
-        await Future.delayed(const Duration(milliseconds: 500));
-        final pending = await getPendingNotifications();
-        print('   📋 Total pending notifications: ${pending.length}');
-        
-        final thisNotification = pending.firstWhere(
-          (n) => n.id == id,
-          orElse: () => throw Exception('Notification not found in pending list'),
+        await Future.delayed(
+          const Duration(
+            milliseconds: 500,
+          ),
         );
-        print('   ✅ Verified in pending notifications: ID ${thisNotification.id}');
-        print('   📝 Notification title: ${thisNotification.title}');
-        print('   📝 Notification body: ${thisNotification.body}');
-      } catch (e) {
-        print('   ⚠️ Could not verify notification in pending list: $e');
-        print('   ⚠️ This might mean the notification was not scheduled properly');
+        final pending = await getPendingNotifications();
+        print(
+          '   📋 Total pending notifications: ${pending.length}',
+        );
+
+        final thisNotification = pending.firstWhere(
+          (
+            n,
+          ) =>
+              n.id ==
+              id,
+          orElse: () => throw Exception(
+            'Notification not found in pending list',
+          ),
+        );
+        print(
+          '   ✅ Verified in pending notifications: ID ${thisNotification.id}',
+        );
+        print(
+          '   📝 Notification title: ${thisNotification.title}',
+        );
+        print(
+          '   📝 Notification body: ${thisNotification.body}',
+        );
+      } catch (
+        e
+      ) {
+        print(
+          '   ⚠️ Could not verify notification in pending list: $e',
+        );
+        print(
+          '   ⚠️ This might mean the notification was not scheduled properly',
+        );
         // Don't fail - notification might still be scheduled
       }
-      
+
       return true;
-    } catch (e) {
-      print('❌ Error scheduling notification: $e');
-      print('   Stack trace: ${StackTrace.current}');
+    } catch (
+      e
+    ) {
+      print(
+        '❌ Error scheduling notification: $e',
+      );
+      print(
+        '   Stack trace: ${StackTrace.current}',
+      );
       return false;
     }
   }
 
   /// Cancel a scheduled notification
-  Future<void> cancelNotification(int id) async {
-    await _notifications.cancel(id);
-    print('🗑️ Cancelled notification with id: $id');
+  Future<
+    void
+  >
+  cancelNotification(
+    int id,
+  ) async {
+    await _notifications.cancel(
+      id,
+    );
+    print(
+      '🗑️ Cancelled notification with id: $id',
+    );
   }
 
   /// Cancel all notifications
-  Future<void> cancelAllNotifications() async {
+  Future<
+    void
+  >
+  cancelAllNotifications() async {
     await _notifications.cancelAll();
-    print('🗑️ Cancelled all notifications');
+    print(
+      '🗑️ Cancelled all notifications',
+    );
   }
 
   /// Get pending notifications (for debugging)
-  Future<List<PendingNotificationRequest>> getPendingNotifications() async {
+  Future<
+    List<
+      PendingNotificationRequest
+    >
+  >
+  getPendingNotifications() async {
     return await _notifications.pendingNotificationRequests();
   }
 
   /// Debug: Print all pending notifications
-  Future<void> debugPrintPendingNotifications() async {
+  Future<
+    void
+  >
+  debugPrintPendingNotifications() async {
     final pending = await getPendingNotifications();
-    print('📋 Pending Notifications (${pending.length}):');
+    print(
+      '📋 Pending Notifications (${pending.length}):',
+    );
     for (var notification in pending) {
-      print('   ID: ${notification.id}');
-      print('   Title: ${notification.title}');
-      print('   Body: ${notification.body}');
-      print('   ---');
+      print(
+        '   ID: ${notification.id}',
+      );
+      print(
+        '   Title: ${notification.title}',
+      );
+      print(
+        '   Body: ${notification.body}',
+      );
+      print(
+        '   ---',
+      );
     }
     if (pending.isEmpty) {
-      print('   No pending notifications');
+      print(
+        '   No pending notifications',
+      );
     }
   }
 
   /// Test notification - shows immediately to verify channel works
-  Future<bool> showTestNotification() async {
+  Future<
+    bool
+  >
+  showTestNotification() async {
     if (!_initialized) {
       await initialize();
     }
 
     try {
-      const AndroidNotificationDetails androidDetails =
-          AndroidNotificationDetails(
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
         'goal_reminders',
         'Goal Reminders',
         channelDescription: 'Notifications for goal reminders',
@@ -308,27 +491,48 @@ class NotificationService {
         notificationDetails,
       );
 
-      print('✅ Test notification shown');
+      print(
+        '✅ Test notification shown',
+      );
       return true;
-    } catch (e) {
-      print('❌ Error showing test notification: $e');
+    } catch (
+      e
+    ) {
+      print(
+        '❌ Error showing test notification: $e',
+      );
       return false;
     }
   }
 
   /// Test scheduled notification - schedules for 10 seconds from now
-  Future<bool> testScheduledNotification() async {
+  Future<
+    bool
+  >
+  testScheduledNotification() async {
     if (!_initialized) {
       await initialize();
     }
 
     try {
-      final testTime = DateTime.now().add(const Duration(seconds: 10));
-      print('🧪 Testing scheduled notification:');
-      print('   Current time: ${DateTime.now()}');
-      print('   Scheduled for: $testTime');
-      print('   Time difference: ${testTime.difference(DateTime.now()).inSeconds} seconds');
-      
+      final testTime = DateTime.now().add(
+        const Duration(
+          seconds: 10,
+        ),
+      );
+      print(
+        '🧪 Testing scheduled notification:',
+      );
+      print(
+        '   Current time: ${DateTime.now()}',
+      );
+      print(
+        '   Scheduled for: $testTime',
+      );
+      print(
+        '   Time difference: ${testTime.difference(DateTime.now()).inSeconds} seconds',
+      );
+
       final result = await scheduleNotification(
         id: 999998,
         title: 'Test Scheduled Notification',
@@ -336,31 +540,58 @@ class NotificationService {
         scheduledDate: testTime,
         payload: 'test',
       );
-      
+
       if (result) {
-        print('✅ Test scheduled notification created. Wait 10 seconds...');
-        
+        print(
+          '✅ Test scheduled notification created. Wait 10 seconds...',
+        );
+
         // Verify it's in pending list
-        await Future.delayed(const Duration(milliseconds: 500));
+        await Future.delayed(
+          const Duration(
+            milliseconds: 500,
+          ),
+        );
         final pending = await getPendingNotifications();
-        final testNotification = pending.where((n) => n.id == 999998).toList();
+        final testNotification = pending
+            .where(
+              (
+                n,
+              ) =>
+                  n.id ==
+                  999998,
+            )
+            .toList();
         if (testNotification.isNotEmpty) {
-          print('✅ Test notification confirmed in pending list');
-          print('   Will fire at: ${testNotification.first.id}');
+          print(
+            '✅ Test notification confirmed in pending list',
+          );
+          print(
+            '   Will fire at: ${testNotification.first.id}',
+          );
         } else {
-          print('⚠️ Test notification NOT found in pending list!');
+          print(
+            '⚠️ Test notification NOT found in pending list!',
+          );
         }
-        
+
         return true;
       } else {
-        print('❌ Failed to schedule test notification');
+        print(
+          '❌ Failed to schedule test notification',
+        );
         return false;
       }
-    } catch (e) {
-      print('❌ Error testing scheduled notification: $e');
-      print('   Stack trace: ${StackTrace.current}');
+    } catch (
+      e
+    ) {
+      print(
+        '❌ Error testing scheduled notification: $e',
+      );
+      print(
+        '   Stack trace: ${StackTrace.current}',
+      );
       return false;
     }
   }
 }
-
