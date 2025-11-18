@@ -168,24 +168,11 @@ const getUserProfile = async (userId) => {
 };
 
 // JWT Secret (use environment variable in production)
-const ObjectId = mongoose.Types.ObjectId;
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_here';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
 
-// Verify token middleware (ensures req.userId is set)
-const verifyToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'No token provided' });
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.userId = decoded.userId; // keep as string; convert when querying
-    req.userName = decoded.name || decoded.userName || '';
-    next();
-  } catch (err) {
-    console.error('Token verify failed:', err.message);
-    return res.status(401).json({ message: 'Invalid or expired token' });
-  }
+// Helper function to generate JWT token
+const generateToken = (userId) => {
+  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
 };
 
 // Sign Up Endpoint
@@ -373,6 +360,29 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
+// Middleware to verify JWT token
+const verifyToken = (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1] || req.headers['x-auth-token'];
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'No token provided'
+      });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.userId = decoded.userId;
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid or expired token'
+    });
+  }
+};
+
 // Store daily steps endpoint
 app.post('/api/steps', verifyToken, async (req, res) => {
   try {
@@ -542,26 +552,45 @@ app.get('/api/steps/today', verifyToken, async (req, res) => {
 
 // --- Community Endpoints ---
 
-// Create community endpoint (ensure ownerId stored as ObjectId)
+// Create community
 app.post('/api/community/create', verifyToken, async (req, res) => {
   try {
-    const { name, isPublic } = req.body;
-    const ownerObjectId = ObjectId(req.userId);
+    const { name, isPublic = true } = req.body;
 
-    const community = new Community({
-      name,
-      isPublic: !!isPublic,
-      ownerId: ownerObjectId,
-      ownerName: req.userName || '',
-      joinCode: await generateJoinCode(),
-      members: [{ userId: ownerObjectId, userName: req.userName || '' }]
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Community name is required'
+      });
+    }
+
+    const ownerProfile = await getUserProfile(req.userId);
+    const joinCode = isPublic ? null : await generateJoinCode();
+
+    const community = await Community.create({
+      name: name.trim(),
+      isPublic,
+      ownerId: req.userId,
+      ownerName: ownerProfile.name,
+      joinCode,
+      members: [
+        {
+          userId: req.userId,
+          userName: ownerProfile.name
+        }
+      ]
     });
 
-    const saved = await community.save();
-    res.json({ success: true, community: formatCommunityForUser(saved, req.userId) });
-  } catch (err) {
-    console.error('Create community error:', err);
-    res.status(500).json({ success: false, message: 'Failed to create community' });
+    return res.status(201).json({
+      success: true,
+      data: formatCommunityForUser(community, req.userId)
+    });
+  } catch (error) {
+    console.error('Create community error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while creating community'
+    });
   }
 });
 
@@ -585,47 +614,78 @@ app.get('/api/community/list', verifyToken, async (req, res) => {
   }
 });
 
-// Get user's communities (convert req.userId to ObjectId before querying)
+// Get user's communities
 app.get('/api/community/my-communities', verifyToken, async (req, res) => {
   try {
-    const userObjectId = ObjectId(req.userId);
-
     const communities = await Community.find({
       $or: [
-        { ownerId: userObjectId },
-        { 'members.userId': userObjectId }
+        { ownerId: req.userId },
+        { 'members.userId': req.userId }
       ]
-    }).sort({ createdAt: -1 });
+    })
+      .sort({ updatedAt: -1 })
+      .lean();
 
-    res.json({
+    return res.json({
       success: true,
-      communities: communities.map(c => formatCommunityForUser(c, req.userId))
+      data: communities.map((community) => formatCommunityForUser(community, req.userId))
     });
   } catch (error) {
-    console.error('Error fetching communities:', error);
-    res.status(500).json({ message: 'Failed to fetch communities', error: error.message });
+    console.error('My communities error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching your communities'
+    });
   }
 });
 
-// Join community (ensure members.userId saved as ObjectId)
-app.post('/api/community/:id/join', verifyToken, async (req, res) => {
+// Join public community
+app.post('/api/community/:communityId/join', verifyToken, async (req, res) => {
   try {
-    const communityId = req.params.id;
-    const userObjectId = ObjectId(req.userId);
+    const { communityId } = req.params;
+    const community = await Community.findById(communityId);
 
-    const community = await Community.findById(ObjectId(communityId));
-    if (!community) return res.status(404).json({ success: false, message: 'Community not found' });
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: 'Community not found'
+      });
+    }
 
-    const alreadyMember = community.members.some(m => String(m.userId) === String(userObjectId));
+    if (!community.isPublic) {
+      return res.status(403).json({
+        success: false,
+        message: 'This community requires a join code'
+      });
+    }
+
+    const members = community.members || [];
+    if (!community.members) {
+      community.members = members;
+    }
+    const alreadyMember = members.some(
+      (member) => member.userId.toString() === req.userId.toString()
+    );
+
     if (!alreadyMember) {
-      community.members.push({ userId: userObjectId, userName: req.userName || '' });
+      const profile = await getUserProfile(req.userId);
+      community.members.push({
+        userId: req.userId,
+        userName: profile.name
+      });
       await community.save();
     }
 
-    res.json({ success: true, community: formatCommunityForUser(community, req.userId) });
-  } catch (err) {
-    console.error('Join community error:', err);
-    res.status(500).json({ success: false, message: 'Failed to join community' });
+    return res.json({
+      success: true,
+      data: formatCommunityForUser(community, req.userId)
+    });
+  } catch (error) {
+    console.error('Join community error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while joining community'
+    });
   }
 });
 
