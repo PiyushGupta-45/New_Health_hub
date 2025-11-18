@@ -15,7 +15,7 @@ kCardColor = Color(
   0xFFF7F9FB,
 );
 const double
-_cardRadius = 16.0;
+_cardRadius = 18.0;
 
 // Workout intensity types
 enum WorkoutIntensity {
@@ -58,12 +58,12 @@ class _HealthMetricsViewState
   double _caloriesBurned = 0.0;
   double _metValue = 6.0;
 
-  late final AnimationController _animController;
+  late final AnimationController _anim;
 
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
+    _anim = AnimationController(
       vsync: this,
       duration: const Duration(
         milliseconds: 250,
@@ -75,15 +75,15 @@ class _HealthMetricsViewState
   void _recalculateAll() {
     _calculateBMI();
     _calculateBMR();
-    _updateMetValue();
-    _calculateCaloriesBurned();
+    _updateMET();
+    _calculateCalories();
     setState(
       () {},
     );
   }
 
   void _calculateBMI() {
-    final h =
+    double h =
         _height /
         100.0;
     _bmiResult =
@@ -107,28 +107,28 @@ class _HealthMetricsViewState
 
   void _calculateBMR() {
     if (_gender ==
-        'Male') {
+        "Male") {
       _bmrResult =
-          (10 *
-              _weight) +
-          (6.25 *
-              _height) -
-          (5 *
-              _age) +
+          10 *
+              _weight +
+          6.25 *
+              _height -
+          5 *
+              _age +
           5;
     } else {
       _bmrResult =
-          (10 *
-              _weight) +
-          (6.25 *
-              _height) -
-          (5 *
-              _age) -
+          10 *
+              _weight +
+          6.25 *
+              _height -
+          5 *
+              _age -
           161;
     }
   }
 
-  void _updateMetValue() {
+  void _updateMET() {
     switch (_workoutIntensity) {
       case WorkoutIntensity.low:
         _metValue = 3.0;
@@ -142,23 +142,19 @@ class _HealthMetricsViewState
     }
   }
 
-  void _calculateCaloriesBurned() {
-    final hours =
-        _workoutDuration /
-        60.0;
+  void _calculateCalories() {
     _caloriesBurned =
-        (_metValue *
+        _metValue *
         _weight *
-        hours);
+        (_workoutDuration /
+            60.0);
   }
 
-  BoxDecoration _neumorphicDecoration({
-    double radius = _cardRadius,
-  }) {
+  BoxDecoration _neumorphic() {
     return BoxDecoration(
       color: kCardColor,
       borderRadius: BorderRadius.circular(
-        radius,
+        _cardRadius,
       ),
       boxShadow: [
         BoxShadow(
@@ -166,20 +162,20 @@ class _HealthMetricsViewState
             0.85,
           ),
           offset: const Offset(
-            -8,
-            -8,
+            -6,
+            -6,
           ),
-          blurRadius: 18,
+          blurRadius: 14,
         ),
         BoxShadow(
           color: Colors.black.withOpacity(
-            0.06,
+            0.08,
           ),
           offset: const Offset(
-            8,
-            8,
+            6,
+            6,
           ),
-          blurRadius: 18,
+          blurRadius: 14,
         ),
       ],
     );
@@ -194,87 +190,52 @@ class _HealthMetricsViewState
       appBar: AppBar(
         backgroundColor: kBackgroundColor,
         elevation: 0,
-        iconTheme: const IconThemeData(
-          color: Colors.black87,
-        ),
         title: const Text(
-          'Health Metrics',
+          "Health Metrics",
           style: TextStyle(
             color: Colors.black87,
             fontWeight: FontWeight.w600,
           ),
         ),
         centerTitle: true,
+        iconTheme: const IconThemeData(
+          color: Colors.black87,
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 18,
-            vertical: 20,
+          padding: const EdgeInsets.all(
+            18,
           ),
           child: Column(
             children: [
-              /// ================= GENDER CARD =================
-              AnimatedContainer(
-                duration: const Duration(
-                  milliseconds: 250,
-                ),
-                padding: const EdgeInsets.all(
-                  12,
-                ),
-                decoration: _neumorphicDecoration(),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _buildGenderSegment(),
-                    ),
-                    const SizedBox(
-                      width: 12,
-                    ),
-                    _buildResetButton(),
-                  ],
-                ),
-              ),
-
+              _genderCard(),
               const SizedBox(
                 height: 18,
               ),
 
-              /// ================= HEIGHT / WEIGHT / AGE CARDS =================
-              Row(
-                children: [
-                  Flexible(
-                    child: _buildHeightCard(),
-                  ),
-                  const SizedBox(
-                    width: 10,
-                  ),
-                  Flexible(
-                    child: _buildWeightCard(),
-                  ),
-                  const SizedBox(
-                    width: 10,
-                  ),
-                  Flexible(
-                    child: _buildAgeCard(),
-                  ),
-                ],
-              ),
-
+              /// FULL WIDTH INPUT CARDS
+              _buildHeightCard(),
               const SizedBox(
                 height: 18,
               ),
 
-              /// ================= WORKOUT CARD =================
+              _buildWeightCard(),
+              const SizedBox(
+                height: 18,
+              ),
+
+              _buildAgeCard(),
+              const SizedBox(
+                height: 18,
+              ),
+
               _buildWorkoutCard(),
-
               const SizedBox(
-                height: 18,
+                height: 20,
               ),
 
-              /// ================= RESULTS CARD =================
               _buildResultsCard(),
-
               const SizedBox(
                 height: 40,
               ),
@@ -285,789 +246,28 @@ class _HealthMetricsViewState
     );
   }
 
-  // ------------------------------- HEIGHT CARD -------------------------------
-  Widget _buildHeightCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 14,
-      ),
-      decoration: _neumorphicDecoration(),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Height',
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Text(
-                '$_height cm',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(
-            height: 6,
-          ),
-
-          SliderTheme(
-            data:
-                SliderTheme.of(
-                  context,
-                ).copyWith(
-                  activeTrackColor: kPrimaryAccent,
-                  thumbShape: const RoundSliderThumbShape(
-                    enabledThumbRadius: 8,
-                  ),
-                ),
-            child: Slider(
-              min: 100,
-              max: 220,
-              value: _height.toDouble(),
-              onChanged:
-                  (
-                    v,
-                  ) {
-                    setState(
-                      () {
-                        _height = v.round();
-                        _recalculateAll();
-                      },
-                    );
-                  },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ------------------------------- WEIGHT CARD -------------------------------
-  Widget _buildWeightCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 14,
-      ),
-      decoration: _neumorphicDecoration(),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Weight',
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Text(
-                '${_weight.toStringAsFixed(1)} kg',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(
-            height: 6,
-          ),
-
-          Row(
-            children: [
-              _roundBtn(
-                Icons.remove,
-                () {
-                  setState(
-                    () {
-                      _weight -= 0.5;
-                      _recalculateAll();
-                    },
-                  );
-                },
-              ),
-              Expanded(
-                child: Slider(
-                  min: 30,
-                  max: 180,
-                  value: _weight,
-                  activeColor: kPrimaryAccent,
-                  onChanged:
-                      (
-                        v,
-                      ) {
-                        setState(
-                          () {
-                            _weight = double.parse(
-                              v.toStringAsFixed(
-                                1,
-                              ),
-                            );
-                            _recalculateAll();
-                          },
-                        );
-                      },
-                ),
-              ),
-              _roundBtn(
-                Icons.add,
-                () {
-                  setState(
-                    () {
-                      _weight += 0.5;
-                      _recalculateAll();
-                    },
-                  );
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ------------------------------- AGE CARD -------------------------------
-  Widget _buildAgeCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 14,
-      ),
-      decoration: _neumorphicDecoration(),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Age',
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Text(
-                '$_age yrs',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(
-            height: 6,
-          ),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _roundBtn(
-                Icons.remove,
-                () {
-                  setState(
-                    () {
-                      if (_age >
-                          1)
-                        _age--;
-                      _recalculateAll();
-                    },
-                  );
-                },
-              ),
-              const SizedBox(
-                width: 16,
-              ),
-              _roundBtn(
-                Icons.add,
-                () {
-                  setState(
-                    () {
-                      _age++;
-                      _recalculateAll();
-                    },
-                  );
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _roundBtn(
-    IconData icon,
-    VoidCallback onTap,
-  ) {
-    return Material(
-      color: Colors.white,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(
-            8,
-          ),
-          child: Icon(
-            icon,
-            size: 18,
-            color: Colors.grey.shade800,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ------------------------------- WORKOUT CARD -------------------------------
-  Widget _buildWorkoutCard() {
+  // ---------------- GENDER CARD ----------------
+  Widget _genderCard() {
     return Container(
       padding: const EdgeInsets.all(
         16,
       ),
-      decoration: _neumorphicDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      decoration: _neumorphic(),
+      child: Row(
         children: [
-          const Text(
-            'Workout',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
+          Expanded(
+            child: _buildGenderSegment(),
           ),
           const SizedBox(
-            height: 12,
+            width: 12,
           ),
-
-          _buildIntensitySegment(),
-          const SizedBox(
-            height: 14,
-          ),
-
-          Row(
-            children: [
-              const Text(
-                'Duration',
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const Spacer(),
-
-              _roundBtn(
-                Icons.remove,
-                () {
-                  setState(
-                    () {
-                      if (_workoutDuration >
-                          5)
-                        _workoutDuration -= 5;
-                      _recalculateAll();
-                    },
-                  );
-                },
-              ),
-
-              const SizedBox(
-                width: 10,
-              ),
-
-              Text(
-                '$_workoutDuration min',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-
-              const SizedBox(
-                width: 10,
-              ),
-
-              _roundBtn(
-                Icons.add,
-                () {
-                  setState(
-                    () {
-                      _workoutDuration += 5;
-                      _recalculateAll();
-                    },
-                  );
-                },
-              ),
-            ],
-          ),
-
-          Slider(
-            min: 5,
-            max: 180,
-            value: _workoutDuration.toDouble(),
-            activeColor: kPrimaryAccent,
-            onChanged:
-                (
-                  v,
-                ) {
-                  setState(
-                    () {
-                      _workoutDuration = v.round();
-                      _recalculateAll();
-                    },
-                  );
-                },
-          ),
-
-          Row(
-            children: [
-              _chip(
-                "MET ${_metValue.toStringAsFixed(1)}",
-              ),
-              const SizedBox(
-                width: 10,
-              ),
-
-              Expanded(
-                child: Text(
-                  'Formula: MET × weight(kg) × duration(hr)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade700,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          _resetButton(),
         ],
       ),
     );
   }
 
-  Widget _chip(
-    String label,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 6,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(
-          12,
-        ),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-
-  // ------------------------------- INTENSITY SELECTOR -------------------------------
-  Widget _buildIntensitySegment() {
-    return Row(
-      children: WorkoutIntensity.values.map(
-        (
-          type,
-        ) {
-          final bool selected =
-              _workoutIntensity ==
-              type;
-
-          return Expanded(
-            child: GestureDetector(
-              onTap: () {
-                setState(
-                  () {
-                    _workoutIntensity = type;
-                    _recalculateAll();
-                  },
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                ),
-                margin: const EdgeInsets.symmetric(
-                  horizontal: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? Colors.white
-                      : kCardColor,
-                  borderRadius: BorderRadius.circular(
-                    10,
-                  ),
-                  border: Border.all(
-                    color: selected
-                        ? kPrimaryAccent.withOpacity(
-                            0.25,
-                          )
-                        : Colors.transparent,
-                  ),
-                  boxShadow: selected
-                      ? [
-                          BoxShadow(
-                            color: kPrimaryAccent.withOpacity(
-                              0.06,
-                            ),
-                            blurRadius: 10,
-                            offset: const Offset(
-                              4,
-                              6,
-                            ),
-                          ),
-                        ]
-                      : [],
-                ),
-                child: Center(
-                  child: Text(
-                    _intensityLabel(
-                      type,
-                    ),
-                    style: TextStyle(
-                      fontWeight: selected
-                          ? FontWeight.w700
-                          : FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ).toList(),
-    );
-  }
-
-  String _intensityLabel(
-    WorkoutIntensity type,
-  ) {
-    switch (type) {
-      case WorkoutIntensity.low:
-        return 'Low';
-      case WorkoutIntensity.medium:
-        return 'Medium';
-      case WorkoutIntensity.high:
-        return 'High';
-    }
-  }
-
-  // ------------------------------- RESULTS CARD -------------------------------
-  Widget _buildResultsCard() {
-    return Container(
-      padding: const EdgeInsets.all(
-        18,
-      ),
-      decoration: _neumorphicDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          /// Header
-          Row(
-            children: [
-              const Text(
-                'Results',
-                style: TextStyle(
-                  color: Colors.black87,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const Spacer(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '${_bmrResult.toStringAsFixed(0)} cal/day',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    'BMR',
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          const SizedBox(
-            height: 10,
-          ),
-          Text(
-            'Instant metrics based on inputs',
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(
-            height: 18,
-          ),
-
-          /// BMI + Calories
-          Row(
-            children: [
-              /// BMI CARD
-              Expanded(
-                flex: 3,
-                child: Container(
-                  padding: const EdgeInsets.all(
-                    14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(
-                      14,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        blurRadius: 12,
-                        offset: const Offset(
-                          4,
-                          4,
-                        ),
-                        color: Colors.black.withOpacity(
-                          0.05,
-                        ),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        _bmiResult.toStringAsFixed(
-                          1,
-                        ),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 28,
-                        ),
-                      ),
-                      const SizedBox(
-                        height: 6,
-                      ),
-                      _bmiChip(
-                        _bmiStatus,
-                      ),
-                      const SizedBox(
-                        height: 6,
-                      ),
-                      Text(
-                        'BMI',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(
-                width: 12,
-              ),
-
-              /// CALORIES CARD
-              Expanded(
-                flex: 4,
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          _caloriesBurned.toStringAsFixed(
-                            0,
-                          ),
-                          style: const TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(
-                          width: 6,
-                        ),
-                        Text(
-                          'cal',
-                          style: TextStyle(
-                            color: Colors.grey.shade700,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(
-                      height: 8,
-                    ),
-                    _chip(
-                      _intensityLabel(
-                        _workoutIntensity,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _bmiChip(
-    String status,
-  ) {
-    Color bg = Colors.grey.shade200;
-    Color txt = Colors.grey.shade800;
-
-    if (status ==
-        'Healthy') {
-      bg = Colors.green.withOpacity(
-        0.15,
-      );
-      txt = Colors.green.shade700;
-    } else if (status ==
-            'Overweight' ||
-        status ==
-            'Underweight') {
-      bg = Colors.orange.withOpacity(
-        0.15,
-      );
-      txt = Colors.orange.shade700;
-    } else if (status ==
-        'Obese') {
-      bg = Colors.red.withOpacity(
-        0.15,
-      );
-      txt = Colors.red.shade700;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 6,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(
-          12,
-        ),
-        color: bg,
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          color: txt,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-
-  // ------------------------------- GENDER SEGMENT -------------------------------
-  Widget _buildGenderSegment() {
-    return Container(
-      padding: const EdgeInsets.all(
-        6,
-      ),
-      decoration: BoxDecoration(
-        color: kCardColor,
-        borderRadius: BorderRadius.circular(
-          10,
-        ),
-      ),
-      child:
-          CupertinoSegmentedControl<
-            String
-          >(
-            borderColor: Colors.grey.shade300,
-            selectedColor: kPrimaryAccent.withOpacity(
-              0.18,
-            ),
-            unselectedColor: kCardColor,
-            pressedColor: kPrimaryAccent.withOpacity(
-              0.09,
-            ),
-            groupValue: _gender,
-            children: {
-              'Male': Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                ),
-                child: Column(
-                  children: const [
-                    Icon(
-                      Icons.male,
-                    ),
-                    SizedBox(
-                      height: 4,
-                    ),
-                    Text(
-                      "Male",
-                    ),
-                  ],
-                ),
-              ),
-              'Female': Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                ),
-                child: Column(
-                  children: const [
-                    Icon(
-                      Icons.female,
-                    ),
-                    SizedBox(
-                      height: 4,
-                    ),
-                    Text(
-                      "Female",
-                    ),
-                  ],
-                ),
-              ),
-            },
-            onValueChanged:
-                (
-                  v,
-                ) {
-                  setState(
-                    () {
-                      _gender = v;
-                      _recalculateAll();
-                    },
-                  );
-                },
-          ),
-    );
-  }
-
-  Widget _buildResetButton() {
+  Widget _resetButton() {
     return InkWell(
       borderRadius: BorderRadius.circular(
         12,
@@ -1085,18 +285,951 @@ class _HealthMetricsViewState
         );
       },
       child: Container(
+        padding: const EdgeInsets.all(
+          12,
+        ),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(
             12,
           ),
         ),
-        padding: const EdgeInsets.all(
-          10,
-        ),
         child: Icon(
           Icons.refresh_rounded,
           color: Colors.grey.shade800,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGenderSegment() {
+    return Container(
+      padding: const EdgeInsets.all(
+        6,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(
+          14,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(
+              0.05,
+            ),
+            blurRadius: 6,
+            offset: const Offset(
+              2,
+              3,
+            ),
+          ),
+        ],
+      ),
+      child:
+          CupertinoSegmentedControl<
+            String
+          >(
+            borderColor: kPrimaryAccent,
+            selectedColor: kPrimaryAccent,
+            unselectedColor: Colors.white,
+            pressedColor: kPrimaryAccent.withOpacity(
+              0.15,
+            ),
+
+            groupValue: _gender,
+
+            children: {
+              "Male": Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.male,
+                      size: 28,
+                      color:
+                          _gender ==
+                              "Male"
+                          ? Colors.white
+                          : Colors.black87,
+                    ),
+                    const SizedBox(
+                      height: 4,
+                    ),
+                    Text(
+                      "Male",
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight:
+                            _gender ==
+                                "Male"
+                            ? FontWeight.bold
+                            : FontWeight.w500,
+                        color:
+                            _gender ==
+                                "Male"
+                            ? Colors.white
+                            : Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              "Female": Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.female,
+                      size: 28,
+                      color:
+                          _gender ==
+                              "Female"
+                          ? Colors.white
+                          : Colors.black87,
+                    ),
+                    const SizedBox(
+                      height: 4,
+                    ),
+                    Text(
+                      "Female",
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight:
+                            _gender ==
+                                "Female"
+                            ? FontWeight.bold
+                            : FontWeight.w500,
+                        color:
+                            _gender ==
+                                "Female"
+                            ? Colors.white
+                            : Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            },
+
+            onValueChanged:
+                (
+                  value,
+                ) {
+                  setState(
+                    () {
+                      _gender = value;
+                      _recalculateAll();
+                    },
+                  );
+                },
+          ),
+    );
+  }
+
+  // ---------------- FULL WIDTH INPUT CARDS ----------------
+
+  Widget _buildHeightCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 18,
+        vertical: 16,
+      ),
+      decoration: _neumorphic(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title
+          Text(
+            "HEIGHT",
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(
+            height: 4,
+          ),
+
+          // Value + Unit
+          Row(
+            children: [
+              Text(
+                "$_height",
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(
+                width: 6,
+              ),
+              Text(
+                "cm",
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(
+            height: 12,
+          ),
+
+          // -  slider  +
+          Row(
+            children: [
+              // MINUS BUTTON
+              _circleBtn(
+                Icons.remove,
+                () {
+                  setState(
+                    () {
+                      if (_height >
+                          100)
+                        _height -= 5;
+                      _recalculateAll();
+                    },
+                  );
+                },
+              ),
+
+              const SizedBox(
+                width: 10,
+              ),
+
+              // SMOOTH SLIDER (NO FIXED DIVISIONS)
+              Expanded(
+                child: SliderTheme(
+                  data:
+                      SliderTheme.of(
+                        context,
+                      ).copyWith(
+                        trackHeight: 4,
+                        thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: 10,
+                        ),
+                      ),
+                  child: Slider(
+                    min: 100,
+                    max: 220,
+                    value: _height.toDouble(),
+                    activeColor: kPrimaryAccent,
+                    inactiveColor: Colors.grey.shade300,
+                    onChanged:
+                        (
+                          v,
+                        ) {
+                          setState(
+                            () {
+                              _height = v.round(); // smooth height change
+                              _recalculateAll();
+                            },
+                          );
+                        },
+                  ),
+                ),
+              ),
+
+              const SizedBox(
+                width: 10,
+              ),
+
+              // PLUS BUTTON
+              _circleBtn(
+                Icons.add,
+                () {
+                  setState(
+                    () {
+                      if (_height <
+                          220)
+                        _height += 5;
+                      _recalculateAll();
+                    },
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeightCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 18,
+        vertical: 16,
+      ),
+      decoration: _neumorphic(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "WEIGHT",
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(
+            height: 4,
+          ),
+
+          Row(
+            children: [
+              Text(
+                _weight.toStringAsFixed(
+                  1,
+                ),
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(
+                width: 6,
+              ),
+              Text(
+                "kg",
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+
+          Row(
+            children: [
+              _circleBtn(
+                Icons.remove,
+                () {
+                  if (_weight >
+                      20) {
+                    _weight -= 0.5;
+                    _recalculateAll();
+                  }
+                },
+              ),
+
+              Expanded(
+                child: SliderTheme(
+                  data:
+                      SliderTheme.of(
+                        context,
+                      ).copyWith(
+                        trackHeight: 4,
+                        thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: 10,
+                        ),
+                      ),
+                  child: Slider(
+                    min: 30,
+                    max: 180,
+                    value: _weight,
+                    activeColor: kPrimaryAccent,
+                    onChanged:
+                        (
+                          v,
+                        ) {
+                          setState(
+                            () {
+                              _weight = double.parse(
+                                v.toStringAsFixed(
+                                  1,
+                                ),
+                              );
+                              _recalculateAll();
+                            },
+                          );
+                        },
+                  ),
+                ),
+              ),
+
+              _circleBtn(
+                Icons.add,
+                () {
+                  _weight += 0.5;
+                  _recalculateAll();
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAgeCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 18,
+        vertical: 16,
+      ),
+      decoration: _neumorphic(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "AGE",
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(
+            height: 4,
+          ),
+
+          Row(
+            children: [
+              Text(
+                "$_age",
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(
+                width: 6,
+              ),
+              Text(
+                "yrs",
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(
+            height: 10,
+          ),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _circleBtn(
+                Icons.remove,
+                () {
+                  if (_age >
+                      1) {
+                    _age--;
+                    _recalculateAll();
+                  }
+                },
+              ),
+              _circleBtn(
+                Icons.add,
+                () {
+                  _age++;
+                  _recalculateAll();
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------- REUSABLE TEXT + SLIDER ----------
+  Widget _label(
+    String text,
+  ) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 14,
+        color: Colors.grey.shade700,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+
+  Widget _valueRow(
+    String value,
+    String unit,
+  ) {
+    return Row(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 42,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(
+          width: 6,
+        ),
+        Text(
+          unit,
+          style: TextStyle(
+            fontSize: 18,
+            color: Colors.grey.shade700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _bigSlider({
+    required double value,
+    required double min,
+    required double max,
+    required Function(
+      double,
+    )
+    onChanged,
+  }) {
+    return SliderTheme(
+      data:
+          SliderTheme.of(
+            context,
+          ).copyWith(
+            trackHeight: 6,
+            activeTrackColor: kPrimaryAccent,
+            inactiveTrackColor: Colors.grey.shade300,
+            thumbShape: const RoundSliderThumbShape(
+              enabledThumbRadius: 14,
+            ),
+          ),
+      child: Slider(
+        value: value,
+        min: min,
+        max: max,
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _circleBtn(
+    IconData icon,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(
+        30,
+      ),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(
+          14,
+        ),
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
+        ),
+        child: Icon(
+          icon,
+          size: 22,
+          color: Colors.black87,
+        ),
+      ),
+    );
+  }
+
+  // ---------------- WORKOUT CARD ----------------
+  Widget _buildWorkoutCard() {
+    return Container(
+      padding: const EdgeInsets.all(
+        20,
+      ),
+      decoration: _neumorphic(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _label(
+            "WORKOUT INTENSITY",
+          ),
+          const SizedBox(
+            height: 12,
+          ),
+          _buildIntensitySegment(),
+          const SizedBox(
+            height: 20,
+          ),
+
+          _label(
+            "DURATION",
+          ),
+          const SizedBox(
+            height: 10,
+          ),
+
+          Row(
+            children: [
+              _circleBtn(
+                Icons.remove,
+                () {
+                  if (_workoutDuration >
+                      5) {
+                    _workoutDuration -= 5;
+                  }
+                  _recalculateAll();
+                },
+              ),
+
+              const SizedBox(
+                width: 12,
+              ),
+
+              Text(
+                "$_workoutDuration min",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
+                ),
+              ),
+
+              const SizedBox(
+                width: 12,
+              ),
+
+              _circleBtn(
+                Icons.add,
+                () {
+                  _workoutDuration += 5;
+                  _recalculateAll();
+                },
+              ),
+            ],
+          ),
+
+          _bigSlider(
+            value: _workoutDuration.toDouble(),
+            min: 5,
+            max: 180,
+            onChanged:
+                (
+                  v,
+                ) {
+                  _workoutDuration = v.round();
+                  _recalculateAll();
+                },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------- WORKOUT INTENSITY SEGMENT ----------------
+  Widget _buildIntensitySegment() {
+    return Row(
+      children: WorkoutIntensity.values.map(
+        (
+          e,
+        ) {
+          bool selected =
+              _workoutIntensity ==
+              e;
+
+          return Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(
+                  () {
+                    _workoutIntensity = e;
+                    _recalculateAll();
+                  },
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                ),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? Colors.white
+                      : kCardColor,
+                  borderRadius: BorderRadius.circular(
+                    12,
+                  ),
+                  border: Border.all(
+                    color: selected
+                        ? kPrimaryAccent.withOpacity(
+                            .3,
+                          )
+                        : Colors.transparent,
+                  ),
+                  boxShadow: selected
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(
+                              0.06,
+                            ),
+                            blurRadius: 8,
+                            offset: const Offset(
+                              3,
+                              4,
+                            ),
+                          ),
+                        ]
+                      : [],
+                ),
+                child: Center(
+                  child: Text(
+                    _intensityText(
+                      e,
+                    ),
+                    style: TextStyle(
+                      fontWeight: selected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ).toList(),
+    );
+  }
+
+  String _intensityText(
+    WorkoutIntensity e,
+  ) {
+    switch (e) {
+      case WorkoutIntensity.low:
+        return "Low";
+      case WorkoutIntensity.medium:
+        return "Medium";
+      case WorkoutIntensity.high:
+        return "High";
+    }
+  }
+
+  // ---------------- RESULTS CARD ----------------
+  Widget _buildResultsCard() {
+    return Container(
+      padding: const EdgeInsets.all(
+        20,
+      ),
+      decoration: _neumorphic(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "RESULTS",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+            ),
+          ),
+          const SizedBox(
+            height: 10,
+          ),
+          Text(
+            "Auto-calculated based on your inputs",
+            style: TextStyle(
+              color: Colors.grey.shade700,
+            ),
+          ),
+
+          const SizedBox(
+            height: 20,
+          ),
+
+          Row(
+            children: [
+              // BMI
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(
+                    18,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(
+                      14,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        _bmiResult.toStringAsFixed(
+                          1,
+                        ),
+                        style: const TextStyle(
+                          fontSize: 40,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(
+                        height: 8,
+                      ),
+                      _bmiChip(
+                        _bmiStatus,
+                      ),
+                      const SizedBox(
+                        height: 6,
+                      ),
+                      Text(
+                        "BMI",
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(
+                width: 14,
+              ),
+
+              // Calories
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(
+                    18,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(
+                      14,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        _caloriesBurned.toStringAsFixed(
+                          0,
+                        ),
+                        style: const TextStyle(
+                          fontSize: 40,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(
+                        height: 6,
+                      ),
+                      Text(
+                        "cal burned",
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(
+                        height: 6,
+                      ),
+                      _chip(
+                        _intensityText(
+                          _workoutIntensity,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(
+            height: 20,
+          ),
+
+          Text(
+            "BMR: ${_bmrResult.toStringAsFixed(0)} cal/day",
+            style: TextStyle(
+              color: Colors.black87,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bmiChip(
+    String status,
+  ) {
+    Color bg = Colors.grey.shade300;
+    Color txt = Colors.black87;
+
+    if (status ==
+        "Healthy") {
+      bg = Colors.green.withOpacity(
+        .2,
+      );
+      txt = Colors.green.shade800;
+    } else if (status ==
+            "Overweight" ||
+        status ==
+            "Underweight") {
+      bg = Colors.orange.withOpacity(
+        .2,
+      );
+      txt = Colors.orange.shade800;
+    } else if (status ==
+        "Obese") {
+      bg = Colors.red.withOpacity(
+        .2,
+      );
+      txt = Colors.red.shade800;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(
+          12,
+        ),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: txt,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(
+    String text,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(
+          10,
+        ),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
         ),
       ),
     );
