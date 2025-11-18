@@ -131,12 +131,6 @@ class _MainScreenState
             ),
             BottomNavigationBarItem(
               icon: Icon(
-                Icons.people,
-              ),
-              label: 'Community',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(
                 Icons.star,
               ),
               label: 'Features',
@@ -146,6 +140,12 @@ class _MainScreenState
                 Icons.info_outline,
               ),
               label: 'About',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(
+                Icons.people,
+              ),
+              label: 'Community',
             ),
           ],
         ),

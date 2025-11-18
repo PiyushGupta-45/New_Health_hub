@@ -19,10 +19,17 @@ enum HealthSyncStatus {
 
 /// A controller that orchestrates syncing health data and exposes the latest
 /// snapshot to the UI.
-class HealthSyncController extends ChangeNotifier {
-  HealthSyncController({HealthSyncService? service, DirectStepService? directStepService})
-    : _service = service,
-      _directStepService = directStepService ?? DirectStepService() {
+class HealthSyncController
+    extends
+        ChangeNotifier {
+  HealthSyncController({
+    HealthSyncService? service,
+    DirectStepService? directStepService,
+  }) : _service =
+           service,
+       _directStepService =
+           directStepService ??
+           DirectStepService() {
     // Start listening to step updates when controller is created
     _initializeStepListener();
   }
@@ -30,65 +37,201 @@ class HealthSyncController extends ChangeNotifier {
   final HealthSyncService? _service;
   final DirectStepService _directStepService;
   final StepsSyncService _stepsSyncService = StepsSyncService();
-  
+
+  // Track the date for which the current baseline applies.
+  DateTime? _lastListenerDay;
+
   DateTime? _lastSyncedToBackend;
-  static const Duration _syncInterval = Duration(minutes: 5); // Sync every 5 minutes
+  static const Duration _syncInterval = Duration(
+    minutes: 5,
+  ); // Sync every 5 minutes
   bool _hydratedFromBackend = false;
   bool _hydratingFromBackend = false;
 
   void _initializeStepListener() {
-    // Start listening to step counter for real-time updates
-    _directStepService.startListening().listen((cumulativeSteps) {
-      // Update snapshot if we have one and baseline is set
-      if (_snapshot != null && _directStepService.baselineStepCount != null) {
-        final todaySteps = cumulativeSteps - _directStepService.baselineStepCount!;
-        if (todaySteps > 0) {
-          final now = DateTime.now();
-          _snapshot = HealthSyncSnapshot(
-            todaySteps: todaySteps,
-            workouts: _snapshot!.workouts,
-            rangeStart: _snapshot!.rangeStart,
-            rangeEnd: now,
-            locationPermissionGranted: _snapshot!.locationPermissionGranted,
-            stepsBySource: {'Phone Sensor': todaySteps},
-            primaryStepsSource: 'Phone Sensor',
-          );
-          notifyListeners();
-          
-          // Auto-sync to backend (throttled)
-          _syncStepsToBackend(todaySteps);
+    // Start listening to step counter for real-time updates.
+    // If day changes we reset the sensor baseline to the current cumulative value
+    // so today's steps start from 0.
+    _directStepService.startListening().listen(
+      (
+        cumulativeSteps,
+      ) async {
+        final now = DateTime.now();
+        final today = DateTime(
+          now.year,
+          now.month,
+          now.day,
+        );
+
+        // Initialize _lastListenerDay on first event
+        _lastListenerDay ??= today;
+
+        // If day rolled over, set new baseline so today's steps start at 0
+        if (today.isAfter(
+          _lastListenerDay!,
+        )) {
+          try {
+            await _directStepService.setBaseline(
+              cumulativeSteps,
+              today,
+            );
+            _lastListenerDay = today;
+
+            // Reset snapshot's todaySteps to 0 and update rangeStart/rangeEnd
+            _snapshot = HealthSyncSnapshot(
+              todaySteps: 0,
+              workouts:
+                  _snapshot?.workouts ??
+                  const [],
+              rangeStart: today.subtract(
+                const Duration(
+                  days: 7,
+                ),
+              ),
+              rangeEnd: now,
+              locationPermissionGranted:
+                  _snapshot?.locationPermissionGranted ??
+                  false,
+              stepsBySource: {
+                'Phone Sensor': 0,
+              },
+              primaryStepsSource: 'Phone Sensor',
+            );
+            notifyListeners();
+          } catch (
+            e
+          ) {
+            if (kDebugMode) {
+              print(
+                '⚠️ Failed to reset baseline on day rollover: $e',
+              );
+            }
+          }
+          return; // skip further processing for this event
         }
-      }
-    });
+
+        // Normal per-event update using current baseline
+        if (_snapshot !=
+                null &&
+            _directStepService.baselineStepCount !=
+                null) {
+          final baseline = _directStepService.baselineStepCount!;
+          final todaySteps =
+              cumulativeSteps -
+              baseline;
+          final now = DateTime.now();
+          if (todaySteps <
+              0) {
+            // Defensive: if sensor counter reset unexpectedly, set baseline to current cumulative
+            try {
+              await _directStepService.setBaseline(
+                cumulativeSteps,
+                today,
+              );
+              if (kDebugMode)
+                print(
+                  '🔁 Baseline adjusted because todaySteps < 0',
+                );
+              return;
+            } catch (
+              _
+            ) {}
+          }
+
+          if (todaySteps >=
+              0) {
+            _snapshot = HealthSyncSnapshot(
+              todaySteps: todaySteps,
+              workouts: _snapshot!.workouts,
+              rangeStart: _snapshot!.rangeStart,
+              rangeEnd: now,
+              locationPermissionGranted: _snapshot!.locationPermissionGranted,
+              stepsBySource: {
+                'Phone Sensor': todaySteps,
+              },
+              primaryStepsSource: 'Phone Sensor',
+            );
+            notifyListeners();
+
+            // Auto-sync to backend (throttled)
+            _syncStepsToBackend(
+              todaySteps,
+            );
+          }
+        }
+      },
+    );
   }
 
-  Future<void> hydrateFromBackend() async {
-    if (_hydratedFromBackend || _hydratingFromBackend) return;
+  Future<
+    void
+  >
+  hydrateFromBackend() async {
+    if (_hydratedFromBackend ||
+        _hydratingFromBackend)
+      return;
     _hydratingFromBackend = true;
     try {
       final token = await _stepsSyncService.getAuthToken();
-      if (token == null || token.isEmpty) {
+      if (token ==
+              null ||
+          token.isEmpty) {
         return;
       }
 
       final result = await _stepsSyncService.getTodaySteps();
-      if (result['success'] == true) {
-        final data = result['data'] as Map<String, dynamic>? ?? {};
-        final steps = (data['steps'] is num) ? (data['steps'] as num).toInt() : 0;
-        final source = data['source']?.toString() ?? 'Cloud Sync';
+      if (result['success'] ==
+          true) {
+        final data =
+            result['data']
+                as Map<
+                  String,
+                  dynamic
+                >? ??
+            {};
+        final steps =
+            (data['steps']
+                is num)
+            ? (data['steps']
+                      as num)
+                  .toInt()
+            : 0;
+        final source =
+            data['source']?.toString() ??
+            'Cloud Sync';
         final dateString = data['date']?.toString();
-        final dataDate = dateString != null ? DateTime.tryParse(dateString) : null;
+        final dataDate =
+            dateString !=
+                null
+            ? DateTime.tryParse(
+                dateString,
+              )
+            : null;
         final now = DateTime.now();
-        final referenceDate = dataDate ?? now;
-        final rangeStart = referenceDate.subtract(const Duration(days: 7));
+        final referenceDate =
+            dataDate ??
+            now;
+        final rangeStart = referenceDate.subtract(
+          const Duration(
+            days: 7,
+          ),
+        );
 
-        if (_snapshot == null || steps > (_snapshot?.todaySteps ?? 0)) {
+        if (_snapshot ==
+                null ||
+            steps >
+                (_snapshot?.todaySteps ??
+                    0)) {
           _snapshot = HealthSyncSnapshot(
             todaySteps: steps,
-            workouts: _snapshot?.workouts ?? const [],
+            workouts:
+                _snapshot?.workouts ??
+                const [],
             rangeStart: rangeStart,
             rangeEnd: referenceDate,
-            locationPermissionGranted: _snapshot?.locationPermissionGranted ?? false,
+            locationPermissionGranted:
+                _snapshot?.locationPermissionGranted ??
+                false,
             stepsBySource: {
               'Cloud Sync': steps,
             },
@@ -99,73 +242,133 @@ class HealthSyncController extends ChangeNotifier {
           notifyListeners();
         }
 
-        await _alignSensorBaselineWithServer(steps);
+        await _alignSensorBaselineWithServer(
+          steps,
+        );
         _hydratedFromBackend = true;
       } else {
-        final error = result['error']?.toString().toLowerCase() ?? '';
-        if (error.contains('auth') ||
-            error.contains('token') ||
-            error.contains('unauthorized')) {
+        final error =
+            result['error']?.toString().toLowerCase() ??
+            '';
+        if (error.contains(
+              'auth',
+            ) ||
+            error.contains(
+              'token',
+            ) ||
+            error.contains(
+              'unauthorized',
+            )) {
           _hydratedFromBackend = true; // avoid repeated unauthorized calls
         }
       }
-    } catch (e) {
+    } catch (
+      e
+    ) {
       if (kDebugMode) {
-        print('⚠️ Failed to hydrate steps from backend: $e');
+        print(
+          '⚠️ Failed to hydrate steps from backend: $e',
+        );
       }
     } finally {
       _hydratingFromBackend = false;
     }
   }
 
-  Future<void> _alignSensorBaselineWithServer(int steps) async {
-    if (steps <= 0) return;
+  Future<
+    void
+  >
+  _alignSensorBaselineWithServer(
+    int steps,
+  ) async {
+    if (steps <=
+        0)
+      return;
     final currentCount = await _directStepService.getCurrentStepCount();
-    if (currentCount == null || currentCount <= 0) return;
-    final targetBaseline = currentCount - steps;
-    if (targetBaseline < 0) return;
+    if (currentCount ==
+            null ||
+        currentCount <=
+            0)
+      return;
+    final targetBaseline =
+        currentCount -
+        steps;
+    if (targetBaseline <
+        0)
+      return;
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    await _directStepService.setBaseline(targetBaseline, today);
+    final today = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    );
+    await _directStepService.setBaseline(
+      targetBaseline,
+      today,
+    );
   }
 
   // Sync steps to backend (throttled to avoid too many requests)
-  Future<void> _syncStepsToBackend(int steps) async {
+  Future<
+    void
+  >
+  _syncStepsToBackend(
+    int steps,
+  ) async {
     // Check if user is authenticated first
     final token = await _stepsSyncService.getAuthToken();
-    if (token == null || token.isEmpty) {
+    if (token ==
+            null ||
+        token.isEmpty) {
       // User not authenticated, skip sync
       if (kDebugMode) {
-        print('⚠️ Skipping steps sync - user not authenticated');
+        print(
+          '⚠️ Skipping steps sync - user not authenticated',
+        );
       }
       return;
     }
 
     // Only sync if enough time has passed since last sync
-    if (_lastSyncedToBackend != null &&
-        DateTime.now().difference(_lastSyncedToBackend!) < _syncInterval) {
+    if (_lastSyncedToBackend !=
+            null &&
+        DateTime.now().difference(
+              _lastSyncedToBackend!,
+            ) <
+            _syncInterval) {
       return;
     }
 
     try {
       final result = await _stepsSyncService.storeSteps(
         steps: steps,
-        source: _snapshot?.primaryStepsSource ?? 'Phone Sensor',
+        source:
+            _snapshot?.primaryStepsSource ??
+            'Phone Sensor',
       );
-      
-      if (result['success'] == true) {
+
+      if (result['success'] ==
+          true) {
         _lastSyncedToBackend = DateTime.now();
         if (kDebugMode) {
-          print('✅ Steps synced to backend: $steps');
+          print(
+            '✅ Steps synced to backend: $steps',
+          );
         }
       } else {
         if (kDebugMode) {
-          print('⚠️ Failed to sync steps: ${result['error']}');
+          print(
+            '⚠️ Failed to sync steps: ${result['error']}',
+          );
         }
       }
-    } catch (e) {
+    } catch (
+      e
+    ) {
       if (kDebugMode) {
-        print('⚠️ Error syncing steps: $e');
+        print(
+          '⚠️ Error syncing steps: $e',
+        );
       }
     }
   }
@@ -182,24 +385,50 @@ class HealthSyncController extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   Object? get lastError => _lastError;
 
-  bool get isSyncing => _status == HealthSyncStatus.syncing;
+  bool get isSyncing =>
+      _status ==
+      HealthSyncStatus.syncing;
 
   /// Convenience getter for the latest step count.
-  int get todaySteps => _snapshot?.todaySteps ?? 0;
-  Map<String, int> get stepsBySource =>
-      _snapshot?.stepsBySource ?? const <String, int>{};
+  int get todaySteps =>
+      _snapshot?.todaySteps ??
+      0;
+  Map<
+    String,
+    int
+  >
+  get stepsBySource =>
+      _snapshot?.stepsBySource ??
+      const <
+        String,
+        int
+      >{};
   String? get primaryStepsSource => _snapshot?.primaryStepsSource;
   bool get locationPermissionGranted =>
-      _snapshot?.locationPermissionGranted ?? false;
+      _snapshot?.locationPermissionGranted ??
+      false;
 
   /// Requests the latest data from the step sensor (or Health Connect if available).
-  Future<void> sync({bool force = false}) async {
+  Future<
+    void
+  >
+  sync({
+    bool force = false,
+  }) async {
     if (isSyncing) return;
     if (!force &&
-        _snapshot != null &&
-        _status == HealthSyncStatus.ready &&
-        _lastSyncedAt != null &&
-        DateTime.now().difference(_lastSyncedAt!).inMinutes < 5) {
+        _snapshot !=
+            null &&
+        _status ==
+            HealthSyncStatus.ready &&
+        _lastSyncedAt !=
+            null &&
+        DateTime.now()
+                .difference(
+                  _lastSyncedAt!,
+                )
+                .inMinutes <
+            5) {
       // Avoid hammering the API if data was synced very recently.
       return;
     }
@@ -216,8 +445,12 @@ class HealthSyncController extends ChangeNotifier {
         if (isAvailable) {
           final todaySteps = await _directStepService.getTodaySteps();
           final now = DateTime.now();
-          final rangeStart = now.subtract(const Duration(days: 7));
-          
+          final rangeStart = now.subtract(
+            const Duration(
+              days: 7,
+            ),
+          );
+
           // Create snapshot with steps from direct sensor
           _snapshot = HealthSyncSnapshot(
             todaySteps: todaySteps,
@@ -225,45 +458,62 @@ class HealthSyncController extends ChangeNotifier {
             rangeStart: rangeStart,
             rangeEnd: now,
             locationPermissionGranted: false,
-            stepsBySource: {'Phone Sensor': todaySteps},
+            stepsBySource: {
+              'Phone Sensor': todaySteps,
+            },
             primaryStepsSource: 'Phone Sensor',
           );
           _lastSyncedAt = DateTime.now();
           _status = HealthSyncStatus.ready;
           notifyListeners();
-          
+
           // Sync to backend
-          _syncStepsToBackend(todaySteps);
+          _syncStepsToBackend(
+            todaySteps,
+          );
           return;
         }
       }
 
       // Fallback to Health Connect if available and service is provided
-      if (_service != null) {
+      if (_service !=
+          null) {
         final result = await _service!.sync();
         _snapshot = result;
         _lastSyncedAt = DateTime.now();
         _status = HealthSyncStatus.ready;
-        
+
         // Sync to backend
-        _syncStepsToBackend(result.todaySteps);
+        _syncStepsToBackend(
+          result.todaySteps,
+        );
       } else {
         throw const HealthSyncException(
           HealthSyncErrorType.platformNotSupported,
           'Step counter sensor not available and Health Connect service not provided.',
         );
       }
-    } on HealthSyncException catch (error) {
-      _handleSyncException(error);
-    } on StepCounterException catch (error) {
+    } on HealthSyncException catch (
+      error
+    ) {
+      _handleSyncException(
+        error,
+      );
+    } on StepCounterException catch (
+      error
+    ) {
       _status = HealthSyncStatus.error;
       _errorMessage = error.message;
       _lastError = error;
-    } on UnsupportedError catch (error) {
+    } on UnsupportedError catch (
+      error
+    ) {
       _status = HealthSyncStatus.healthConnectUnavailable;
       _errorMessage = error.message;
       _lastError = error;
-    } catch (error) {
+    } catch (
+      error
+    ) {
       _status = HealthSyncStatus.error;
       _errorMessage = error.toString();
       _lastError = error;
@@ -275,7 +525,8 @@ class HealthSyncController extends ChangeNotifier {
   /// Clears the current error message.
   void clearError() {
     _errorMessage = null;
-    if (_snapshot != null) {
+    if (_snapshot !=
+        null) {
       _status = HealthSyncStatus.ready;
     } else {
       _status = HealthSyncStatus.idle;
@@ -283,13 +534,19 @@ class HealthSyncController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> openHealthConnectInstallPage() async {
-    if (_service != null) {
+  Future<
+    void
+  >
+  openHealthConnectInstallPage() async {
+    if (_service !=
+        null) {
       await _service!.openHealthConnectInstallPage();
     }
   }
 
-  void _handleSyncException(HealthSyncException error) {
+  void _handleSyncException(
+    HealthSyncException error,
+  ) {
     _errorMessage = error.message;
     _lastError = error;
     switch (error.type) {
@@ -322,17 +579,27 @@ class HealthSyncController extends ChangeNotifier {
   /// Resets the step baseline to start counting from now.
   /// This will set the baseline to the current step count, so only
   /// new steps taken after this will be counted.
-  Future<void> resetStepBaseline() async {
+  Future<
+    void
+  >
+  resetStepBaseline() async {
     // First get current count to set as baseline
     final currentCount = await _directStepService.getCurrentStepCount();
-    if (currentCount != null && currentCount > 0) {
+    if (currentCount !=
+            null &&
+        currentCount >
+            0) {
       await _directStepService.resetBaselineToNow();
       // Force a sync to update the display (should show 0 after reset)
-      await sync(force: true);
+      await sync(
+        force: true,
+      );
     } else {
       // If we can't get current count, clear baseline and let it reset on next sync
       await _directStepService.clearBaseline();
-      await sync(force: true);
+      await sync(
+        force: true,
+      );
     }
   }
 
