@@ -168,11 +168,24 @@ const getUserProfile = async (userId) => {
 };
 
 // JWT Secret (use environment variable in production)
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
+const ObjectId = mongoose.Types.ObjectId;
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_here';
 
-// Helper function to generate JWT token
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
+// Verify token middleware (ensures req.userId is set)
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'No token provided' });
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.userId = decoded.userId; // keep as string; convert when querying
+    req.userName = decoded.name || decoded.userName || '';
+    next();
+  } catch (err) {
+    console.error('Token verify failed:', err.message);
+    return res.status(401).json({ message: 'Invalid or expired token' });
+  }
 };
 
 // Sign Up Endpoint
@@ -360,33 +373,6 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
-// Middleware to verify JWT token
-const verifyToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  
-  // ✅ Add debug logging
-  console.log('🔍 Auth Header:', authHeader);
-  
-  // Token format: "Bearer <token>"
-  const token = authHeader && authHeader.split(' ')[1];
-  
-  console.log('🔍 Extracted Token:', token ? 'Present' : 'Missing');
-  
-  if (!token) {
-    return res.status(401).json({ message: 'No token provided' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.userId = decoded.userId;
-    console.log('✅ Token verified for userId:', req.userId);
-    next();
-  } catch (error) {
-    console.error('❌ Token verification failed:', error.message);
-    return res.status(401).json({ message: 'Invalid or expired token' });
-  }
-};
-
 // Store daily steps endpoint
 app.post('/api/steps', verifyToken, async (req, res) => {
   try {
@@ -568,14 +554,11 @@ app.post('/api/community/create', verifyToken, async (req, res) => {
       ownerId: ownerObjectId,
       ownerName: req.userName || '',
       joinCode: await generateJoinCode(),
-      members: [
-        // Optionally add owner as a member if you want them listed
-        { userId: ownerObjectId, userName: req.userName || '' }
-      ]
+      members: [{ userId: ownerObjectId, userName: req.userName || '' }]
     });
 
     const saved = await community.save();
-    res.json({ success: true, community: saved });
+    res.json({ success: true, community: formatCommunityForUser(saved, req.userId) });
   } catch (err) {
     console.error('Create community error:', err);
     res.status(500).json({ success: false, message: 'Failed to create community' });
@@ -612,7 +595,7 @@ app.get('/api/community/my-communities', verifyToken, async (req, res) => {
         { ownerId: userObjectId },
         { 'members.userId': userObjectId }
       ]
-    });
+    }).sort({ createdAt: -1 });
 
     res.json({
       success: true,
@@ -633,14 +616,13 @@ app.post('/api/community/:id/join', verifyToken, async (req, res) => {
     const community = await Community.findById(ObjectId(communityId));
     if (!community) return res.status(404).json({ success: false, message: 'Community not found' });
 
-    // avoid duplicate
     const alreadyMember = community.members.some(m => String(m.userId) === String(userObjectId));
     if (!alreadyMember) {
       community.members.push({ userId: userObjectId, userName: req.userName || '' });
       await community.save();
     }
 
-    res.json({ success: true, community: community });
+    res.json({ success: true, community: formatCommunityForUser(community, req.userId) });
   } catch (err) {
     console.error('Join community error:', err);
     res.status(500).json({ success: false, message: 'Failed to join community' });
