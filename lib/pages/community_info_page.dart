@@ -52,10 +52,14 @@ class _CommunityInfoPageState
 
     setState(
       () {
-        _userId = user['id'];
+        _userId = user['id']?.toString();
+        // Compare as strings to handle both ObjectId and string formats
+        final communityOwnerId =
+            widget.community['ownerId']?.toString() ??
+            widget.community['_id']?.toString();
         _isOwner =
-            widget.community['ownerId'] ==
-            user['id'];
+            communityOwnerId ==
+            _userId;
       },
     );
   }
@@ -69,7 +73,8 @@ class _CommunityInfoPageState
     );
 
     final res = await _communityService.leaveCommunity(
-      widget.community['_id'],
+      widget.community['_id'] ??
+          widget.community['id'],
     );
 
     setState(
@@ -77,6 +82,15 @@ class _CommunityInfoPageState
     );
 
     if (res['success']) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Left community successfully',
+          ),
+        ),
+      );
       Navigator.pop(
         context,
         true,
@@ -98,7 +112,8 @@ class _CommunityInfoPageState
     );
 
     final res = await _communityService.deleteCommunity(
-      widget.community['_id'],
+      widget.community['_id'] ??
+          widget.community['id'],
     );
 
     setState(
@@ -106,6 +121,15 @@ class _CommunityInfoPageState
     );
 
     if (res['success']) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Community deleted successfully',
+          ),
+        ),
+      );
       Navigator.pop(
         context,
         true,
@@ -124,19 +148,38 @@ class _CommunityInfoPageState
   _transferOwnership(
     String newOwnerId,
   ) async {
+    setState(
+      () => _loading = true,
+    );
+
     final res = await _communityService.transferOwnership(
-      widget.community['_id'],
+      widget.community['_id'] ??
+          widget.community['id'],
       newOwnerId,
     );
 
+    setState(
+      () => _loading = false,
+    );
+
     if (res['success']) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Ownership transferred successfully',
+          ),
+        ),
+      );
       Navigator.pop(
         context,
         true,
       );
     } else {
       _showError(
-        res['error'],
+        res['error'] ??
+            "Failed to transfer ownership",
       );
     }
   }

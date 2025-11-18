@@ -750,12 +750,14 @@ app.post('/api/community/leave', verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Community ID required' });
     }
 
-    const community = await Community.findById(communityId);
+    const communityObjectId = ObjectId(communityId);
+    const community = await Community.findById(communityObjectId);
+    
     if (!community) {
       return res.status(404).json({ success: false, message: 'Community not found' });
     }
 
-    // Owner cannot leave unless ownership transferred
+    // Owner cannot leave
     if (community.ownerId.toString() === req.userId.toString()) {
       return res.status(400).json({
         success: false,
@@ -763,16 +765,17 @@ app.post('/api/community/leave', verifyToken, async (req, res) => {
       });
     }
 
-    community.members = community.members.filter(
+    // Remove user from members array
+    community.members = (community.members || []).filter(
       (m) => m.userId.toString() !== req.userId.toString()
     );
 
     await community.save();
-
     res.json({ success: true, message: 'Left community successfully' });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Error leaving community' });
+    console.error('Leave community error:', error);
+    res.status(500).json({ success: false, message: 'Error leaving community', error: error.message });
   }
 });
 
@@ -781,31 +784,35 @@ app.delete('/api/community/delete/:communityId', verifyToken, async (req, res) =
   try {
     const { communityId } = req.params;
 
-    const community = await Community.findById(communityId);
+    const communityObjectId = ObjectId(communityId);
+    const community = await Community.findById(communityObjectId);
+    
     if (!community) return res.status(404).json({ success: false, message: 'Not found' });
 
     if (community.ownerId.toString() !== req.userId.toString()) {
       return res.status(403).json({ success: false, message: 'Only owner can delete' });
     }
 
-    await community.deleteOne();
-
-    // Optionally: delete messages
-    await CommunityMessage.deleteMany({ communityId });
+    await Community.deleteOne({ _id: communityObjectId });
+    await CommunityMessage.deleteMany({ communityId: communityObjectId });
 
     res.json({ success: true, message: 'Community deleted successfully' });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Error deleting community' });
+    console.error('Delete community error:', error);
+    res.status(500).json({ success: false, message: 'Error deleting community', error: error.message });
   }
 });
 
-//Transfer ownership
+// Transfer ownership
 app.post('/api/community/transfer-owner', verifyToken, async (req, res) => {
   try {
     const { communityId, newOwnerId } = req.body;
 
-    const community = await Community.findById(communityId);
+    const communityObjectId = ObjectId(communityId);
+    const newOwnerObjectId = ObjectId(newOwnerId);
+    const community = await Community.findById(communityObjectId);
+    
     if (!community) return res.status(404).json({ success: false, message: 'Not found' });
 
     if (community.ownerId.toString() !== req.userId.toString()) {
@@ -813,26 +820,26 @@ app.post('/api/community/transfer-owner', verifyToken, async (req, res) => {
     }
 
     const memberExists = community.members.some(
-      (m) => m.userId.toString() === newOwnerId.toString()
+      (m) => m.userId.toString() === newOwnerObjectId.toString()
     );
 
     if (!memberExists) {
       return res.status(400).json({ success: false, message: 'New owner must be a member' });
     }
 
-    // Find member name
     const newOwner = community.members.find(
-      (m) => m.userId.toString() === newOwnerId.toString()
+      (m) => m.userId.toString() === newOwnerObjectId.toString()
     );
 
-    community.ownerId = newOwnerId;
+    community.ownerId = newOwnerObjectId;
     community.ownerName = newOwner.userName;
     await community.save();
 
     res.json({ success: true, message: 'Ownership transferred successfully' });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Error transferring ownership' });
+    console.error('Transfer ownership error:', error);
+    res.status(500).json({ success: false, message: 'Error transferring ownership', error: error.message });
   }
 });
 
