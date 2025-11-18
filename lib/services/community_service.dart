@@ -19,20 +19,21 @@ class CommunityService {
         url.isEmpty) {
       return null;
     }
-    String cleanUrl = url.trim();
-    if (cleanUrl.endsWith(
+    String clean = url.trim();
+    if (clean.endsWith(
       '/',
-    )) {
-      cleanUrl = cleanUrl.substring(
+    ))
+      clean = clean.substring(
         0,
-        cleanUrl.length -
+        clean.length -
             1,
       );
-    }
-    return cleanUrl;
+    return clean;
   }
 
-  // Get auth headers
+  // ------------------------------
+  // Get Auth Headers
+  // ------------------------------
   Future<
     Map<
       String,
@@ -50,7 +51,9 @@ class CommunityService {
     };
   }
 
-  // Create a community
+  // ------------------------------
+  // Create Community
+  // ------------------------------
   Future<
     Map<
       String,
@@ -92,28 +95,30 @@ class CommunityService {
         return json.decode(
           response.body,
         );
-      } else {
-        final error = json.decode(
-          response.body,
-        );
-        return {
-          'success': false,
-          'error':
-              error['message'] ??
-              'Failed to create community',
-        };
       }
+
+      final error = json.decode(
+        response.body,
+      );
+      return {
+        'success': false,
+        'error':
+            error['message'] ??
+            'Failed to create',
+      };
     } catch (
       e
     ) {
       return {
         'success': false,
-        'error': 'Network error: ${e.toString()}',
+        'error': 'Network error: $e',
       };
     }
   }
 
-  // Get all public communities
+  // ------------------------------
+  // Get Public Communities
+  // ------------------------------
   Future<
     Map<
       String,
@@ -127,7 +132,7 @@ class CommunityService {
           null) {
         return {
           'success': false,
-          'error': 'API_BASE_URL is not configured',
+          'error': 'API_BASE_URL missing',
         };
       }
 
@@ -144,28 +149,30 @@ class CommunityService {
         return json.decode(
           response.body,
         );
-      } else {
-        final error = json.decode(
-          response.body,
-        );
-        return {
-          'success': false,
-          'error':
-              error['message'] ??
-              'Failed to fetch communities',
-        };
       }
+
+      final error = json.decode(
+        response.body,
+      );
+      return {
+        'success': false,
+        'error':
+            error['message'] ??
+            'Failed to load public communities',
+      };
     } catch (
       e
     ) {
       return {
         'success': false,
-        'error': 'Network error: ${e.toString()}',
+        'error': 'Network error: $e',
       };
     }
   }
 
-  // Join a public community
+  // ------------------------------
+  // Join Public Community
+  // ------------------------------
   Future<
     Map<
       String,
@@ -178,12 +185,11 @@ class CommunityService {
     try {
       final url = baseUrl;
       if (url ==
-          null) {
+          null)
         return {
           'success': false,
-          'error': 'API_BASE_URL is not configured',
+          'error': 'API_BASE_URL missing',
         };
-      }
 
       final headers = await _getHeaders();
       final response = await http.post(
@@ -200,28 +206,30 @@ class CommunityService {
         return json.decode(
           response.body,
         );
-      } else {
-        final error = json.decode(
-          response.body,
-        );
-        return {
-          'success': false,
-          'error':
-              error['message'] ??
-              'Failed to join community',
-        };
       }
+
+      final error = json.decode(
+        response.body,
+      );
+      return {
+        'success': false,
+        'error':
+            error['message'] ??
+            'Failed to join',
+      };
     } catch (
       e
     ) {
       return {
         'success': false,
-        'error': 'Network error: ${e.toString()}',
+        'error': 'Network error: $e',
       };
     }
   }
 
-  // Join a private community with code
+  // ------------------------------
+  // Join Private Community
+  // ------------------------------
   Future<
     Map<
       String,
@@ -234,12 +242,11 @@ class CommunityService {
     try {
       final url = baseUrl;
       if (url ==
-          null) {
+          null)
         return {
           'success': false,
-          'error': 'API_BASE_URL is not configured',
+          'error': 'API_BASE_URL missing',
         };
-      }
 
       final headers = await _getHeaders();
       final response = await http.post(
@@ -249,7 +256,7 @@ class CommunityService {
         headers: headers,
         body: json.encode(
           {
-            'joinCode': joinCode.toUpperCase(),
+            'joinCode': joinCode.trim().toUpperCase(),
           },
         ),
       );
@@ -261,28 +268,30 @@ class CommunityService {
         return json.decode(
           response.body,
         );
-      } else {
-        final error = json.decode(
-          response.body,
-        );
-        return {
-          'success': false,
-          'error':
-              error['message'] ??
-              'Failed to join community',
-        };
       }
+
+      final error = json.decode(
+        response.body,
+      );
+      return {
+        'success': false,
+        'error':
+            error['message'] ??
+            'Invalid join code',
+      };
     } catch (
       e
     ) {
       return {
         'success': false,
-        'error': 'Network error: ${e.toString()}',
+        'error': 'Network error: $e',
       };
     }
   }
 
-  // Get user's communities
+  // ------------------------------
+  // Get My Communities
+  // ------------------------------
   Future<
     Map<
       String,
@@ -293,84 +302,46 @@ class CommunityService {
     try {
       final url = baseUrl;
       if (url ==
-          null) {
+          null)
         return {
           'success': false,
-          'error': 'API_BASE_URL is not configured',
+          'error': 'API_BASE_URL missing',
         };
-      }
 
       final headers = await _getHeaders();
-      final fullUrl = '$url/api/community/my-communities';
-
-      print(
-        '🔍 Full URL: $fullUrl',
-      );
-      print(
-        '🔍 Headers: $headers',
-      );
-
       final response = await http.get(
         Uri.parse(
-          fullUrl,
+          '$url/api/community/my-communities',
         ),
         headers: headers,
       );
 
-      print(
-        '🔍 getMyCommunities Status: ${response.statusCode}',
-      );
-      print(
-        '🔍 getMyCommunities Headers: ${response.request?.headers}',
-      );
-      print(
-        '🔍 getMyCommunities Body: ${response.body}',
-      );
-
       if (response.statusCode ==
-          200) {
+          200)
         return json.decode(
           response.body,
         );
-      } else {
-        Map<
-          String,
-          dynamic
-        >
-        errorData;
-        try {
-          errorData = json.decode(
-            response.body,
-          );
-        } catch (
-          e
-        ) {
-          errorData = {
-            'message': response.body,
-          };
-        }
-        return {
-          'success': false,
-          'error':
-              errorData['message'] ??
-              'Failed to fetch communities',
-          'status': response.statusCode,
-        };
-      }
-    } catch (
-      e
-    ) {
-      print(
-        '🔍 getMyCommunities Exception: $e',
+
+      final error = json.decode(
+        response.body,
       );
       return {
         'success': false,
-        'error': 'Network error: ${e.toString()}',
+        'error': error['message'],
+      };
+    } catch (
+      e
+    ) {
+      return {
+        'success': false,
+        'error': 'Network error: $e',
       };
     }
   }
 
-  // Send a chat message
+  // ------------------------------
+  // Send Message
+  // ------------------------------
   Future<
     Map<
       String,
@@ -384,14 +355,14 @@ class CommunityService {
     try {
       final url = baseUrl;
       if (url ==
-          null) {
+          null)
         return {
           'success': false,
-          'error': 'API_BASE_URL is not configured',
+          'error': 'API_BASE_URL missing',
         };
-      }
 
       final headers = await _getHeaders();
+
       final response = await http.post(
         Uri.parse(
           '$url/api/community/messages',
@@ -412,28 +383,25 @@ class CommunityService {
         return json.decode(
           response.body,
         );
-      } else {
-        final error = json.decode(
-          response.body,
-        );
-        return {
-          'success': false,
-          'error':
-              error['message'] ??
-              'Failed to send message',
-        };
       }
+
+      return {
+        'success': false,
+        'error': 'Failed to send message',
+      };
     } catch (
       e
     ) {
       return {
         'success': false,
-        'error': 'Network error: ${e.toString()}',
+        'error': 'Network error: $e',
       };
     }
   }
 
-  // Get chat messages
+  // ------------------------------
+  // Get Messages
+  // ------------------------------
   Future<
     Map<
       String,
@@ -447,14 +415,14 @@ class CommunityService {
     try {
       final url = baseUrl;
       if (url ==
-          null) {
+          null)
         return {
           'success': false,
-          'error': 'API_BASE_URL is not configured',
+          'error': 'API_BASE_URL missing',
         };
-      }
 
       final headers = await _getHeaders();
+
       final response = await http.get(
         Uri.parse(
           '$url/api/community/messages?communityId=$communityId&limit=$limit',
@@ -463,27 +431,165 @@ class CommunityService {
       );
 
       if (response.statusCode ==
-          200) {
+          200)
         return json.decode(
           response.body,
         );
-      } else {
-        final error = json.decode(
-          response.body,
-        );
-        return {
-          'success': false,
-          'error':
-              error['message'] ??
-              'Failed to fetch messages',
-        };
-      }
+
+      final error = json.decode(
+        response.body,
+      );
+      return {
+        'success': false,
+        'error': error['message'],
+      };
     } catch (
       e
     ) {
       return {
         'success': false,
-        'error': 'Network error: ${e.toString()}',
+        'error': 'Network error: $e',
+      };
+    }
+  }
+
+  // ------------------------------
+  // NEW: Leave Community
+  // ------------------------------
+  Future<
+    Map<
+      String,
+      dynamic
+    >
+  >
+  leaveCommunity(
+    String communityId,
+  ) async {
+    try {
+      final url = baseUrl;
+      if (url ==
+          null)
+        return {
+          'success': false,
+          'error': 'API_BASE_URL missing',
+        };
+
+      final headers = await _getHeaders();
+
+      final response = await http.post(
+        Uri.parse(
+          '$url/api/community/leave',
+        ),
+        headers: headers,
+        body: json.encode(
+          {
+            'communityId': communityId,
+          },
+        ),
+      );
+
+      return json.decode(
+        response.body,
+      );
+    } catch (
+      e
+    ) {
+      return {
+        'success': false,
+        'error': 'Network error: $e',
+      };
+    }
+  }
+
+  // ------------------------------
+  // NEW: Delete Community (Owner Only)
+  // ------------------------------
+  Future<
+    Map<
+      String,
+      dynamic
+    >
+  >
+  deleteCommunity(
+    String communityId,
+  ) async {
+    try {
+      final url = baseUrl;
+      if (url ==
+          null)
+        return {
+          'success': false,
+          'error': 'API_BASE_URL missing',
+        };
+
+      final headers = await _getHeaders();
+
+      final response = await http.delete(
+        Uri.parse(
+          '$url/api/community/delete/$communityId',
+        ),
+        headers: headers,
+      );
+
+      return json.decode(
+        response.body,
+      );
+    } catch (
+      e
+    ) {
+      return {
+        'success': false,
+        'error': 'Network error: $e',
+      };
+    }
+  }
+
+  // ------------------------------
+  // NEW: Transfer Ownership
+  // ------------------------------
+  Future<
+    Map<
+      String,
+      dynamic
+    >
+  >
+  transferOwnership(
+    String communityId,
+    String newOwnerId,
+  ) async {
+    try {
+      final url = baseUrl;
+      if (url ==
+          null)
+        return {
+          'success': false,
+          'error': 'API_BASE_URL missing',
+        };
+
+      final headers = await _getHeaders();
+
+      final response = await http.post(
+        Uri.parse(
+          '$url/api/community/transfer-owner',
+        ),
+        headers: headers,
+        body: json.encode(
+          {
+            'communityId': communityId,
+            'newOwnerId': newOwnerId,
+          },
+        ),
+      );
+
+      return json.decode(
+        response.body,
+      );
+    } catch (
+      e
+    ) {
+      return {
+        'success': false,
+        'error': 'Network error: $e',
       };
     }
   }

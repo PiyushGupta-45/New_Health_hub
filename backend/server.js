@@ -741,6 +741,101 @@ app.post('/api/community/join-with-code', verifyToken, async (req, res) => {
   }
 });
 
+// Leave Community
+app.post('/api/community/leave', verifyToken, async (req, res) => {
+  try {
+    const { communityId } = req.body;
+
+    if (!communityId) {
+      return res.status(400).json({ success: false, message: 'Community ID required' });
+    }
+
+    const community = await Community.findById(communityId);
+    if (!community) {
+      return res.status(404).json({ success: false, message: 'Community not found' });
+    }
+
+    // Owner cannot leave unless ownership transferred
+    if (community.ownerId.toString() === req.userId.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Owner must transfer ownership or delete community'
+      });
+    }
+
+    community.members = community.members.filter(
+      (m) => m.userId.toString() !== req.userId.toString()
+    );
+
+    await community.save();
+
+    res.json({ success: true, message: 'Left community successfully' });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error leaving community' });
+  }
+});
+
+// Delete community (owner only)
+app.delete('/api/community/delete/:communityId', verifyToken, async (req, res) => {
+  try {
+    const { communityId } = req.params;
+
+    const community = await Community.findById(communityId);
+    if (!community) return res.status(404).json({ success: false, message: 'Not found' });
+
+    if (community.ownerId.toString() !== req.userId.toString()) {
+      return res.status(403).json({ success: false, message: 'Only owner can delete' });
+    }
+
+    await community.deleteOne();
+
+    // Optionally: delete messages
+    await CommunityMessage.deleteMany({ communityId });
+
+    res.json({ success: true, message: 'Community deleted successfully' });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error deleting community' });
+  }
+});
+
+//Transfer ownership
+app.post('/api/community/transfer-owner', verifyToken, async (req, res) => {
+  try {
+    const { communityId, newOwnerId } = req.body;
+
+    const community = await Community.findById(communityId);
+    if (!community) return res.status(404).json({ success: false, message: 'Not found' });
+
+    if (community.ownerId.toString() !== req.userId.toString()) {
+      return res.status(403).json({ success: false, message: 'Only owner can transfer ownership' });
+    }
+
+    const memberExists = community.members.some(
+      (m) => m.userId.toString() === newOwnerId.toString()
+    );
+
+    if (!memberExists) {
+      return res.status(400).json({ success: false, message: 'New owner must be a member' });
+    }
+
+    // Find member name
+    const newOwner = community.members.find(
+      (m) => m.userId.toString() === newOwnerId.toString()
+    );
+
+    community.ownerId = newOwnerId;
+    community.ownerName = newOwner.userName;
+    await community.save();
+
+    res.json({ success: true, message: 'Ownership transferred successfully' });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error transferring ownership' });
+  }
+});
+
 // Send a message
 app.post('/api/community/messages', verifyToken, async (req, res) => {
   try {
