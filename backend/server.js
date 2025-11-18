@@ -8,6 +8,8 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 require('dotenv').config();
 
+const ObjectId = mongoose.Types.ObjectId;
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
