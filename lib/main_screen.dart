@@ -30,7 +30,6 @@ class _MainScreenState
   final HealthSyncController _healthSyncController = HealthSyncController();
   final AuthController _authController = AuthController();
 
-  // Navigate using bottom navigation
   void _onItemTapped(
     int index,
   ) {
@@ -49,14 +48,12 @@ class _MainScreenState
     );
   }
 
-  // Handle Android back button
   Future<
     bool
   >
   _onWillPop() async {
     if (_selectedIndex !=
         0) {
-      // Go to previous page instead of exiting the app
       setState(
         () {
           _selectedIndex--;
@@ -70,11 +67,9 @@ class _MainScreenState
         ),
         curve: Curves.easeOut,
       );
-
-      return false; // prevent app exit
+      return false;
     }
-
-    return true; // exit app normally only when on Home page
+    return true;
   }
 
   @override
@@ -90,7 +85,7 @@ class _MainScreenState
 
         body: PageView(
           controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(), // Disable swipe to avoid conflicts
+          physics: const NeverScrollableScrollPhysics(),
           onPageChanged:
               (
                 index,
@@ -106,11 +101,11 @@ class _MainScreenState
               controller: _healthSyncController,
               authController: _authController,
             ),
+            const CommunityPage(),
             FeaturesView(
               controller: _healthSyncController,
             ),
             const AboutPage(),
-            const CommunityPage(),
           ],
         ),
 
@@ -131,6 +126,12 @@ class _MainScreenState
             ),
             BottomNavigationBarItem(
               icon: Icon(
+                Icons.people,
+              ),
+              label: 'Community',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(
                 Icons.star,
               ),
               label: 'Features',
@@ -140,12 +141,6 @@ class _MainScreenState
                 Icons.info_outline,
               ),
               label: 'About',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.people,
-              ),
-              label: 'Community',
             ),
           ],
         ),
