@@ -556,45 +556,29 @@ app.get('/api/steps/today', verifyToken, async (req, res) => {
 
 // --- Community Endpoints ---
 
-// Create community
+// Create community endpoint (ensure ownerId stored as ObjectId)
 app.post('/api/community/create', verifyToken, async (req, res) => {
   try {
-    const { name, isPublic = true } = req.body;
+    const { name, isPublic } = req.body;
+    const ownerObjectId = ObjectId(req.userId);
 
-    if (!name || !name.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Community name is required'
-      });
-    }
-
-    const ownerProfile = await getUserProfile(req.userId);
-    const joinCode = isPublic ? null : await generateJoinCode();
-
-    const community = await Community.create({
-      name: name.trim(),
-      isPublic,
-      ownerId: req.userId,
-      ownerName: ownerProfile.name,
-      joinCode,
+    const community = new Community({
+      name,
+      isPublic: !!isPublic,
+      ownerId: ownerObjectId,
+      ownerName: req.userName || '',
+      joinCode: await generateJoinCode(),
       members: [
-        {
-          userId: req.userId,
-          userName: ownerProfile.name
-        }
+        // Optionally add owner as a member if you want them listed
+        { userId: ownerObjectId, userName: req.userName || '' }
       ]
     });
 
-    return res.status(201).json({
-      success: true,
-      data: formatCommunityForUser(community, req.userId)
-    });
-  } catch (error) {
-    console.error('Create community error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error while creating community'
-    });
+    const saved = await community.save();
+    res.json({ success: true, community: saved });
+  } catch (err) {
+    console.error('Create community error:', err);
+    res.status(500).json({ success: false, message: 'Failed to create community' });
   }
 });
 
@@ -618,76 +602,48 @@ app.get('/api/community/list', verifyToken, async (req, res) => {
   }
 });
 
-// Get user's communities
+// Get user's communities (convert req.userId to ObjectId before querying)
 app.get('/api/community/my-communities', verifyToken, async (req, res) => {
   try {
-    console.log('🔍 Fetching communities for userId:', req.userId);
-    
+    const userObjectId = ObjectId(req.userId);
+
     const communities = await Community.find({
       $or: [
-        { ownerId: req.userId },
-        { 'members.userId': req.userId }
+        { ownerId: userObjectId },
+        { 'members.userId': userObjectId }
       ]
     });
 
-    console.log('✅ Found communities:', communities.length);
     res.json({
       success: true,
       communities: communities.map(c => formatCommunityForUser(c, req.userId))
     });
   } catch (error) {
-    console.error('❌ Error fetching communities:', error);
+    console.error('Error fetching communities:', error);
     res.status(500).json({ message: 'Failed to fetch communities', error: error.message });
   }
 });
 
-// Join public community
-app.post('/api/community/:communityId/join', verifyToken, async (req, res) => {
+// Join community (ensure members.userId saved as ObjectId)
+app.post('/api/community/:id/join', verifyToken, async (req, res) => {
   try {
-    const { communityId } = req.params;
-    const community = await Community.findById(communityId);
+    const communityId = req.params.id;
+    const userObjectId = ObjectId(req.userId);
 
-    if (!community) {
-      return res.status(404).json({
-        success: false,
-        message: 'Community not found'
-      });
-    }
+    const community = await Community.findById(ObjectId(communityId));
+    if (!community) return res.status(404).json({ success: false, message: 'Community not found' });
 
-    if (!community.isPublic) {
-      return res.status(403).json({
-        success: false,
-        message: 'This community requires a join code'
-      });
-    }
-
-    const members = community.members || [];
-    if (!community.members) {
-      community.members = members;
-    }
-    const alreadyMember = members.some(
-      (member) => member.userId.toString() === req.userId.toString()
-    );
-
+    // avoid duplicate
+    const alreadyMember = community.members.some(m => String(m.userId) === String(userObjectId));
     if (!alreadyMember) {
-      const profile = await getUserProfile(req.userId);
-      community.members.push({
-        userId: req.userId,
-        userName: profile.name
-      });
+      community.members.push({ userId: userObjectId, userName: req.userName || '' });
       await community.save();
     }
 
-    return res.json({
-      success: true,
-      data: formatCommunityForUser(community, req.userId)
-    });
-  } catch (error) {
-    console.error('Join community error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error while joining community'
-    });
+    res.json({ success: true, community: community });
+  } catch (err) {
+    console.error('Join community error:', err);
+    res.status(500).json({ success: false, message: 'Failed to join community' });
   }
 });
 
