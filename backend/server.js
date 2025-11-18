@@ -753,29 +753,47 @@ app.post('/api/community/leave', verifyToken, async (req, res) => {
     }
 
     const communityObjectId = new ObjectId(communityId);
+    console.log('🔍 Leave request - req.userId:', req.userId);
+    console.log('🔍 Leave request - communityId:', communityId);
+    
     const community = await Community.findById(communityObjectId);
     
     if (!community) {
+      console.log('❌ Community not found with ID:', communityObjectId);
       return res.status(404).json({ success: false, message: 'Community not found' });
     }
 
+    console.log('✅ Community found:', community.name);
+    console.log('🔍 Community ownerId:', community.ownerId);
+    console.log('🔍 Community members:', community.members);
+
     // Owner cannot leave
     if (community.ownerId.toString() === req.userId.toString()) {
+      console.log('❌ User is owner, cannot leave');
       return res.status(400).json({
         success: false,
         message: 'Owner must transfer ownership or delete community'
       });
     }
 
+    console.log('🔍 Removing user from members...');
+    const beforeCount = community.members.length;
     community.members = (community.members || []).filter(
-      (m) => m.userId.toString() !== req.userId.toString()
+      (m) => {
+        const isMember = m.userId.toString() === req.userId.toString();
+        console.log(`  Checking member ${m.userId} vs ${req.userId}: ${isMember}`);
+        return !isMember;
+      }
     );
+    const afterCount = community.members.length;
+    console.log(`✅ Members before: ${beforeCount}, after: ${afterCount}`);
 
     await community.save();
+    console.log('✅ Community saved successfully');
     res.json({ success: true, message: 'Left community successfully' });
 
   } catch (error) {
-    console.error('Leave community error:', error);
+    console.error('❌ Leave community error:', error);
     res.status(500).json({ success: false, message: 'Error leaving community', error: error.message });
   }
 });
