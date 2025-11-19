@@ -965,9 +965,17 @@ app.post('/api/community/messages', verifyToken, async (req, res) => {
       message: message.toString().trim()
     });
 
+    // Return message data along with community info for notifications
+    const messageData = formatCommunityMessage(newMessage);
+    
     return res.status(201).json({
       success: true,
-      data: formatCommunityMessage(newMessage)
+      data: messageData,
+      community: {
+        _id: community._id?.toString(),
+        name: community.name,
+        members: community.members || []
+      }
     });
   } catch (error) {
     console.error('Send message error:', error);

@@ -278,68 +278,88 @@ class _PersonalizedGoalsViewState
     await notificationService.initialize();
 
     final now = DateTime.now();
+    final pendingNotifications = await notificationService.getPendingNotifications();
+    final pendingIds = pendingNotifications.map((n) => n.id).toSet();
 
     for (var goal in activeGoals) {
       // Only reschedule if deadline hasn't passed
       if (goal.deadline.isAfter(now)) {
+        final notificationId = NotificationService.stableIdFromKey(
+          goal.goalId,
+          scope: 'goal',
+        );
+        
+        // Check if notification is already scheduled and valid
+        final alreadyScheduled = pendingIds.contains(notificationId);
         DateTime actualReminderTime = goal.reminderTime;
         
         // If reminder time has passed but deadline hasn't, schedule for now or soon
         if (goal.reminderTime.isBefore(now)) {
           actualReminderTime = now.add(const Duration(minutes: 1));
-          print(
-            '⏰ Reminder time passed for goal: ${goal.name}, scheduling for ${actualReminderTime}',
-          );
-        } else {
-          print(
-            '🔄 Rescheduling notification for goal: ${goal.name}',
-          );
         }
         
-        print(
-          '   Original reminder time: ${goal.reminderTime}',
-        );
-        print(
-          '   Actual scheduled time: $actualReminderTime',
-        );
-        print(
-          '   Current time: $now',
-        );
-        print(
-          '   Deadline: ${goal.deadline}',
-        );
-        print(
-          '   Time until deadline: ${goal.deadline.difference(now).inMinutes} minutes',
-        );
-        
-        final notificationId = NotificationService.stableIdFromKey(
-          goal.goalId,
-          scope: 'goal',
-        );
-
-        final scheduled = await notificationService.scheduleNotification(
-          id: notificationId,
-          title: 'Goal Reminder: ${goal.name}',
-          body: 'You have 1 hour left to complete your goal: ${goal.target} ${goal.unit}',
-          scheduledDate: actualReminderTime,
-          payload: goal.goalId,
-        );
-
-        if (scheduled) {
+        // Only reschedule if not already scheduled or if reminder time changed
+        if (!alreadyScheduled || goal.reminderTime.isBefore(now)) {
+          if (alreadyScheduled) {
+            print(
+              '🔄 Updating notification for goal: ${goal.name} (reminder time passed)',
+            );
+            // Cancel existing before rescheduling
+            await notificationService.cancelNotification(notificationId);
+          } else {
+            print(
+              '🔄 Scheduling notification for goal: ${goal.name}',
+            );
+          }
+          
           print(
-            '✅ Rescheduled notification for goal: ${goal.name}',
+            '   Original reminder time: ${goal.reminderTime}',
+          );
+          print(
+            '   Actual scheduled time: $actualReminderTime',
+          );
+          print(
+            '   Current time: $now',
+          );
+          print(
+            '   Deadline: ${goal.deadline}',
+          );
+          print(
+            '   Time until deadline: ${goal.deadline.difference(now).inMinutes} minutes',
+          );
+
+          final scheduled = await notificationService.scheduleNotification(
+            id: notificationId,
+            title: 'Goal Reminder: ${goal.name}',
+            body: 'You have 1 hour left to complete your goal: ${goal.target} ${goal.unit}',
+            scheduledDate: actualReminderTime,
+            payload: goal.goalId,
+          );
+
+          if (scheduled) {
+            print(
+              '✅ Notification scheduled for goal: ${goal.name}',
+            );
+            _updateGoalScheduleStatus(
+              goal.goalId,
+              true,
+            );
+          } else {
+            print(
+              '⚠️ Failed to schedule notification for goal: ${goal.name}',
+            );
+            _updateGoalScheduleStatus(
+              goal.goalId,
+              false,
+            );
+          }
+        } else {
+          print(
+            '✅ Notification already scheduled for goal: ${goal.name}, skipping',
           );
           _updateGoalScheduleStatus(
             goal.goalId,
             true,
-          );
-        } else {
-          print(
-            '⚠️ Failed to reschedule notification for goal: ${goal.name}',
-          );
-          _updateGoalScheduleStatus(
-            goal.goalId,
-            false,
           );
         }
       } else {
@@ -426,7 +446,25 @@ class _PersonalizedGoalsViewState
       ),
     );
     // Reload goals from storage and refresh the list
-    await _loadGoals();
+    // Only reschedule if goals actually changed (avoid unnecessary rescheduling)
+    final storage = GoalsStorageService();
+    final savedGoals = await storage.loadGoals();
+    
+    setState(
+      () {
+        activeGoals.clear();
+        activeGoals.addAll(savedGoals);
+      },
+    );
+    
+    // Only reschedule if there are new goals or goals were modified
+    // Check if any goal needs rescheduling (deadline not passed)
+    final now = DateTime.now();
+    final needsRescheduling = savedGoals.any((goal) => goal.deadline.isAfter(now));
+    
+    if (needsRescheduling) {
+      await _rescheduleAllNotifications();
+    }
   }
 
   @override

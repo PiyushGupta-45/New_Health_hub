@@ -93,7 +93,7 @@ class NotificationService {
 
     if (androidImplementation !=
         null) {
-      // Create the notification channel
+      // Create the goal reminders notification channel
       await androidImplementation.createNotificationChannel(
         const AndroidNotificationChannel(
           'goal_reminders',
@@ -105,8 +105,22 @@ class NotificationService {
           showBadge: true,
         ),
       );
+      
+      // Create the community chat notification channel
+      await androidImplementation.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'community_chat',
+          'Community Chat',
+          description: 'Notifications for community chat messages',
+          importance: Importance.high,
+          playSound: true,
+          enableVibration: true,
+          showBadge: true,
+        ),
+      );
+      
       print(
-        '✅ Notification channel created',
+        '✅ Notification channels created',
       );
     }
 
@@ -153,14 +167,33 @@ class NotificationService {
     _initialized = true;
   }
 
+  // Global handler for notification responses (can be set from app level)
+  Function(NotificationResponse)? _globalResponseHandler;
+  
+  /// Set global notification response handler
+  void setGlobalResponseHandler(Function(NotificationResponse) handler) {
+    _globalResponseHandler = handler;
+  }
+  
   /// Handle notification tap
   void _onNotificationTapped(
     NotificationResponse response,
   ) {
     // Handle notification tap if needed
     print(
-      'Notification tapped: ${response.payload}',
+      '📱 Notification response: ${response.payload}',
     );
+    print(
+      '   Action ID: ${response.actionId}',
+    );
+    print(
+      '   Input: ${response.input}',
+    );
+    
+    // Call global handler if set
+    if (_globalResponseHandler != null) {
+      _globalResponseHandler!(response);
+    }
   }
 
   /// Schedule a notification for a specific date and time
@@ -566,6 +599,79 @@ class NotificationService {
       print(
         '❌ Error showing test notification: $e',
       );
+      return false;
+    }
+  }
+
+  /// Show a chat notification with reply functionality
+  Future<bool> showChatNotification({
+    required int id,
+    required String title,
+    required String body,
+    required String communityId,
+    required String communityName,
+    String? payload,
+  }) async {
+    if (!_initialized) {
+      await initialize();
+    }
+
+    try {
+      final androidImplementation = _notifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+
+      // Android notification with reply action
+      final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'community_chat',
+        'Community Chat',
+        channelDescription: 'Notifications for community chat messages',
+        importance: Importance.high,
+        priority: Priority.high,
+        showWhen: true,
+        enableVibration: true,
+        playSound: true,
+        category: AndroidNotificationCategory.message,
+        actions: [
+          AndroidNotificationAction(
+            'reply',
+            'Reply',
+            titleColor: Colors.indigo,
+            showsUserInterface: false,
+            cancelNotification: false,
+            semanticAction: SemanticAction.reply,
+            inputTextReplyParameter: const AndroidNotificationActionInputTextReplyParameter(
+              hintText: 'Type a reply...',
+            ),
+          ),
+        ],
+        styleInformation: const BigTextStyleInformation(''),
+      );
+
+      const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        categoryIdentifier: 'MESSAGE_CATEGORY',
+      );
+
+      const NotificationDetails notificationDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      await _notifications.show(
+        id,
+        title,
+        body,
+        notificationDetails,
+        payload: payload ?? 'community_chat|$communityId',
+      );
+
+      print('✅ Chat notification shown: $title');
+      return true;
+    } catch (e) {
+      print('❌ Error showing chat notification: $e');
       return false;
     }
   }

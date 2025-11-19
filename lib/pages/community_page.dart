@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/community_service.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 import 'dart:async';
 
 // IMPORT the Community Info Page
@@ -30,6 +31,7 @@ class _CommunityPageState
         > {
   final CommunityService _communityService = CommunityService();
   final AuthService _authService = AuthService();
+  final NotificationService _notificationService = NotificationService();
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _communityNameController = TextEditingController();
   final TextEditingController _joinCodeController = TextEditingController();
@@ -72,6 +74,7 @@ class _CommunityPageState
   void initState() {
     super.initState();
     _checkAuthStatus();
+    _initializeNotifications();
     // Refresh auth status periodically in case user signs in/out elsewhere
     _checkTimer = Timer.periodic(
       const Duration(
@@ -88,6 +91,61 @@ class _CommunityPageState
         }
       },
     );
+  }
+
+  Future<void> _initializeNotifications() async {
+    await _notificationService.initialize();
+    // Set up notification response handler for this page
+    _notificationService.setGlobalResponseHandler(_handleNotificationResponse);
+  }
+
+  void _handleNotificationResponse(NotificationResponse response) {
+    if (response.payload != null && response.payload!.startsWith('community_chat|')) {
+      final parts = response.payload!.split('|');
+      if (parts.length >= 2) {
+        final communityId = parts[1];
+        
+        // Handle reply action
+        if (response.actionId == 'reply' && response.input != null && response.input!.isNotEmpty) {
+          // Send reply from notification
+          _sendReplyFromNotification(communityId, response.input!);
+        } else {
+          // Just open the community chat
+          _openCommunityChat(communityId);
+        }
+      }
+    }
+  }
+
+  void _openCommunityChat(String communityId) {
+    // Find the community and open chat
+    final community = _myCommunities.firstWhere(
+      (c) => c['_id'] == communityId,
+      orElse: () => _publicCommunities.firstWhere(
+        (c) => c['_id'] == communityId,
+        orElse: () => {},
+      ),
+    );
+    
+    if (community.isNotEmpty) {
+      setState(() {
+        _selectedCommunity = community;
+      });
+      _startMessageRefresh();
+      _loadMessages();
+    }
+  }
+
+  Future<void> _sendReplyFromNotification(String communityId, String message) async {
+    final result = await _communityService.sendMessage(
+      message,
+      communityId,
+    );
+    if (result['success'] == true && mounted) {
+      // Open chat to show the reply
+      _openCommunityChat(communityId);
+      _loadMessages();
+    }
   }
 
   @override
@@ -359,6 +417,15 @@ class _CommunityPageState
     if (result['success'] ==
         true) {
       _loadMessages();
+      
+      // Send notifications to all members except the sender
+      if (result['community'] != null) {
+        await _notifyCommunityMembers(
+          result['community'],
+          result['data'],
+          message,
+        );
+      }
     } else {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -370,6 +437,40 @@ class _CommunityPageState
                   'Failed to send message',
             ),
           ),
+        );
+      }
+    }
+  }
+
+  Future<void> _notifyCommunityMembers(
+    Map<String, dynamic> community,
+    Map<String, dynamic> messageData,
+    String messageText,
+  ) async {
+    if (!_isAuthenticated || _userId == null) return;
+    
+    final members = community['members'] as List? ?? [];
+    final senderName = messageData['userName']?.toString() ?? 'Someone';
+    final communityName = community['name']?.toString() ?? 'Community';
+    final communityId = community['_id']?.toString() ?? '';
+    
+    // Send notification to all members except the sender
+    for (var member in members) {
+      final memberId = member['userId']?.toString();
+      if (memberId != null && memberId != _userId) {
+        // Generate unique notification ID for each member
+        final notificationId = NotificationService.stableIdFromKey(
+          '${communityId}_$memberId',
+          scope: 'chat',
+        );
+        
+        await _notificationService.showChatNotification(
+          id: notificationId,
+          title: '$senderName in $communityName',
+          body: messageText,
+          communityId: communityId,
+          communityName: communityName,
+          payload: 'community_chat|$communityId',
         );
       }
     }
