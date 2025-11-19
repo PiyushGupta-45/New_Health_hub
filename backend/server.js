@@ -56,6 +56,7 @@ const User = mongoose.model('User', userSchema);
 // Daily Steps Schema
 const dailyStepsSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userName: { type: String },
   date: { type: Date, required: true },
   steps: { type: Number, required: true, default: 0 },
   source: { type: String, default: 'Phone Sensor' },
@@ -68,6 +69,22 @@ const dailyStepsSchema = new mongoose.Schema({
 dailyStepsSchema.index({ userId: 1, date: 1 }, { unique: true });
 
 const DailySteps = mongoose.model('DailySteps', dailyStepsSchema);
+
+// Workout Logs Schema
+const workoutLogSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  workoutType: { type: String, required: true },
+  startTime: { type: Date, required: true },
+  durationSeconds: { type: Number, required: true },
+  calories: { type: Number, required: true },
+  met: { type: Number },
+}, {
+  timestamps: true,
+});
+
+workoutLogSchema.index({ userId: 1, startTime: -1 });
+
+const WorkoutLog = mongoose.model('WorkoutLog', workoutLogSchema);
 
 // Community Schema
 const communityMemberSchema = new mongoose.Schema({
@@ -153,6 +170,21 @@ const formatCommunityMessage = (messageDoc) => {
     message: message.message,
     createdAt: message.createdAt,
     updatedAt: message.updatedAt
+  };
+};
+
+const formatWorkoutLog = (logDoc) => {
+  if (!logDoc) return null;
+  const log = logDoc.toObject ? logDoc.toObject() : logDoc;
+  return {
+    _id: log._id?.toString(),
+    workoutType: log.workoutType,
+    startTime: log.startTime,
+    durationSeconds: log.durationSeconds,
+    calories: log.calories,
+    met: log.met,
+    createdAt: log.createdAt,
+    updatedAt: log.updatedAt,
   };
 };
 
@@ -463,6 +495,9 @@ app.post('/api/steps', verifyToken, async (req, res) => {
       });
     }
 
+    // Get user profile to include userName
+    const userProfile = await getUserProfile(userId);
+
     // Use provided date or today's date (start of day in IST)
     const targetDate = normalizeToISTStartOfDay(date);
     
@@ -483,12 +518,14 @@ app.post('/api/steps', verifyToken, async (req, res) => {
       // Update existing entry (use higher value to handle multiple syncs)
       dailySteps.steps = Math.max(dailySteps.steps, steps);
       dailySteps.source = source || dailySteps.source;
+      dailySteps.userName = userProfile.name; // Update userName if changed
       dailySteps.syncedAt = new Date();
       await dailySteps.save();
     } else {
       // Create new entry
       dailySteps = new DailySteps({
         userId,
+        userName: userProfile.name,
         date: targetDate,
         steps,
         source: source || 'Phone Sensor',
@@ -607,6 +644,107 @@ app.get('/api/steps/today', verifyToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error while fetching today\'s steps'
+    });
+  }
+});
+
+// Workout log endpoints
+app.post('/api/workouts/logs', verifyToken, async (req, res) => {
+  try {
+    const { workoutType, startTime, durationSeconds, calories, met } = req.body;
+
+    // Log received data for debugging
+    console.log('Received workout log data:', {
+      workoutType,
+      startTime,
+      durationSeconds,
+      calories,
+      met,
+      userId: req.userId,
+    });
+
+    if (!workoutType || !startTime || durationSeconds === undefined || calories === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: `Missing required fields. workoutType: ${!!workoutType}, startTime: ${!!startTime}, durationSeconds: ${durationSeconds !== undefined}, calories: ${calories !== undefined}`,
+      });
+    }
+
+    const parsedDuration = Number(durationSeconds);
+    const parsedCalories = Number(calories);
+    const parsedMet = met !== undefined ? Number(met) : undefined;
+    const parsedStart = new Date(startTime);
+    
+    console.log('Parsed values:', {
+      duration: parsedDuration,
+      calories: parsedCalories,
+      met: parsedMet,
+      startTime: parsedStart,
+      isValidStart: !Number.isNaN(parsedStart.getTime()),
+    });
+
+    if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Duration must be a positive number of seconds',
+      });
+    }
+
+    if (!Number.isFinite(parsedCalories) || parsedCalories < 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Calories must be a non-negative number. Received: ${calories}`,
+      });
+    }
+
+    if (Number.isNaN(parsedStart.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid start time provided',
+      });
+    }
+
+    const log = await WorkoutLog.create({
+      userId: req.userId,
+      workoutType: workoutType.toString().trim(),
+      startTime: parsedStart,
+      durationSeconds: Math.round(parsedDuration),
+      calories: parsedCalories,
+      met: parsedMet,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: formatWorkoutLog(log),
+    });
+  } catch (error) {
+    console.error('Create workout log error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while saving workout',
+    });
+  }
+});
+
+app.get('/api/workouts/logs', verifyToken, async (req, res) => {
+  try {
+    const { limit = 50 } = req.query;
+    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+
+    const logs = await WorkoutLog.find({ userId: req.userId })
+      .sort({ startTime: -1 })
+      .limit(parsedLimit)
+      .lean();
+
+    return res.json({
+      success: true,
+      data: logs.map(formatWorkoutLog),
+    });
+  } catch (error) {
+    console.error('Fetch workout logs error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching workouts',
     });
   }
 });
