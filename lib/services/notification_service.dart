@@ -1,7 +1,7 @@
 // notification_service.dart
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:flutter_native_timezone_updated_gradle/flutter_native_timezone_updated_gradle.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 
@@ -186,7 +186,7 @@ class NotificationService {
   Future<void> _configureLocalTimezone() async {
     if (_deviceTimeZone != null) return;
     try {
-      final timeZoneName = await FlutterTimezone.getLocalTimezone();
+      final timeZoneName = await FlutterNativeTimezone.getLocalTimezone();
       _deviceTimeZone = timeZoneName;
       tz.setLocalLocation(
         tz.getLocation(
