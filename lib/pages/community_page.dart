@@ -3,7 +3,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../services/community_service.dart';
 import '../services/auth_service.dart';
 import '../services/community_notification_controller.dart';
@@ -78,9 +77,7 @@ class _CommunityPageState
     _communityNotifications = CommunityNotificationController(
       communityService: _communityService,
     );
-    _communityNotifications.initialize(
-      onNotificationResponse: _handleNotificationResponse,
-    );
+    _communityNotifications.initialize();
     _checkAuthStatus();
     // Refresh auth status periodically in case user signs in/out elsewhere
     _checkTimer = Timer.periodic(
@@ -100,24 +97,6 @@ class _CommunityPageState
     );
   }
 
-  void _handleNotificationResponse(NotificationResponse response) {
-    if (response.payload != null && response.payload!.startsWith('community_chat|')) {
-      final parts = response.payload!.split('|');
-      if (parts.length >= 2) {
-        final communityId = parts[1];
-        
-        // Handle reply action
-        if (response.actionId == 'reply' && response.input != null && response.input!.isNotEmpty) {
-          // Send reply from notification
-          _sendReplyFromNotification(communityId, response.input!);
-        } else {
-          // Just open the community chat
-          _openCommunityChat(communityId);
-        }
-      }
-    }
-  }
-
   void _openCommunityChat(String communityId) {
     // Find the community and open chat
     final community = _myCommunities.firstWhere(
@@ -134,18 +113,6 @@ class _CommunityPageState
       });
       _communityNotifications.setActiveCommunity(communityId);
       _startMessageRefresh();
-      _loadMessages();
-    }
-  }
-
-  Future<void> _sendReplyFromNotification(String communityId, String message) async {
-    final result = await _communityService.sendMessage(
-      message,
-      communityId,
-    );
-    if (result['success'] == true && mounted) {
-      // Open chat to show the reply
-      _openCommunityChat(communityId);
       _loadMessages();
     }
   }
