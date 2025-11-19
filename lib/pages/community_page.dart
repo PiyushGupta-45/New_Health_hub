@@ -74,9 +74,7 @@ class _CommunityPageState
   @override
   void initState() {
     super.initState();
-    _communityNotifications = CommunityNotificationController(
-      communityService: _communityService,
-    );
+    _communityNotifications = CommunityNotificationController();
     _communityNotifications.initialize();
     _checkAuthStatus();
     // Refresh auth status periodically in case user signs in/out elsewhere
@@ -97,21 +95,35 @@ class _CommunityPageState
     );
   }
 
-  void _openCommunityChat(String communityId) {
+  void _openCommunityChat(
+    String communityId,
+  ) {
     // Find the community and open chat
     final community = _myCommunities.firstWhere(
-      (c) => c['_id'] == communityId,
+      (
+        c,
+      ) =>
+          c['_id'] ==
+          communityId,
       orElse: () => _publicCommunities.firstWhere(
-        (c) => c['_id'] == communityId,
+        (
+          c,
+        ) =>
+            c['_id'] ==
+            communityId,
         orElse: () => {},
       ),
     );
-    
+
     if (community.isNotEmpty) {
-      setState(() {
-        _selectedCommunity = community;
-      });
-      _communityNotifications.setActiveCommunity(communityId);
+      setState(
+        () {
+          _selectedCommunity = community;
+        },
+      );
+      _communityNotifications.setActiveCommunity(
+        communityId,
+      );
       _startMessageRefresh();
       _loadMessages();
     }
@@ -154,7 +166,9 @@ class _CommunityPageState
         },
       );
       _communityNotifications.stop();
-      _communityNotifications.setActiveCommunity(null);
+      _communityNotifications.setActiveCommunity(
+        null,
+      );
       return;
     }
 
@@ -224,7 +238,8 @@ class _CommunityPageState
           _isLoading = false;
         },
       );
-      if (_userId != null) {
+      if (_userId !=
+          null) {
         _communityNotifications.updateMembership(
           userId: _userId!,
           communities: _myCommunities,
@@ -1020,7 +1035,9 @@ class _CommunityPageState
                   _messages = [];
                 },
               );
-              _communityNotifications.setActiveCommunity(null);
+              _communityNotifications.setActiveCommunity(
+                null,
+              );
               _messageRefreshTimer?.cancel();
             },
           ),
@@ -1417,7 +1434,9 @@ class _CommunityPageState
                                     _selectedCommunity = null;
                                   },
                                 );
-                                _communityNotifications.setActiveCommunity(null);
+                                _communityNotifications.setActiveCommunity(
+                                  null,
+                                );
                               }
                             },
                           ),
@@ -1535,7 +1554,9 @@ class _CommunityPageState
                                       _selectedCommunity = null;
                                     },
                                   );
-                                _communityNotifications.setActiveCommunity(null);
+                                  _communityNotifications.setActiveCommunity(
+                                    null,
+                                  );
                                 }
                               },
                             ),
