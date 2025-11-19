@@ -178,6 +178,70 @@ const generateToken = (userId) => {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
 };
 
+// Helper function to get start of today in IST (UTC+5:30)
+// Returns a UTC Date object representing midnight IST converted to UTC
+const getStartOfTodayIST = () => {
+  const now = new Date();
+  // Get current UTC time in milliseconds
+  const utcNow = now.getTime();
+  // IST is UTC+5:30, so add 5.5 hours to UTC to get IST
+  const istOffsetMs = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in milliseconds
+  const istNowMs = utcNow + istOffsetMs;
+  const istNow = new Date(istNowMs);
+  
+  // Get start of day in IST (midnight IST = 00:00:00 IST)
+  // Create a new date with the same year, month, day but at midnight
+  const istYear = istNow.getUTCFullYear();
+  const istMonth = istNow.getUTCMonth();
+  const istDay = istNow.getUTCDate();
+  
+  // Create date at midnight IST (00:00:00 IST)
+  const istMidnight = new Date(Date.UTC(istYear, istMonth, istDay, 0, 0, 0, 0));
+  
+  // Convert IST midnight back to UTC for database storage
+  // Subtract the IST offset to get the UTC equivalent
+  const utcStartOfDay = new Date(istMidnight.getTime() - istOffsetMs);
+  return utcStartOfDay;
+};
+
+// Helper function to get end of today in IST
+const getEndOfTodayIST = () => {
+  const startOfDay = getStartOfTodayIST();
+  const istOffsetMs = 5.5 * 60 * 60 * 1000;
+  // Add IST offset to get IST time, set to end of day, then convert back to UTC
+  const istStartMs = startOfDay.getTime() + istOffsetMs;
+  const istStart = new Date(istStartMs);
+  const istYear = istStart.getUTCFullYear();
+  const istMonth = istStart.getUTCMonth();
+  const istDay = istStart.getUTCDate();
+  const istEndOfDay = new Date(Date.UTC(istYear, istMonth, istDay, 23, 59, 59, 999));
+  const utcEndOfDay = new Date(istEndOfDay.getTime() - istOffsetMs);
+  return utcEndOfDay;
+};
+
+// Helper function to normalize a date to IST start of day
+const normalizeToISTStartOfDay = (date) => {
+  if (!date) {
+    return getStartOfTodayIST();
+  }
+  const inputDate = new Date(date);
+  const istOffsetMs = 5.5 * 60 * 60 * 1000;
+  
+  // Convert input date to IST
+  const istTimeMs = inputDate.getTime() + istOffsetMs;
+  const istTime = new Date(istTimeMs);
+  
+  // Get start of day in IST
+  const istYear = istTime.getUTCFullYear();
+  const istMonth = istTime.getUTCMonth();
+  const istDay = istTime.getUTCDate();
+  const istMidnight = new Date(Date.UTC(istYear, istMonth, istDay, 0, 0, 0, 0));
+  
+  // Convert back to UTC for database storage
+  const utcDateForDB = new Date(istMidnight.getTime() - istOffsetMs);
+  return utcDateForDB;
+};
+
 // Sign Up Endpoint
 app.post('/api/auth/signup', async (req, res) => {
   try {
@@ -399,14 +463,8 @@ app.post('/api/steps', verifyToken, async (req, res) => {
       });
     }
 
-    // Use provided date or today's date (start of day)
-    let targetDate;
-    if (date) {
-      targetDate = new Date(date);
-    } else {
-      targetDate = new Date();
-    }
-    targetDate.setHours(0, 0, 0, 0);
+    // Use provided date or today's date (start of day in IST)
+    const targetDate = normalizeToISTStartOfDay(date);
     
     const startOfDay = new Date(targetDate);
     const endOfDay = new Date(targetDate);
@@ -509,10 +567,10 @@ app.get('/api/steps/history', verifyToken, async (req, res) => {
 app.get('/api/steps/today', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // Use IST timezone to determine "today"
+    const today = getStartOfTodayIST();
+    const endOfToday = getEndOfTodayIST();
+    const tomorrow = new Date(endOfToday.getTime() + 1); // Add 1ms to make it exclusive
 
     const todaySteps = await DailySteps.findOne({
       userId,
