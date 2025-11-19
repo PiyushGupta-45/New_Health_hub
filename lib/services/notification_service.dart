@@ -1,6 +1,7 @@
 // notification_service.dart
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 
@@ -31,6 +32,7 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  String? _deviceTimeZone;
 
   // Expose notifications plugin for fallback use
   FlutterLocalNotificationsPlugin get notifications => _notifications;
@@ -44,22 +46,7 @@ class NotificationService {
 
     // Initialize timezone data
     tz.initializeTimeZones();
-    try {
-      tz.setLocalLocation(
-        tz.getLocation(
-          'Asia/Kolkata',
-        ),
-      );
-      print(
-        '✅ Timezone set to IST (Asia/Kolkata)',
-      );
-    } catch (
-      e
-    ) {
-      print(
-        '⚠️ Could not set IST timezone, using system default: $e',
-      );
-    }
+    await _configureLocalTimezone();
 
     // Android initialization settings
     const AndroidInitializationSettings androidSettings = AndroidInitializationSettings(
@@ -196,6 +183,32 @@ class NotificationService {
     }
   }
 
+  Future<void> _configureLocalTimezone() async {
+    if (_deviceTimeZone != null) return;
+    try {
+      final timeZoneName = await FlutterTimezone.getLocalTimezone();
+      _deviceTimeZone = timeZoneName;
+      tz.setLocalLocation(
+        tz.getLocation(
+          timeZoneName,
+        ),
+      );
+      print(
+        '✅ Timezone set to $timeZoneName',
+      );
+    } catch (e) {
+      _deviceTimeZone = null;
+      print(
+        '⚠️ Failed to get device timezone, defaulting to UTC: $e',
+      );
+      tz.setLocalLocation(
+        tz.getLocation(
+          'UTC',
+        ),
+      );
+    }
+  }
+
   /// Schedule a notification for a specific date and time
   Future<
     bool
@@ -239,12 +252,9 @@ class NotificationService {
     }
 
     try {
-      // Get IST timezone location
-      final istLocation = tz.getLocation(
-        'Asia/Kolkata',
-      );
+      final tz.Location activeLocation = tz.local;
 
-      // Ensure we're working with IST timezone
+      // Ensure we're working with the configured timezone
       DateTime localDateTime;
       if (scheduledDate.isUtc) {
         localDateTime = scheduledDate.toLocal();
@@ -252,14 +262,14 @@ class NotificationService {
         localDateTime = scheduledDate;
       }
 
-      // Convert DateTime to TZDateTime in IST timezone
+      // Convert DateTime to TZDateTime in active timezone
       final tz.TZDateTime scheduledTime = tz.TZDateTime.from(
         localDateTime,
-        istLocation,
+        activeLocation,
       );
 
       final now = tz.TZDateTime.now(
-        istLocation,
+        activeLocation,
       );
 
       // Debug logging
