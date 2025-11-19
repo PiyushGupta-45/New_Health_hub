@@ -111,17 +111,30 @@ class NotificationService {
     }
 
     // Request permissions (Android 13+)
-    final permissionGranted =
-        await androidImplementation?.requestNotificationsPermission() ??
-        false;
-    try {
-      await androidImplementation?.requestExactAlarmsPermission();
-    } catch (
-      e
-    ) {
-      print(
-        '⚠️ Exact alarm permission request failed (likely not needed): $e',
-      );
+    bool permissionGranted = false;
+    if (androidImplementation != null) {
+      try {
+        permissionGranted = await androidImplementation.requestNotificationsPermission() ?? false;
+        print(
+          '📱 Notification permission request result: $permissionGranted',
+        );
+      } catch (e) {
+        print(
+          '⚠️ Error requesting notification permission: $e',
+        );
+      }
+      
+      // Request exact alarms permission (required for precise scheduling on Android 12+)
+      try {
+        final exactAlarmGranted = await androidImplementation.requestExactAlarmsPermission();
+        print(
+          '⏰ Exact alarm permission: $exactAlarmGranted',
+        );
+      } catch (e) {
+        print(
+          '⚠️ Exact alarm permission request failed (may not be needed on this device): $e',
+        );
+      }
     }
 
     if (permissionGranted) {
@@ -130,7 +143,10 @@ class NotificationService {
       );
     } else {
       print(
-        '⚠️ Notification permission not granted',
+        '⚠️ Notification permission not granted - notifications may not work',
+      );
+      print(
+        '   Please grant notification permission in device settings',
       );
     }
 
@@ -279,6 +295,7 @@ class NotificationService {
 
       // Try exact alarms first (more reliable for precise timing)
       // Fallback to inexact if exact fails (no permission)
+      bool scheduled = false;
       try {
         await _notifications.zonedSchedule(
           id,
@@ -293,26 +310,60 @@ class NotificationService {
         print(
           '   📌 Scheduled with EXACT alarm mode',
         );
+        scheduled = true;
       } catch (
         e
       ) {
         print(
           '   ⚠️ Exact alarm failed (may need permission), trying inexact: $e',
         );
-        // Fallback to inexact if exact fails
-        await _notifications.zonedSchedule(
-          id,
-          title,
-          body,
-          scheduledTime,
-          notificationDetails,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-          payload: payload,
-        );
-        print(
-          '   📌 Scheduled with INEXACT alarm mode (may have delay)',
-        );
+        try {
+          // Fallback to inexact if exact fails
+          await _notifications.zonedSchedule(
+            id,
+            title,
+            body,
+            scheduledTime,
+            notificationDetails,
+            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+            uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+            payload: payload,
+          );
+          print(
+            '   📌 Scheduled with INEXACT alarm mode (may have delay)',
+          );
+          scheduled = true;
+        } catch (e2) {
+          print(
+            '   ❌ Both exact and inexact scheduling failed: $e2',
+          );
+          // Last resort: try without allowWhileIdle
+          try {
+            await _notifications.zonedSchedule(
+              id,
+              title,
+              body,
+              scheduledTime,
+              notificationDetails,
+              androidScheduleMode: AndroidScheduleMode.inexact,
+              uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+              payload: payload,
+            );
+            print(
+              '   📌 Scheduled with basic INEXACT mode',
+            );
+            scheduled = true;
+          } catch (e3) {
+            print(
+              '   ❌ All scheduling methods failed: $e3',
+            );
+            return false;
+          }
+        }
+      }
+      
+      if (!scheduled) {
+        return false;
       }
 
       print(
