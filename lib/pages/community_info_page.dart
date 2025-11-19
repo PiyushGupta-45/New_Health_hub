@@ -54,12 +54,8 @@ class _CommunityInfoPageState
       () {
         _userId = user['id']?.toString();
         // Compare as strings to handle both ObjectId and string formats
-        final communityOwnerId =
-            widget.community['ownerId']?.toString() ??
-            widget.community['_id']?.toString();
-        _isOwner =
-            communityOwnerId ==
-            _userId;
+        final communityOwnerId = widget.community['ownerId']?.toString();
+        _isOwner = communityOwnerId != null && communityOwnerId == _userId;
       },
     );
   }

@@ -127,6 +127,7 @@ const formatCommunityForUser = (communityDoc, userId) => {
     _id: community._id?.toString(),
     name: community.name,
     isPublic: community.isPublic,
+    ownerId: community.ownerId?.toString(),
     ownerName: community.ownerName,
     memberCount,
     isOwner,

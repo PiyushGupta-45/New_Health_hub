@@ -636,34 +636,6 @@ class _CommunityPageState
       );
       return;
     }
-
-    setState(
-      () => _isLoading = true,
-    );
-
-    final result = await _communityService.joinWithCode(
-      code,
-    ); // placeholder, will be replaced below
-  }
-
-  // Note: The above accidental placeholder is replaced with the real call:
-  Future<
-    void
-  >
-  _joinWithCode_fixed() async {
-    final code = _joinCodeController.text.trim().toUpperCase();
-    if (code.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please enter a join code',
-          ),
-        ),
-      );
-      return;
-    }
     setState(
       () => _isLoading = true,
     );
@@ -869,8 +841,7 @@ class _CommunityPageState
               ),
               ElevatedButton(
                 onPressed: () async {
-                  // call fixed implementation
-                  await _joinWithCode_fixed();
+                  await _joinWithCode();
                 },
                 child: const Text(
                   'Join',
