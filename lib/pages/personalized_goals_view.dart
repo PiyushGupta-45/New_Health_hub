@@ -274,6 +274,7 @@ class _PersonalizedGoalsViewState
   >
   _rescheduleAllNotifications() async {
     final notificationService = NotificationService();
+    // Ensure notification service is initialized
     await notificationService.initialize();
 
     final now = DateTime.now();
@@ -474,114 +475,17 @@ class _PersonalizedGoalsViewState
             ),
 
       // --- Floating Action Button (FAB) ---
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          // Test scheduled notification button
-          FloatingActionButton(
-            heroTag: "test_scheduled",
-            onPressed: () async {
-              final notificationService = NotificationService();
-              await notificationService.initialize();
-              final success = await notificationService.testScheduledNotification();
-
-              // Show detailed message
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(
-                SnackBar(
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        success
-                            ? '✅ Test notification scheduled!'
-                            : '❌ Failed to schedule. Check console.',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (success) ...[
-                        const SizedBox(
-                          height: 4,
-                        ),
-                        const Text(
-                          'Wait 10 seconds. If it doesn\'t appear:\n'
-                          '1. Check Settings → Apps → FitTrack → Alarms & reminders\n'
-                          '2. Disable battery optimization\n'
-                          '3. Keep app in foreground',
-                          style: TextStyle(
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  duration: const Duration(
-                    seconds: 8,
-                  ),
-                ),
-              );
-            },
-            backgroundColor: Colors.green,
-            mini: true,
-            child: const Icon(
-              Icons.schedule,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          const SizedBox(
-            height: 10,
-          ),
-          // Test immediate notification button
-          FloatingActionButton(
-            heroTag: "test_notification",
-            onPressed: () async {
-              final notificationService = NotificationService();
-              await notificationService.initialize();
-              final success = await notificationService.showTestNotification();
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    success
-                        ? 'Test notification sent! Check your notification bar.'
-                        : 'Failed to show test notification. Check console for details.',
-                  ),
-                  duration: const Duration(
-                    seconds: 3,
-                  ),
-                ),
-              );
-            },
-            backgroundColor: Colors.blue,
-            mini: true,
-            child: const Icon(
-              Icons.notifications_active,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          const SizedBox(
-            height: 10,
-          ),
-          // Add goal button
-          FloatingActionButton(
-            heroTag: "add_goal",
-            onPressed: () => _navigateToAddOrEditGoal(
-              context,
-            ), // Create new goal
-            backgroundColor: kAccentColor,
-            child: const Icon(
-              Icons.add,
-              color: Colors.white,
-              size: 30,
-            ),
-          ),
-        ],
+      floatingActionButton: FloatingActionButton(
+        heroTag: "add_goal",
+        onPressed: () => _navigateToAddOrEditGoal(
+          context,
+        ), // Create new goal
+        backgroundColor: kAccentColor,
+        child: const Icon(
+          Icons.add,
+          color: Colors.white,
+          size: 30,
+        ),
       ),
     );
   }
@@ -1068,6 +972,7 @@ class _GoalSetFormViewState
 
     // Schedule notification 1 hour before deadline
     final notificationService = NotificationService();
+    // Ensure notification service is initialized (initialize() checks internally if already initialized)
     await notificationService.initialize();
 
     // Debug: Print notification time details
@@ -1096,6 +1001,10 @@ class _GoalSetFormViewState
         newOrUpdatedGoal.goalId,
         scope: 'goal',
       );
+      
+      // Cancel any existing notification with the same ID first
+      await notificationService.cancelNotification(notificationId);
+      
       notificationScheduled = await notificationService.scheduleNotification(
         id: notificationId,
         title: 'Goal Reminder: ${newOrUpdatedGoal.name}',
@@ -1106,7 +1015,7 @@ class _GoalSetFormViewState
 
       if (notificationScheduled) {
         print(
-          '✅ Notification scheduled successfully',
+          '✅ Notification scheduled successfully for ${notificationTime}',
         );
       } else {
         print(
@@ -1119,6 +1028,12 @@ class _GoalSetFormViewState
     } else {
       print(
         '⚠️ Notification time is in the past, skipping schedule',
+      );
+      print(
+        '   Notification time: $notificationTime',
+      );
+      print(
+        '   Current time: ${DateTime.now()}',
       );
     }
 
