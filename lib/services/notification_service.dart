@@ -639,8 +639,7 @@ class NotificationService {
             titleColor: Colors.indigo,
             showsUserInterface: false,
             cancelNotification: false,
-            semanticAction: SemanticAction.reply,
-            inputTextReplyParameter: const AndroidNotificationActionInputTextReplyParameter(
+            inputTextReplyParameter: AndroidNotificationActionInputTextReplyParameter(
               hintText: 'Type a reply...',
             ),
           ),
@@ -655,7 +654,7 @@ class NotificationService {
         categoryIdentifier: 'MESSAGE_CATEGORY',
       );
 
-      const NotificationDetails notificationDetails = NotificationDetails(
+      final NotificationDetails notificationDetails = NotificationDetails(
         android: androidDetails,
         iOS: iosDetails,
       );

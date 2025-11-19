@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../services/community_service.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
