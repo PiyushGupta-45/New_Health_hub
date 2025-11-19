@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../services/community_service.dart';
 import '../services/auth_service.dart';
-import '../services/notification_service.dart';
+import '../services/community_notification_controller.dart';
 import 'dart:async';
 
 // IMPORT the Community Info Page
@@ -33,7 +33,7 @@ class _CommunityPageState
         > {
   final CommunityService _communityService = CommunityService();
   final AuthService _authService = AuthService();
-  final NotificationService _notificationService = NotificationService();
+  late final CommunityNotificationController _communityNotifications;
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _communityNameController = TextEditingController();
   final TextEditingController _joinCodeController = TextEditingController();
@@ -71,16 +71,17 @@ class _CommunityPageState
   String? _userId;
   Timer? _messageRefreshTimer;
   Timer? _checkTimer;
-  Timer? _communityNotificationTimer;
-  final Map<String, String> _lastSeenMessageIds = {};
-  bool _communityNotificationsPrimed = false;
-  bool _isCheckingCommunityNotifications = false;
 
   @override
   void initState() {
     super.initState();
+    _communityNotifications = CommunityNotificationController(
+      communityService: _communityService,
+    );
+    _communityNotifications.initialize(
+      onNotificationResponse: _handleNotificationResponse,
+    );
     _checkAuthStatus();
-    _initializeNotifications();
     // Refresh auth status periodically in case user signs in/out elsewhere
     _checkTimer = Timer.periodic(
       const Duration(
@@ -97,12 +98,6 @@ class _CommunityPageState
         }
       },
     );
-  }
-
-  Future<void> _initializeNotifications() async {
-    await _notificationService.initialize();
-    // Set up notification response handler for this page
-    _notificationService.setGlobalResponseHandler(_handleNotificationResponse);
   }
 
   void _handleNotificationResponse(NotificationResponse response) {
@@ -137,6 +132,7 @@ class _CommunityPageState
       setState(() {
         _selectedCommunity = community;
       });
+      _communityNotifications.setActiveCommunity(communityId);
       _startMessageRefresh();
       _loadMessages();
     }
@@ -162,7 +158,7 @@ class _CommunityPageState
     _scrollController.dispose();
     _messageRefreshTimer?.cancel();
     _checkTimer?.cancel();
-    _communityNotificationTimer?.cancel();
+    _communityNotifications.dispose();
     super.dispose();
   }
 
@@ -190,7 +186,8 @@ class _CommunityPageState
           _selectedCommunity = null;
         },
       );
-      _stopCommunityNotificationPolling();
+      _communityNotifications.stop();
+      _communityNotifications.setActiveCommunity(null);
       return;
     }
 
@@ -260,8 +257,12 @@ class _CommunityPageState
           _isLoading = false;
         },
       );
-      _syncLastSeenMessageCache();
-      _restartCommunityNotificationPolling();
+      if (_userId != null) {
+        _communityNotifications.updateMembership(
+          userId: _userId!,
+          communities: _myCommunities,
+        );
+      }
     } else {
       final error = result['error']?.toString();
       if (_isAuthError(
@@ -276,7 +277,7 @@ class _CommunityPageState
             },
           );
         }
-        _stopCommunityNotificationPolling();
+        _communityNotifications.stop();
       }
       setState(
         () => _isLoading = false,
@@ -335,7 +336,7 @@ class _CommunityPageState
             },
           );
         }
-        _stopCommunityNotificationPolling();
+        _communityNotifications.stop();
       }
       if (mounted &&
           error !=
@@ -404,177 +405,10 @@ class _CommunityPageState
           },
         );
       }
-      if (_selectedCommunity != null && _messages.isNotEmpty) {
-        final communityId = _selectedCommunity!['_id']?.toString();
-        final latestMessage = _messages.last;
-        final messageId = latestMessage is Map ? latestMessage['_id']?.toString() : null;
-        if (communityId != null && messageId != null) {
-          _lastSeenMessageIds[communityId] = messageId;
-        }
-      }
     } else {
       setState(
         () => _isLoadingMessages = false,
       );
-    }
-  }
-
-  void _syncLastSeenMessageCache() {
-    final validIds = _myCommunities
-        .map(
-          (community) => community['_id']?.toString(),
-        )
-        .whereType<String>()
-        .toSet();
-    _lastSeenMessageIds.removeWhere(
-      (key, value) => !validIds.contains(key),
-    );
-  }
-
-  void _stopCommunityNotificationPolling() {
-    _communityNotificationTimer?.cancel();
-    _communityNotificationTimer = null;
-    _communityNotificationsPrimed = false;
-    _isCheckingCommunityNotifications = false;
-    _lastSeenMessageIds.clear();
-  }
-
-  void _restartCommunityNotificationPolling() {
-    _communityNotificationTimer?.cancel();
-
-    if (!_isAuthenticated || _myCommunities.isEmpty) {
-      _communityNotificationsPrimed = false;
-      return;
-    }
-
-    _syncLastSeenMessageCache();
-    _communityNotificationsPrimed = false;
-
-    _communityNotificationTimer = Timer.periodic(
-      const Duration(
-        seconds: 20,
-      ),
-      (
-        _,
-      ) =>
-          _checkForCommunityNotifications(),
-    );
-
-    _checkForCommunityNotifications(
-      bootstrap: true,
-    ).then(
-      (
-        _,
-      ) {
-        if (mounted) {
-          _communityNotificationsPrimed = true;
-        }
-      },
-    );
-  }
-
-  Future<void> _checkForCommunityNotifications({
-    bool bootstrap = false,
-  }) async {
-    if (_isCheckingCommunityNotifications ||
-        !_isAuthenticated ||
-        _userId ==
-            null ||
-        _myCommunities.isEmpty) {
-      return;
-    }
-
-    _isCheckingCommunityNotifications = true;
-    final shouldBootstrap =
-        bootstrap ||
-        !_communityNotificationsPrimed;
-
-    try {
-      for (final community in _myCommunities) {
-        final communityId = community['_id']?.toString();
-        if (communityId ==
-                null ||
-            communityId.isEmpty) {
-          continue;
-        }
-
-        final result = await _communityService.getMessages(
-          communityId,
-          limit: 1,
-          sortOrder: 'desc',
-        );
-
-        if (result['success'] !=
-                true) {
-          continue;
-        }
-
-        final data = result['data'] as List? ?? [];
-        if (data.isEmpty) continue;
-
-        final latestRaw = data.first;
-        if (latestRaw is! Map) continue;
-        final latestMessage = Map<String, dynamic>.from(
-          latestRaw as Map,
-        );
-
-        final messageId = latestMessage['_id']?.toString();
-        final senderId = latestMessage['userId']?.toString();
-        final messageText = latestMessage['message']?.toString() ?? '';
-
-        if (messageId ==
-                null ||
-            messageText.isEmpty) {
-          continue;
-        }
-
-        if (shouldBootstrap) {
-          _lastSeenMessageIds[communityId] = messageId;
-          continue;
-        }
-
-        final lastSeenId = _lastSeenMessageIds[communityId];
-        if (lastSeenId ==
-            messageId) {
-          continue;
-        }
-
-        _lastSeenMessageIds[communityId] = messageId;
-
-        final isOwnMessage = senderId ==
-            _userId;
-        final isCommunityOpen = _selectedCommunity !=
-                null &&
-            _selectedCommunity!['_id']?.toString() ==
-                communityId;
-
-        if (isOwnMessage ||
-            isCommunityOpen) {
-          continue;
-        }
-
-        final senderName = latestMessage['userName']?.toString() ?? 'Someone';
-        final communityName = community['name']?.toString() ?? 'Community';
-
-        final notificationId = NotificationService.stableIdFromKey(
-          '${communityId}_$messageId',
-          scope: 'chat',
-        );
-
-        await _notificationService.showChatNotification(
-          id: notificationId,
-          title: '$senderName in $communityName',
-          body: messageText,
-          communityId: communityId,
-          communityName: communityName,
-          payload: 'community_chat|$communityId',
-        );
-      }
-    } catch (error, stackTrace) {
-      debugPrint('Error checking community notifications: $error');
-      debugPrint('$stackTrace');
-    } finally {
-      _isCheckingCommunityNotifications = false;
     }
   }
 
@@ -939,6 +773,9 @@ class _CommunityPageState
         _selectedCommunity = community;
       },
     );
+    _communityNotifications.setActiveCommunity(
+      community['_id']?.toString(),
+    );
     _startMessageRefresh();
     _loadMessages();
   }
@@ -1216,6 +1053,7 @@ class _CommunityPageState
                   _messages = [];
                 },
               );
+              _communityNotifications.setActiveCommunity(null);
               _messageRefreshTimer?.cancel();
             },
           ),
@@ -1612,6 +1450,7 @@ class _CommunityPageState
                                     _selectedCommunity = null;
                                   },
                                 );
+                                _communityNotifications.setActiveCommunity(null);
                               }
                             },
                           ),
@@ -1729,6 +1568,7 @@ class _CommunityPageState
                                       _selectedCommunity = null;
                                     },
                                   );
+                                _communityNotifications.setActiveCommunity(null);
                                 }
                               },
                             ),
