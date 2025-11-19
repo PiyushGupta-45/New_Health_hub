@@ -636,7 +636,6 @@ class NotificationService {
           AndroidNotificationAction(
             'reply',
             'Reply',
-            titleColor: Colors.indigo,
             showsUserInterface: false,
             cancelNotification: false,
             inputTextReplyParameter: AndroidNotificationActionInputTextReplyParameter(
