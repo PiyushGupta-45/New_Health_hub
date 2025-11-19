@@ -501,6 +501,7 @@ class _CommunityPageState
         final result = await _communityService.getMessages(
           communityId,
           limit: 1,
+          sortOrder: 'desc',
         );
 
         if (result['success'] !=
@@ -511,7 +512,7 @@ class _CommunityPageState
         final data = result['data'] as List? ?? [];
         if (data.isEmpty) continue;
 
-        final latestRaw = data.last;
+        final latestRaw = data.first;
         if (latestRaw is! Map) continue;
         final latestMessage = Map<String, dynamic>.from(
           latestRaw as Map,

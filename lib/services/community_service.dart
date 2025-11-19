@@ -411,6 +411,7 @@ class CommunityService {
   getMessages(
     String communityId, {
     int limit = 50,
+    String sortOrder = 'asc',
   }) async {
     try {
       final url = baseUrl;
@@ -425,7 +426,7 @@ class CommunityService {
 
       final response = await http.get(
         Uri.parse(
-          '$url/api/community/messages?communityId=$communityId&limit=$limit',
+          '$url/api/community/messages?communityId=$communityId&limit=$limit&sortOrder=$sortOrder',
         ),
         headers: headers,
       );

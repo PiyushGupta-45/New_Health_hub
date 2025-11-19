@@ -989,7 +989,7 @@ app.post('/api/community/messages', verifyToken, async (req, res) => {
 // Fetch messages
 app.get('/api/community/messages', verifyToken, async (req, res) => {
   try {
-    const { communityId, limit = 50 } = req.query;
+    const { communityId, limit = 50, sortOrder: sortOrderQuery } = req.query;
     if (!communityId) {
       return res.status(400).json({
         success: false,
@@ -1017,10 +1017,16 @@ app.get('/api/community/messages', verifyToken, async (req, res) => {
     }
 
     const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
-    const messages = await CommunityMessage.find({ communityId })
-      .sort({ createdAt: 1 })
+    const sortOrder = (sortOrderQuery || 'asc').toString().toLowerCase() === 'desc' ? -1 : 1;
+
+    let messages = await CommunityMessage.find({ communityId })
+      .sort({ createdAt: sortOrder })
       .limit(parsedLimit)
       .lean();
+
+    if (sortOrder === -1) {
+      messages = messages.reverse();
+    }
 
     return res.json({
       success: true,
