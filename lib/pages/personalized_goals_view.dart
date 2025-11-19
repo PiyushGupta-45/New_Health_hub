@@ -280,22 +280,38 @@ class _PersonalizedGoalsViewState
     final now = DateTime.now();
 
     for (var goal in activeGoals) {
-      // Only reschedule if reminder time is in the future
-      if (goal.reminderTime.isAfter(
-        now,
-      )) {
+      // Only reschedule if deadline hasn't passed
+      if (goal.deadline.isAfter(now)) {
+        DateTime actualReminderTime = goal.reminderTime;
+        
+        // If reminder time has passed but deadline hasn't, schedule for now or soon
+        if (goal.reminderTime.isBefore(now)) {
+          actualReminderTime = now.add(const Duration(minutes: 1));
+          print(
+            '⏰ Reminder time passed for goal: ${goal.name}, scheduling for ${actualReminderTime}',
+          );
+        } else {
+          print(
+            '🔄 Rescheduling notification for goal: ${goal.name}',
+          );
+        }
+        
         print(
-          '🔄 Rescheduling notification for goal: ${goal.name}',
+          '   Original reminder time: ${goal.reminderTime}',
         );
         print(
-          '   Reminder time: ${goal.reminderTime}',
+          '   Actual scheduled time: $actualReminderTime',
         );
         print(
           '   Current time: $now',
         );
         print(
-          '   Time until: ${goal.reminderTime.difference(now).inMinutes} minutes',
+          '   Deadline: ${goal.deadline}',
         );
+        print(
+          '   Time until deadline: ${goal.deadline.difference(now).inMinutes} minutes',
+        );
+        
         final notificationId = NotificationService.stableIdFromKey(
           goal.goalId,
           scope: 'goal',
@@ -305,7 +321,7 @@ class _PersonalizedGoalsViewState
           id: notificationId,
           title: 'Goal Reminder: ${goal.name}',
           body: 'You have 1 hour left to complete your goal: ${goal.target} ${goal.unit}',
-          scheduledDate: goal.reminderTime,
+          scheduledDate: actualReminderTime,
           payload: goal.goalId,
         );
 
@@ -328,8 +344,14 @@ class _PersonalizedGoalsViewState
         }
       } else {
         print(
-          '⏭️ Skipped past reminder for goal: ${goal.name} (${goal.reminderTime})',
+          '⏭️ Skipped goal with passed deadline: ${goal.name} (deadline: ${goal.deadline})',
         );
+        // Cancel notification for goals with passed deadlines
+        final notificationId = NotificationService.stableIdFromKey(
+          goal.goalId,
+          scope: 'goal',
+        );
+        await notificationService.cancelNotification(notificationId);
         _updateGoalScheduleStatus(
           goal.goalId,
           false,
@@ -992,11 +1014,41 @@ class _GoalSetFormViewState
       '   Time until notification: ${notificationTime.difference(DateTime.now()).inMinutes} minutes',
     );
 
-    // Only schedule if notification time is in the future
+    // Schedule notification - if reminder time has passed but deadline hasn't, schedule immediately
     bool notificationScheduled = false;
-    if (notificationTime.isAfter(
-      DateTime.now(),
-    )) {
+    final now = DateTime.now();
+    DateTime actualNotificationTime = notificationTime;
+    
+    // If reminder time is in the past but deadline hasn't passed, schedule for now or a few minutes from now
+    if (notificationTime.isBefore(now) && newOrUpdatedGoal.deadline.isAfter(now)) {
+      // Schedule for 1 minute from now if reminder time has passed but deadline is still in future
+      actualNotificationTime = now.add(const Duration(minutes: 1));
+      print(
+        '⏰ Reminder time has passed, but deadline is still in future. Scheduling for ${actualNotificationTime}',
+      );
+    } else if (notificationTime.isBefore(now)) {
+      // If both reminder time and deadline have passed, don't schedule
+      print(
+        '⚠️ Both reminder time and deadline have passed, skipping schedule',
+      );
+      print(
+        '   Reminder time: $notificationTime',
+      );
+      print(
+        '   Deadline: ${newOrUpdatedGoal.deadline}',
+      );
+      print(
+        '   Current time: $now',
+      );
+    } else {
+      // Reminder time is in the future, use it as is
+      print(
+        '✅ Reminder time is in the future, scheduling for ${actualNotificationTime}',
+      );
+    }
+    
+    // Only schedule if deadline hasn't passed
+    if (newOrUpdatedGoal.deadline.isAfter(now)) {
       final notificationId = NotificationService.stableIdFromKey(
         newOrUpdatedGoal.goalId,
         scope: 'goal',
@@ -1009,13 +1061,13 @@ class _GoalSetFormViewState
         id: notificationId,
         title: 'Goal Reminder: ${newOrUpdatedGoal.name}',
         body: 'You have 1 hour left to complete your goal: ${newOrUpdatedGoal.target} ${unit}',
-        scheduledDate: notificationTime,
+        scheduledDate: actualNotificationTime,
         payload: newOrUpdatedGoal.goalId,
       );
 
       if (notificationScheduled) {
         print(
-          '✅ Notification scheduled successfully for ${notificationTime}',
+          '✅ Notification scheduled successfully for ${actualNotificationTime}',
         );
       } else {
         print(
@@ -1025,16 +1077,6 @@ class _GoalSetFormViewState
 
       // Debug: Print all pending notifications
       await notificationService.debugPrintPendingNotifications();
-    } else {
-      print(
-        '⚠️ Notification time is in the past, skipping schedule',
-      );
-      print(
-        '   Notification time: $notificationTime',
-      );
-      print(
-        '   Current time: ${DateTime.now()}',
-      );
     }
 
     // Update the parent state's goal schedule status

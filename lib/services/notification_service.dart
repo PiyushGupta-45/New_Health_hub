@@ -249,12 +249,14 @@ class NotificationService {
         '   Time until notification: ${scheduledTime.difference(now).inMinutes} minutes',
       );
 
-      // Check if the scheduled time is in the past
-      if (scheduledTime.isBefore(
-        now,
-      )) {
+      // Check if the scheduled time is too far in the past (more than 1 hour)
+      // Allow scheduling if it's within the last hour (might be due to timezone or slight delays)
+      tz.TZDateTime adjustedScheduledTime = scheduledTime;
+      final timeDifference = now.difference(scheduledTime);
+      
+      if (timeDifference.inHours > 1) {
         print(
-          '⚠️ Cannot schedule notification in the past',
+          '⚠️ Cannot schedule notification too far in the past (more than 1 hour)',
         );
         print(
           '   Scheduled: $scheduledTime',
@@ -263,9 +265,21 @@ class NotificationService {
           '   Now: $now',
         );
         print(
-          '   Difference: ${now.difference(scheduledTime).inMinutes} minutes ago',
+          '   Difference: ${timeDifference.inHours} hours ${timeDifference.inMinutes % 60} minutes ago',
         );
         return false;
+      } else if (scheduledTime.isBefore(now)) {
+        // If it's within the last hour, adjust to schedule for 1 minute from now
+        adjustedScheduledTime = now.add(const Duration(minutes: 1));
+        print(
+          '⚠️ Scheduled time is slightly in the past, adjusting to 1 minute from now',
+        );
+        print(
+          '   Original scheduled: $scheduledTime',
+        );
+        print(
+          '   Adjusted to: $adjustedScheduledTime',
+        );
       }
 
       // Android notification details
@@ -301,7 +315,7 @@ class NotificationService {
           id,
           title,
           body,
-          scheduledTime,
+          adjustedScheduledTime,
           notificationDetails,
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
           uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
@@ -323,7 +337,7 @@ class NotificationService {
             id,
             title,
             body,
-            scheduledTime,
+            adjustedScheduledTime,
             notificationDetails,
             androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
             uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
@@ -343,7 +357,7 @@ class NotificationService {
               id,
               title,
               body,
-              scheduledTime,
+              adjustedScheduledTime,
               notificationDetails,
               androidScheduleMode: AndroidScheduleMode.inexact,
               uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
@@ -373,7 +387,7 @@ class NotificationService {
         '   ID: $id',
       );
       print(
-        '   Scheduled for: $scheduledTime (IST)',
+        '   Scheduled for: $adjustedScheduledTime (IST)',
       );
       print(
         '   Title: $title',
