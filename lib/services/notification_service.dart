@@ -638,9 +638,11 @@ class NotificationService {
             'Reply',
             showsUserInterface: false,
             cancelNotification: false,
-            inputTextReplyParameter: AndroidNotificationActionInputTextReplyParameter(
-              hintText: 'Type a reply...',
-            ),
+            inputs: <AndroidNotificationActionInput>[
+              AndroidNotificationActionInput(
+                label: 'Type a reply...',
+              ),
+            ],
           ),
         ],
         styleInformation: const BigTextStyleInformation(''),
