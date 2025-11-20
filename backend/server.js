@@ -764,21 +764,25 @@ app.post('/api/community/create', verifyToken, async (req, res) => {
     }
 
     const ownerProfile = await getUserProfile(req.userId);
-    const joinCode = isPublic ? null : await generateJoinCode();
 
-    const community = await Community.create({
+    const communityData = {
       name: name.trim(),
       isPublic,
       ownerId: req.userId,
       ownerName: ownerProfile.name,
-      joinCode,
       members: [
         {
           userId: req.userId,
           userName: ownerProfile.name
         }
       ]
-    });
+    };
+
+    if (!isPublic) {
+      communityData.joinCode = await generateJoinCode();
+    }
+
+    const community = await Community.create(communityData);
 
     return res.status(201).json({
       success: true,
