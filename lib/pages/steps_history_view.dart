@@ -371,11 +371,11 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
   Widget _buildHistoryCard(Map<String, dynamic> entry) {
     DateTime date;
     if (entry['date'] is String) {
-      date = DateTime.parse(entry['date']);
+      date = DateTime.parse(entry['date']).toLocal();
     } else if (entry['date'] is Map) {
       // Handle MongoDB date format
       final dateMap = entry['date'] as Map;
-      date = DateTime.parse(dateMap['\$date'] as String);
+      date = DateTime.parse(dateMap['\$date'] as String).toLocal();
     } else {
       date = DateTime.now();
     }
