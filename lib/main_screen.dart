@@ -107,7 +107,9 @@ class _MainScreenState
                     controller: _healthSyncController,
                     authController: _authController,
                   ),
-                  const CommunityPage(),
+                  CommunityPage(
+                    healthSyncController: _healthSyncController,
+                  ),
                   FeaturesView(
                     controller: _healthSyncController,
                   ),
@@ -115,18 +117,8 @@ class _MainScreenState
                 ],
               ),
             ),
-<<<<<<< HEAD
-            CommunityPage(
-              healthSyncController: _healthSyncController,
-            ),
-            FeaturesView(
-              controller: _healthSyncController,
-            ),
-            const AboutPage(),
-=======
             // Floating Health Chatbot - always visible at bottom
             const HealthChatbotWidget(),
->>>>>>> 4c909540169ba0865e0284fdcc204f225deef3c8
           ],
         ),
 
