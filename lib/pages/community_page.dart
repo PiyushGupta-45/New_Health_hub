@@ -10,12 +10,17 @@ import 'dart:async';
 
 // IMPORT the Community Info Page
 import 'community_info_page.dart';
+import 'games_and_challenges_page.dart';
+import '../controllers/health_sync_controller.dart';
 
 class CommunityPage
     extends
         StatefulWidget {
+  final HealthSyncController? healthSyncController;
+  
   const CommunityPage({
     super.key,
+    this.healthSyncController,
   });
 
   @override
@@ -29,7 +34,9 @@ class _CommunityPageState
     extends
         State<
           CommunityPage
-        > {
+        >
+    with
+        SingleTickerProviderStateMixin {
   final CommunityService _communityService = CommunityService();
   final AuthService _authService = AuthService();
   late final CommunityNotificationController _communityNotifications;
@@ -70,10 +77,12 @@ class _CommunityPageState
   String? _userId;
   Timer? _messageRefreshTimer;
   Timer? _checkTimer;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _communityNotifications = CommunityNotificationController();
     _communityNotifications.initialize();
     _checkAuthStatus();
@@ -137,6 +146,7 @@ class _CommunityPageState
     _scrollController.dispose();
     _messageRefreshTimer?.cancel();
     _checkTimer?.cancel();
+    _tabController.dispose();
     _communityNotifications.dispose();
     super.dispose();
   }
@@ -1234,23 +1244,43 @@ class _CommunityPageState
         ),
         backgroundColor: Colors.indigo.shade600,
         foregroundColor: Colors.white,
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          tabs: const [
+            Tab(
+              icon: Icon(Icons.chat_bubble_outline),
+              text: 'Chats & Groups',
+            ),
+            Tab(
+              icon: Icon(Icons.sports_esports),
+              text: 'Games & Challenges',
+            ),
+          ],
+        ),
       ),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(),
             )
-          : RefreshIndicator(
-              onRefresh: () async {
-                await _loadMyCommunities();
-                await _loadPublicCommunities();
-              },
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(
-                  16,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                // Chats & Groups Tab
+                RefreshIndicator(
+                  onRefresh: () async {
+                    await _loadMyCommunities();
+                    await _loadPublicCommunities();
+                  },
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(
+                      16,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                     // Create Community Section
                     Card(
                       elevation: 2,
@@ -1564,8 +1594,14 @@ class _CommunityPageState
                         },
                       ),
                   ],
+                    ),
+                  ),
                 ),
-              ),
+                // Games & Challenges Tab
+                GamesAndChallengesPage(
+                  healthSyncController: widget.healthSyncController,
+                ),
+              ],
             ),
     );
   }

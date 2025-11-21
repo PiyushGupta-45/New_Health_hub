@@ -120,6 +120,34 @@ const communityMessageSchema = new mongoose.Schema({
 
 const CommunityMessage = mongoose.model('CommunityMessage', communityMessageSchema);
 
+// Challenge Schema
+const challengeParticipantSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userName: { type: String },
+  steps: { type: Number, default: 0 },
+  joinedAt: { type: Date, default: Date.now }
+}, { _id: false });
+
+const challengeSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  description: { type: String },
+  targetSteps: { type: Number, required: true },
+  startDate: { type: Date, required: true },
+  endDate: { type: Date, required: true },
+  creatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  creatorName: { type: String },
+  isPublic: { type: Boolean, default: true },
+  participants: { type: [challengeParticipantSchema], default: [] },
+  status: { type: String, enum: ['upcoming', 'active', 'completed'], default: 'upcoming' }
+}, {
+  timestamps: true
+});
+
+challengeSchema.index({ creatorId: 1, createdAt: -1 });
+challengeSchema.index({ status: 1, endDate: 1 });
+
+const Challenge = mongoose.model('Challenge', challengeSchema);
+
 const generateJoinCode = async () => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code;
@@ -1401,6 +1429,342 @@ app.delete('/api/user/delete', verifyToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error while deleting account'
+    });
+  }
+});
+
+// --- Challenge Endpoints ---
+
+// Create challenge
+app.post('/api/challenges/create', verifyToken, async (req, res) => {
+  try {
+    const { title, description, targetSteps, startDate, endDate, isPublic = true } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Challenge title is required'
+      });
+    }
+
+    if (!targetSteps || targetSteps <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Target steps must be greater than 0'
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const now = new Date();
+
+    if (end <= start) {
+      return res.status(400).json({
+        success: false,
+        message: 'End date must be after start date'
+      });
+    }
+
+    const creatorProfile = await getUserProfile(req.userId);
+    const status = start > now ? 'upcoming' : (end < now ? 'completed' : 'active');
+
+    const challenge = await Challenge.create({
+      title: title.trim(),
+      description: description?.trim() || '',
+      targetSteps,
+      startDate: start,
+      endDate: end,
+      creatorId: req.userId,
+      creatorName: creatorProfile.name,
+      isPublic,
+      status,
+      participants: [{
+        userId: req.userId,
+        userName: creatorProfile.name,
+        steps: 0
+      }]
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        _id: challenge._id.toString(),
+        title: challenge.title,
+        description: challenge.description,
+        targetSteps: challenge.targetSteps,
+        startDate: challenge.startDate,
+        endDate: challenge.endDate,
+        creatorId: challenge.creatorId.toString(),
+        creatorName: challenge.creatorName,
+        isPublic: challenge.isPublic,
+        status: challenge.status,
+        participantCount: challenge.participants.length,
+        isParticipant: true
+      }
+    });
+  } catch (error) {
+    console.error('Create challenge error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while creating challenge'
+    });
+  }
+});
+
+// Get public challenges
+app.get('/api/challenges/list', verifyToken, async (req, res) => {
+  try {
+    const challenges = await Challenge.find({ isPublic: true })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+
+    const userId = req.userId.toString();
+    const formatted = challenges.map(challenge => {
+      const isParticipant = challenge.participants.some(
+        p => p.userId.toString() === userId
+      );
+      return {
+        _id: challenge._id.toString(),
+        title: challenge.title,
+        description: challenge.description,
+        targetSteps: challenge.targetSteps,
+        startDate: challenge.startDate,
+        endDate: challenge.endDate,
+        creatorId: challenge.creatorId.toString(),
+        creatorName: challenge.creatorName,
+        status: challenge.status,
+        participantCount: challenge.participants.length,
+        isParticipant
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: formatted
+    });
+  } catch (error) {
+    console.error('List challenges error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching challenges'
+    });
+  }
+});
+
+// Get my challenges
+app.get('/api/challenges/my-challenges', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const challenges = await Challenge.find({
+      'participants.userId': userId
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const formatted = challenges.map(challenge => {
+      const participant = challenge.participants.find(
+        p => p.userId.toString() === userId.toString()
+      );
+      return {
+        _id: challenge._id.toString(),
+        title: challenge.title,
+        description: challenge.description,
+        targetSteps: challenge.targetSteps,
+        startDate: challenge.startDate,
+        endDate: challenge.endDate,
+        creatorId: challenge.creatorId.toString(),
+        creatorName: challenge.creatorName,
+        status: challenge.status,
+        participantCount: challenge.participants.length,
+        mySteps: participant?.steps || 0,
+        isCreator: challenge.creatorId.toString() === userId.toString()
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: formatted
+    });
+  } catch (error) {
+    console.error('Get my challenges error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching challenges'
+    });
+  }
+});
+
+// Join challenge
+app.post('/api/challenges/:challengeId/join', verifyToken, async (req, res) => {
+  try {
+    const { challengeId } = req.params;
+    const userId = req.userId;
+    const userProfile = await getUserProfile(userId);
+
+    const challenge = await Challenge.findById(challengeId);
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found'
+      });
+    }
+
+    if (!challenge.isPublic) {
+      return res.status(403).json({
+        success: false,
+        message: 'Challenge is not public'
+      });
+    }
+
+    const isParticipant = challenge.participants.some(
+      p => p.userId.toString() === userId.toString()
+    );
+
+    if (isParticipant) {
+      return res.status(400).json({
+        success: false,
+        message: 'Already participating in this challenge'
+      });
+    }
+
+    challenge.participants.push({
+      userId,
+      userName: userProfile.name,
+      steps: 0
+    });
+
+    await challenge.save();
+
+    return res.json({
+      success: true,
+      data: {
+        _id: challenge._id.toString(),
+        title: challenge.title,
+        participantCount: challenge.participants.length
+      }
+    });
+  } catch (error) {
+    console.error('Join challenge error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while joining challenge'
+    });
+  }
+});
+
+// Get challenge details with leaderboard
+app.get('/api/challenges/:challengeId', verifyToken, async (req, res) => {
+  try {
+    const { challengeId } = req.params;
+    const userId = req.userId;
+
+    const challenge = await Challenge.findById(challengeId).lean();
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found'
+      });
+    }
+
+    // Sort participants by steps (descending)
+    const sortedParticipants = [...challenge.participants].sort((a, b) => b.steps - a.steps);
+
+    const participant = challenge.participants.find(
+      p => p.userId.toString() === userId.toString()
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        _id: challenge._id.toString(),
+        title: challenge.title,
+        description: challenge.description,
+        targetSteps: challenge.targetSteps,
+        startDate: challenge.startDate,
+        endDate: challenge.endDate,
+        creatorId: challenge.creatorId.toString(),
+        creatorName: challenge.creatorName,
+        status: challenge.status,
+        isPublic: challenge.isPublic,
+        isParticipant: participant != null,
+        mySteps: participant?.steps || 0,
+        myRank: participant ? sortedParticipants.findIndex(p => p.userId.toString() === userId.toString()) + 1 : null,
+        participants: sortedParticipants.map((p, index) => ({
+          userId: p.userId.toString(),
+          userName: p.userName,
+          steps: p.steps,
+          rank: index + 1,
+          progress: (p.steps / challenge.targetSteps * 100).toFixed(1)
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Get challenge error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching challenge'
+    });
+  }
+});
+
+// Update participant steps (called when steps are synced)
+app.post('/api/challenges/:challengeId/update-steps', verifyToken, async (req, res) => {
+  try {
+    const { challengeId } = req.params;
+    const { steps } = req.body;
+    const userId = req.userId;
+
+    if (steps === undefined || steps < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid steps count is required'
+      });
+    }
+
+    const challenge = await Challenge.findById(challengeId);
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found'
+      });
+    }
+
+    const participant = challenge.participants.find(
+      p => p.userId.toString() === userId.toString()
+    );
+
+    if (!participant) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not a participant in this challenge'
+      });
+    }
+
+    // Update steps (use max to handle multiple syncs)
+    participant.steps = Math.max(participant.steps, steps);
+
+    // Update challenge status if needed
+    const now = new Date();
+    if (challenge.startDate <= now && challenge.endDate >= now && challenge.status !== 'active') {
+      challenge.status = 'active';
+    } else if (challenge.endDate < now && challenge.status !== 'completed') {
+      challenge.status = 'completed';
+    }
+
+    await challenge.save();
+
+    return res.json({
+      success: true,
+      data: {
+        steps: participant.steps
+      }
+    });
+  } catch (error) {
+    console.error('Update challenge steps error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while updating steps'
     });
   }
 });

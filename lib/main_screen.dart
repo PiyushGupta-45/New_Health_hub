@@ -101,7 +101,9 @@ class _MainScreenState
               controller: _healthSyncController,
               authController: _authController,
             ),
-            const CommunityPage(),
+            CommunityPage(
+              healthSyncController: _healthSyncController,
+            ),
             FeaturesView(
               controller: _healthSyncController,
             ),
