@@ -32,7 +32,9 @@ android {
     }
 
     buildTypes {
-        release {
+        getByName("release") {
+            // Quick workaround: disable code shrinking for release
+            isMinifyEnabled = false
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
@@ -46,4 +48,6 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    // Add TensorFlow Lite GPU runtime so the missing classes are available
+    implementation("org.tensorflow:tensorflow-lite-gpu:2.9.0")
 }
