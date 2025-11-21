@@ -5,6 +5,7 @@ import 'pages/about_page.dart';
 import 'pages/features_view.dart';
 import 'pages/home_page.dart';
 import 'pages/community_page.dart';
+import 'widgets/health_chatbot_widget.dart';
 
 class MainScreen
     extends
@@ -83,29 +84,39 @@ class _MainScreenState
           0xFFF4F6F9,
         ),
 
-        body: PageView(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
-          onPageChanged:
-              (
-                index,
-              ) {
-                setState(
-                  () {
-                    _selectedIndex = index;
-                  },
-                );
-              },
+        body: Stack(
           children: [
-            HomePage(
-              controller: _healthSyncController,
-              authController: _authController,
+            // Page content with bottom padding for chatbot and bottom nav
+            Padding(
+              padding: const EdgeInsets.only(bottom: 140),
+              child: PageView(
+                controller: _pageController,
+                physics: const NeverScrollableScrollPhysics(),
+                onPageChanged:
+                    (
+                      index,
+                    ) {
+                      setState(
+                        () {
+                          _selectedIndex = index;
+                        },
+                      );
+                    },
+                children: [
+                  HomePage(
+                    controller: _healthSyncController,
+                    authController: _authController,
+                  ),
+                  const CommunityPage(),
+                  FeaturesView(
+                    controller: _healthSyncController,
+                  ),
+                  const AboutPage(),
+                ],
+              ),
             ),
-            const CommunityPage(),
-            FeaturesView(
-              controller: _healthSyncController,
-            ),
-            const AboutPage(),
+            // Floating Health Chatbot - always visible at bottom
+            const HealthChatbotWidget(),
           ],
         ),
 
