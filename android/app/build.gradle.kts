@@ -31,13 +31,32 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // Debug signing config
+        }
+        // Release signing config - using debug for now
+        // To use your own keystore, uncomment and configure:
+        // create("release") {
+        //     storeFile = file("path/to/keystore.jks")
+        //     storePassword = "your-store-password"
+        //     keyAlias = "your-key-alias"
+        //     keyPassword = "your-key-password"
+        // }
+    }
+
     buildTypes {
         getByName("release") {
-            // Quick workaround: disable code shrinking for release
+            // Disable code shrinking for release (can enable later with ProGuard)
             isMinifyEnabled = false
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            isShrinkResources = false
+            // Use debug signing for now (works for testing)
+            // For production, use: signingConfig = signingConfigs.getByName("release")
             signingConfig = signingConfigs.getByName("debug")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
