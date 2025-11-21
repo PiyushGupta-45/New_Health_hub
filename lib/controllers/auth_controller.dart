@@ -114,5 +114,18 @@ class AuthController extends ChangeNotifier {
     _isLoading = false;
     notifyListeners();
   }
+
+  // Refresh user data from storage
+  Future<void> refreshUser() async {
+    final isAuth = await _authService.isAuthenticated();
+    if (isAuth) {
+      _currentUser = await _authService.getStoredUser();
+      _isAuthenticated = true;
+    } else {
+      _currentUser = null;
+      _isAuthenticated = false;
+    }
+    notifyListeners();
+  }
 }
 

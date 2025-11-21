@@ -341,5 +341,195 @@ class AuthService {
     final token = await getAuthToken();
     return user != null && token != null && token.isNotEmpty;
   }
+
+  // Update user profile
+  Future<Map<String, dynamic>> updateProfile({
+    required String name,
+  }) async {
+    try {
+      final url = baseUrl;
+      if (url == null || url.isEmpty) {
+        return {
+          'success': false,
+          'error': 'API_BASE_URL is not configured'
+        };
+      }
+
+      final token = await getAuthToken();
+      if (token == null || token.isEmpty) {
+        return {
+          'success': false,
+          'error': 'Not authenticated'
+        };
+      }
+
+      final endpoint = '$url/api/user/profile';
+      final response = await http.put(
+        Uri.parse(endpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+          'x-api-key': apiKey ?? '',
+        },
+        body: json.encode({
+          'name': name,
+        }),
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        await storeUser(data);
+        return {'success': true, 'user': data['user']};
+      } else {
+        return {
+          'success': false,
+          'error': data['message'] ?? 'Failed to update profile'
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': 'Error updating profile: ${e.toString()}'};
+    }
+  }
+
+  // Change password
+  Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final url = baseUrl;
+      if (url == null || url.isEmpty) {
+        return {
+          'success': false,
+          'error': 'API_BASE_URL is not configured'
+        };
+      }
+
+      final token = await getAuthToken();
+      if (token == null || token.isEmpty) {
+        return {
+          'success': false,
+          'error': 'Not authenticated'
+        };
+      }
+
+      final endpoint = '$url/api/user/change-password';
+      final response = await http.post(
+        Uri.parse(endpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+          'x-api-key': apiKey ?? '',
+        },
+        body: json.encode({
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        }),
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {'success': true, 'message': data['message']};
+      } else {
+        return {
+          'success': false,
+          'error': data['message'] ?? 'Failed to change password'
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': 'Error changing password: ${e.toString()}'};
+    }
+  }
+
+  // Deactivate account
+  Future<Map<String, dynamic>> deactivateAccount() async {
+    try {
+      final url = baseUrl;
+      if (url == null || url.isEmpty) {
+        return {
+          'success': false,
+          'error': 'API_BASE_URL is not configured'
+        };
+      }
+
+      final token = await getAuthToken();
+      if (token == null || token.isEmpty) {
+        return {
+          'success': false,
+          'error': 'Not authenticated'
+        };
+      }
+
+      final endpoint = '$url/api/user/deactivate';
+      final response = await http.post(
+        Uri.parse(endpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+          'x-api-key': apiKey ?? '',
+        },
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {'success': true, 'message': data['message']};
+      } else {
+        return {
+          'success': false,
+          'error': data['message'] ?? 'Failed to deactivate account'
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': 'Error deactivating account: ${e.toString()}'};
+    }
+  }
+
+  // Delete account
+  Future<Map<String, dynamic>> deleteAccount() async {
+    try {
+      final url = baseUrl;
+      if (url == null || url.isEmpty) {
+        return {
+          'success': false,
+          'error': 'API_BASE_URL is not configured'
+        };
+      }
+
+      final token = await getAuthToken();
+      if (token == null || token.isEmpty) {
+        return {
+          'success': false,
+          'error': 'Not authenticated'
+        };
+      }
+
+      final endpoint = '$url/api/user/delete';
+      final response = await http.delete(
+        Uri.parse(endpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+          'x-api-key': apiKey ?? '',
+        },
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        await clearUser();
+        return {'success': true, 'message': data['message']};
+      } else {
+        return {
+          'success': false,
+          'error': data['message'] ?? 'Failed to delete account'
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': 'Error deleting account: ${e.toString()}'};
+    }
+  }
 }
 

@@ -48,6 +48,8 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String },
   googleId: { type: String },
+  isActive: { type: Boolean, default: true },
+  deactivatedAt: { type: Date },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -351,6 +353,14 @@ app.post('/api/auth/signin', async (req, res) => {
       });
     }
 
+    // Check if account is active
+    if (user.isActive === false) {
+      // Reactivate account if user signs in
+      user.isActive = true;
+      user.deactivatedAt = null;
+      await user.save();
+    }
+
     // Check password (skip if Google user)
     if (user.password) {
       const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -415,11 +425,17 @@ app.post('/api/auth/google', async (req, res) => {
     let user = await User.findOne({ email });
 
     if (user) {
+      // Reactivate account if it was deactivated
+      if (user.isActive === false) {
+        user.isActive = true;
+        user.deactivatedAt = null;
+      }
+      
       // User exists, update Google ID if needed
       if (!user.googleId && idToken) {
         user.googleId = idToken; // In production, verify the Google token
-        await user.save();
       }
+      await user.save();
     } else {
       // Create new user
       user = new User({
@@ -1179,6 +1195,212 @@ app.get('/api/community/messages', verifyToken, async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Server error while fetching messages'
+    });
+  }
+});
+
+// --- Account Management Endpoints ---
+
+// Get user profile
+app.get('/api/user/profile', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('-password').lean();
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        createdAt: user.createdAt,
+        googleId: user.googleId,
+        isActive: user.isActive
+      }
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching profile'
+    });
+  }
+});
+
+// Update user profile
+app.put('/api/user/profile', verifyToken, async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name is required'
+      });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    user.name = name.trim();
+    await user.save();
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        token: generateToken(user._id)
+      }
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating profile'
+    });
+  }
+});
+
+// Change password
+app.post('/api/user/change-password', verifyToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password and new password are required'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters'
+      });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if user has a password (not Google-only account)
+    if (!user.password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password change not available for Google accounts'
+      });
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    // Update password
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while changing password'
+    });
+  }
+});
+
+// Deactivate account
+app.post('/api/user/deactivate', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    user.isActive = false;
+    user.deactivatedAt = new Date();
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Account deactivated successfully'
+    });
+  } catch (error) {
+    console.error('Deactivate account error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while deactivating account'
+    });
+  }
+});
+
+// Delete account (permanently)
+app.delete('/api/user/delete', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    // Delete user's steps data
+    await DailySteps.deleteMany({ userId });
+
+    // Delete user's workout logs
+    await WorkoutLog.deleteMany({ userId });
+
+    // Remove user from communities (but don't delete communities)
+    await Community.updateMany(
+      { 'members.userId': userId },
+      { $pull: { members: { userId } } }
+    );
+
+    // Delete community messages by user
+    await CommunityMessage.deleteMany({ userId });
+
+    // Delete communities owned by user
+    const userCommunities = await Community.find({ ownerId: userId });
+    for (const community of userCommunities) {
+      await CommunityMessage.deleteMany({ communityId: community._id });
+      await Community.deleteOne({ _id: community._id });
+    }
+
+    // Finally, delete the user
+    await User.deleteOne({ _id: userId });
+
+    res.json({
+      success: true,
+      message: 'Account and all associated data deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while deleting account'
     });
   }
 });

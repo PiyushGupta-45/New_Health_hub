@@ -13,6 +13,7 @@ import 'personalized_goals_view.dart';
 import 'posture_analysis_view.dart';
 import 'auth_page.dart';
 import 'steps_history_view.dart';
+import 'account_page.dart';
 
 // Helper extensions for modifying color values slightly
 extension on Color {
@@ -416,7 +417,13 @@ class _HomePageState extends State<HomePage> {
               ),
               onTap: () {
                 Navigator.pop(context);
-                // Add navigation to SettingsView
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => AccountPage(
+                      authController: widget.authController,
+                    ),
+                  ),
+                );
               },
             ),
             ListTile(
