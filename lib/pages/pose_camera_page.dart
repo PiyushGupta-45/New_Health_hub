@@ -40,6 +40,7 @@ class _PoseCameraPageState
   double _spineAngle = 0.0;
   Pose? _lastPose;
   Size? _imageSize; // size of camera image
+  bool _isFrontCamera = false;
 
   @override
   void initState() {
@@ -128,9 +129,15 @@ class _PoseCameraPageState
         return;
       }
 
-      final back = cameras.first; // choose first (likely back, but you can pick front)
+      final selectedCamera = cameras.firstWhere(
+        (camera) => camera.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
+      _isFrontCamera =
+          selectedCamera.lensDirection == CameraLensDirection.front;
+
       _cameraController = CameraController(
-        back,
+        selectedCamera,
         ResolutionPreset.medium,
         imageFormatGroup: ImageFormatGroup.nv21,
         enableAudio: false,
@@ -211,16 +218,25 @@ class _PoseCameraPageState
       }
       final bytes = allBytes.done().buffer.asUint8List();
 
+      final int rotation = _cameraController!.description.sensorOrientation;
+      final inputImageRotation = _rotationIntToImageRotation(rotation);
+
+      // Store image size in the same orientation as the preview widget
+      if (rotation == 90 || rotation == 270) {
+        _imageSize = Size(
+          image.height.toDouble(),
+          image.width.toDouble(),
+        );
+      } else {
+        _imageSize = Size(
+          image.width.toDouble(),
+          image.height.toDouble(),
+        );
+      }
+
       final Size imageSize = Size(
         image.width.toDouble(),
         image.height.toDouble(),
-      );
-      _imageSize = imageSize;
-
-      // Determine rotation
-      final rotation = _cameraController!.description.sensorOrientation;
-      final inputImageRotation = _rotationIntToImageRotation(
-        rotation,
       );
 
       // Determine image format - NV21 is the default for Android camera
@@ -514,7 +530,7 @@ class _PoseCameraPageState
         2;
 
     // MLKit coordinates origin is top-left of image; so map directly with scale
-    final x =
+    double x =
         point.dx *
             scale +
         dx;
@@ -522,6 +538,10 @@ class _PoseCameraPageState
         point.dy *
             scale +
         dy;
+
+    if (_isFrontCamera) {
+      x = widgetSize.width - x;
+    }
 
     return Offset(
       x,
@@ -679,6 +699,8 @@ class _PoseCameraPageState
               imageFormatGroup: ImageFormatGroup.nv21,
               enableAudio: false,
             );
+            _isFrontCamera =
+                newCam.lensDirection == CameraLensDirection.front;
             await _cameraController!.initialize();
             await _cameraController!.startImageStream(
               _processCameraImage,
