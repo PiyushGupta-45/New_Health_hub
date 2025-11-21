@@ -85,34 +85,39 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
     final bottomNavHeight = 60.0;
     
     return Positioned(
-      bottom: bottomNavHeight,
-      left: 0,
-      right: 0,
+      bottom: bottomNavHeight + 10,
+      left: 16,
+      right: 16,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
         height: _isExpanded 
             ? MediaQuery.of(context).size.height * 0.6 
             : 70,
-        child: Stack(
-          children: [
-            // Main chat container
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
+        child: Material(
+          color: Colors.transparent,
+          elevation: _isExpanded ? 8 : 4,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(_isExpanded ? 20 : 12),
+            topRight: Radius.circular(_isExpanded ? 20 : 12),
+            bottomLeft: const Radius.circular(12),
+            bottomRight: const Radius.circular(12),
+          ),
+          child: Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(_isExpanded ? 20 : 0),
-                    topRight: Radius.circular(_isExpanded ? 20 : 0),
+                    topLeft: Radius.circular(_isExpanded ? 20 : 12),
+                    topRight: Radius.circular(_isExpanded ? 20 : 12),
+                    bottomLeft: const Radius.circular(12),
+                    bottomRight: const Radius.circular(12),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 10,
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 12,
                       offset: const Offset(0, -2),
+                      spreadRadius: 2,
                     ),
                   ],
                 ),
@@ -138,8 +143,8 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
                             ],
                           ),
                           borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(_isExpanded ? 20 : 0),
-                            topRight: Radius.circular(_isExpanded ? 20 : 0),
+                            topLeft: Radius.circular(_isExpanded ? 20 : 12),
+                            topRight: Radius.circular(_isExpanded ? 20 : 12),
                           ),
                         ),
                         child: Row(
@@ -180,7 +185,17 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
                       Expanded(
                         child: Container(
                           color: const Color(0xFFF8FAFC),
-                          child: ListView.builder(
+                          child: _messages.isEmpty
+                              ? const Center(
+                                  child: Text(
+                                    'Start a conversation...',
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                )
+                              : ListView.builder(
                             controller: _scrollController,
                             padding: const EdgeInsets.all(16),
                             itemCount: _messages.length + (_isLoading ? 1 : 0),
@@ -215,27 +230,26 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
                           ),
                         ),
                       ),
-                    // Input area
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border(
-                          top: BorderSide(
-                            color: Colors.grey.shade200,
-                            width: 1,
+                    // Input area - only show when expanded
+                    if (_isExpanded)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border(
+                            top: BorderSide(
+                              color: Colors.grey.shade200,
+                              width: 1,
+                            ),
                           ),
                         ),
-                      ),
-                      child: Row(
+                        child: Row(
                         children: [
                           Expanded(
                             child: TextField(
                               controller: _messageController,
                               decoration: InputDecoration(
-                                hintText: _isExpanded
-                                    ? 'Ask about health, nutrition, exercise...'
-                                    : 'Tap to ask...',
+                                hintText: 'Ask about health, nutrition, exercise...',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(25),
                                   borderSide: BorderSide(color: Colors.grey.shade300),
@@ -258,44 +272,34 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
                               maxLines: null,
                               textInputAction: TextInputAction.send,
                               onSubmitted: (_) => _sendMessage(),
-                              onTap: () {
-                                if (!_isExpanded) {
-                                  setState(() {
-                                    _isExpanded = true;
-                                  });
-                                  Future.delayed(
-                                    const Duration(milliseconds: 100),
-                                    _scrollToBottom,
-                                  );
-                                }
-                              },
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.indigo.shade600,
-                                  Colors.indigo.shade400,
-                                ],
+                          Material(
+                            color: Colors.transparent,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.indigo.shade600,
+                                    Colors.indigo.shade400,
+                                  ],
+                                ),
+                                shape: BoxShape.circle,
                               ),
-                              shape: BoxShape.circle,
-                            ),
-                            child: IconButton(
-                              onPressed: _isLoading ? null : _sendMessage,
-                              icon: const Icon(Icons.send, color: Colors.white),
-                              padding: const EdgeInsets.all(12),
+                              child: IconButton(
+                                onPressed: _isLoading ? null : _sendMessage,
+                                icon: const Icon(Icons.send, color: Colors.white),
+                                padding: const EdgeInsets.all(12),
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    ),
+                      ),
                   ],
                 ),
               ),
-            ),
-          ],
         ),
       ),
     );
