@@ -86,10 +86,8 @@ class _MainScreenState
 
         body: Stack(
           children: [
-            // Page content with bottom padding for chatbot and bottom nav
-            Padding(
-              padding: const EdgeInsets.only(bottom: 140),
-              child: PageView(
+            // Page content
+            PageView(
                 controller: _pageController,
                 physics: const NeverScrollableScrollPhysics(),
                 onPageChanged:
@@ -116,7 +114,6 @@ class _MainScreenState
                   const AboutPage(),
                 ],
               ),
-            ),
             // Floating Health Chatbot - always visible at bottom
             const HealthChatbotWidget(),
           ],

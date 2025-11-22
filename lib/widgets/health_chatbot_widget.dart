@@ -1,5 +1,5 @@
 // Floating Health Chatbot Widget
-// Hovers at the bottom of the screen, always accessible
+// Floating button in bottom right corner
 
 import 'package:flutter/material.dart';
 import '../services/health_chatbot_service.dart';
@@ -22,11 +22,31 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
   @override
   void initState() {
     super.initState();
-    _messages.add(ChatMessage(
-      text: _chatbotService.getGreeting(),
-      isUser: false,
-      timestamp: DateTime.now(),
-    ));
+    // Add greeting message - this doesn't require API initialization
+    try {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _messages.add(ChatMessage(
+              text: _chatbotService.getGreeting(),
+              isUser: false,
+              timestamp: DateTime.now(),
+            ));
+          });
+        }
+      });
+    } catch (e) {
+      // If greeting fails, add a simple message
+      if (mounted) {
+        setState(() {
+          _messages.add(ChatMessage(
+            text: 'Hi! I\'m your Health Assistant. How can I help you today?',
+            isUser: false,
+            timestamp: DateTime.now(),
+          ));
+        });
+      }
+    }
   }
 
   @override
@@ -63,244 +83,270 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
     _messageController.clear();
     _scrollToBottom();
 
-    // Get bot response
+    // Get bot response from Gemini AI
     final response = await _chatbotService.getResponse(text);
 
     // Add bot response
-    setState(() {
-      _messages.add(ChatMessage(
-        text: response,
-        isUser: false,
-        timestamp: DateTime.now(),
-      ));
-      _isLoading = false;
-    });
-
-    _scrollToBottom();
+    if (mounted) {
+      setState(() {
+        _messages.add(ChatMessage(
+          text: response,
+          isUser: false,
+          timestamp: DateTime.now(),
+        ));
+        _isLoading = false;
+      });
+      _scrollToBottom();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Position above bottom navigation bar (typically 56-60px)
+    // Position in bottom right corner, above bottom navigation bar
     final bottomNavHeight = 60.0;
+    final safeAreaBottom = MediaQuery.of(context).padding.bottom;
     
     return Positioned(
-      bottom: bottomNavHeight + 10,
-      left: 16,
+      bottom: bottomNavHeight + safeAreaBottom + 16,
       right: 16,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        height: _isExpanded 
-            ? MediaQuery.of(context).size.height * 0.6 
-            : 70,
-        child: Material(
-          color: Colors.transparent,
-          elevation: _isExpanded ? 8 : 4,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(_isExpanded ? 20 : 12),
-            topRight: Radius.circular(_isExpanded ? 20 : 12),
-            bottomLeft: const Radius.circular(12),
-            bottomRight: const Radius.circular(12),
-          ),
-          child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(_isExpanded ? 20 : 12),
-                    topRight: Radius.circular(_isExpanded ? 20 : 12),
-                    bottomLeft: const Radius.circular(12),
-                    bottomRight: const Radius.circular(12),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 12,
-                      offset: const Offset(0, -2),
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    // Header/Handle bar
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _isExpanded = !_isExpanded;
-                        });
-                        if (_isExpanded) {
-                          Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.indigo.shade600,
-                              Colors.indigo.shade400,
-                            ],
-                          ),
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(_isExpanded ? 20 : 12),
-                            topRight: Radius.circular(_isExpanded ? 20 : 12),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.health_and_safety,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Text(
-                                'Health Assistant',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            Icon(
-                              _isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
-                              color: Colors.white,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    // Chat messages
-                    if (_isExpanded)
-                      Expanded(
-                        child: Container(
-                          color: const Color(0xFFF8FAFC),
-                          child: _messages.isEmpty
-                              ? const Center(
-                                  child: Text(
-                                    'Start a conversation...',
-                                    style: TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                )
-                              : ListView.builder(
-                            controller: _scrollController,
-                            padding: const EdgeInsets.all(16),
-                            itemCount: _messages.length + (_isLoading ? 1 : 0),
-                            itemBuilder: (context, index) {
-                              if (index == _messages.length) {
-                                // Loading indicator
-                                return const Padding(
-                                  padding: EdgeInsets.all(16.0),
-                                  child: Row(
-                                    children: [
-                                      SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      ),
-                                      SizedBox(width: 12),
-                                      Text(
-                                        'Thinking...',
-                                        style: TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }
+      child: _isExpanded
+          ? _buildExpandedChat()
+          : _buildFloatingButton(),
+    );
+  }
 
-                              final message = _messages[index];
-                              return _buildMessageBubble(message);
-                            },
-                          ),
+  Widget _buildFloatingButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _isExpanded = true;
+          });
+          Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
+        },
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.indigo.shade600,
+                Colors.indigo.shade400,
+              ],
+            ),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.indigo.withOpacity(0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.chat_bubble,
+            color: Colors.white,
+            size: 28,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandedChat() {
+    return Container(
+      width: 360,
+      height: 500,
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width - 32,
+        maxHeight: MediaQuery.of(context).size.height * 0.7,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: 4,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.indigo.shade600,
+                  Colors.indigo.shade400,
+                ],
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.health_and_safety,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Health Assistant',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () {
+                    setState(() {
+                      _isExpanded = false;
+                    });
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ),
+          // Chat messages
+          Expanded(
+            child: Container(
+              color: const Color(0xFFF8FAFC),
+              child: _messages.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'Start a conversation...',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 14,
                         ),
                       ),
-                    // Input area - only show when expanded
-                    if (_isExpanded)
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border(
-                            top: BorderSide(
-                              color: Colors.grey.shade200,
-                              width: 1,
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _messages.length + (_isLoading ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == _messages.length) {
+                          // Loading indicator
+                          return const Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Thinking...',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
-                        child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _messageController,
-                              decoration: InputDecoration(
-                                hintText: 'Ask about health, nutrition, exercise...',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(25),
-                                  borderSide: BorderSide(color: Colors.grey.shade300),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(25),
-                                  borderSide: BorderSide(color: Colors.grey.shade300),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(25),
-                                  borderSide: BorderSide(color: Colors.indigo.shade400),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 10,
-                                ),
-                                filled: true,
-                                fillColor: Colors.grey.shade50,
-                              ),
-                              maxLines: null,
-                              textInputAction: TextInputAction.send,
-                              onSubmitted: (_) => _sendMessage(),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Material(
-                            color: Colors.transparent,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.indigo.shade600,
-                                    Colors.indigo.shade400,
-                                  ],
-                                ),
-                                shape: BoxShape.circle,
-                              ),
-                              child: IconButton(
-                                onPressed: _isLoading ? null : _sendMessage,
-                                icon: const Icon(Icons.send, color: Colors.white),
-                                padding: const EdgeInsets.all(12),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      ),
-                  ],
+                          );
+                        }
+
+                        final message = _messages[index];
+                        return _buildMessageBubble(message);
+                      },
+                    ),
+            ),
+          ),
+          // Input area
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                top: BorderSide(
+                  color: Colors.grey.shade200,
+                  width: 1,
                 ),
               ),
-        ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    decoration: InputDecoration(
+                      hintText: 'Ask about health, nutrition, exercise...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(25),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(25),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(25),
+                        borderSide: BorderSide(color: Colors.indigo.shade400),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                    ),
+                    maxLines: null,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _sendMessage(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.indigo.shade600,
+                          Colors.indigo.shade400,
+                        ],
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      onPressed: _isLoading ? null : _sendMessage,
+                      icon: const Icon(Icons.send, color: Colors.white),
+                      padding: const EdgeInsets.all(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -399,4 +445,3 @@ class ChatMessage {
     required this.timestamp,
   });
 }
-
