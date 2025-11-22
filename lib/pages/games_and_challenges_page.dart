@@ -324,12 +324,15 @@ class _GamesAndChallengesPageState extends State<GamesAndChallengesPage> {
                   return;
                 }
                 Navigator.pop(context);
+                // Normalize dates to start of day (midnight) to ensure proper status calculation
+                final normalizedStartDate = DateTime(startDate.year, startDate.month, startDate.day);
+                final normalizedEndDate = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59); // End of day
                 await _createChallenge(
                   title,
                   descriptionController.text.trim(),
                   targetSteps,
-                  startDate,
-                  endDate,
+                  normalizedStartDate,
+                  normalizedEndDate,
                 );
               },
               child: const Text('Create'),
@@ -1205,6 +1208,49 @@ class _ChallengesListPageState extends State<ChallengesListPage> with SingleTick
     }
   }
 
+  Future<void> _deleteChallenge(String challengeId, bool isPublic) async {
+    // Show confirmation dialog
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Challenge'),
+        content: const Text('Are you sure you want to delete this challenge? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final result = await _challengeService.deleteChallenge(challengeId);
+    
+    if (mounted) {
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Challenge deleted successfully')),
+        );
+        // Reload challenges
+        _loadChallenges();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['error'] ?? 'Failed to delete challenge')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1276,20 +1322,40 @@ class _ChallengesListPageState extends State<ChallengesListPage> with SingleTick
   }
 
   Widget _buildChallengeCard(Map<String, dynamic> challenge, {required bool isPublic}) {
-    final status = challenge['status'] ?? 'upcoming';
+    // Use backend status as primary source, with frontend recalculation as fallback
     final startDate = DateTime.parse(challenge['startDate']);
     final endDate = DateTime.parse(challenge['endDate']);
     final now = DateTime.now();
-    final isActive = now.isAfter(startDate) && now.isBefore(endDate);
+    
+    // Normalize to start of day for date comparison (ignore time)
+    final startOfStart = DateTime(startDate.year, startDate.month, startDate.day);
+    final startOfEnd = DateTime(endDate.year, endDate.month, endDate.day);
+    final startOfNow = DateTime(now.year, now.month, now.day);
+    
+    // Calculate status based on dates (same logic as backend)
+    String calculatedStatus;
+    if (startOfEnd.isBefore(startOfNow)) {
+      calculatedStatus = 'completed';
+    } else if (startOfStart.isBefore(startOfNow) || startOfStart.isAtSameMomentAs(startOfNow)) {
+      calculatedStatus = 'active';
+    } else {
+      calculatedStatus = 'upcoming';
+    }
+    
+    // Use backend status if available, otherwise use calculated
+    final status = challenge['status'] ?? calculatedStatus;
     
     Color statusColor = Colors.grey;
     String statusText = status;
-    if (isActive) {
+    if (status == 'active') {
       statusColor = Colors.green;
       statusText = 'Active';
-    } else if (now.isAfter(endDate)) {
+    } else if (status == 'completed') {
       statusColor = Colors.blue;
       statusText = 'Completed';
+    } else {
+      statusColor = Colors.orange;
+      statusText = 'Upcoming';
     }
 
     return Card(
@@ -1322,10 +1388,21 @@ class _ChallengesListPageState extends State<ChallengesListPage> with SingleTick
                       ),
                     ),
                   ),
-                  Chip(
-                    label: Text(statusText),
-                    backgroundColor: statusColor.withOpacity(0.2),
-                    labelStyle: TextStyle(color: statusColor),
+                  Row(
+                    children: [
+                      Chip(
+                        label: Text(statusText),
+                        backgroundColor: statusColor.withOpacity(0.2),
+                        labelStyle: TextStyle(color: statusColor),
+                      ),
+                      // Delete button - only show if user is creator
+                      if (challenge['isCreator'] == true)
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _deleteChallenge(challenge['_id'], isPublic),
+                          tooltip: 'Delete challenge',
+                        ),
+                    ],
                   ),
                 ],
               ),

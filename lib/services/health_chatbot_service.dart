@@ -18,6 +18,8 @@ class HealthChatbotService {
         return; // Don't throw, just return - will be handled in getResponse
       }
 
+      // Use the standard gemini-pro model (most compatible)
+      // Simplified version without systemInstruction to test
       _model = GenerativeModel(
         model: 'gemini-pro',
         apiKey: apiKey,
@@ -27,16 +29,10 @@ class HealthChatbotService {
           topP: 0.95,
           maxOutputTokens: 1024,
         ),
-        systemInstruction: Content.system(
-          'You are a helpful and friendly health and wellness assistant. '
-          'You provide accurate, evidence-based information about nutrition, fitness, exercise, '
-          'weight management, sleep, posture, and general wellness. '
-          'Always be encouraging and supportive. If asked about medical conditions or symptoms, '
-          'recommend consulting a healthcare professional. Keep responses concise but informative.',
-        ),
       );
 
       _chatSession = _model?.startChat();
+      print('Successfully initialized Gemini AI with model: gemini-pro');
     } catch (e) {
       // Silently handle initialization errors - will show error message when user tries to chat
       print('Error initializing Gemini AI: $e');
@@ -55,50 +51,112 @@ class HealthChatbotService {
             '2. Add GEMINI_API_KEY=your_key_here to your .env file\n'
             '3. Restart the app';
       }
+      
+      // Debug: Check if API key is loaded (first few chars only)
+      print('API Key loaded: ${apiKey.substring(0, apiKey.length > 10 ? 10 : apiKey.length)}...');
 
       // Initialize model if not already done
-      if (_model == null || _chatSession == null) {
+      if (_model == null) {
         _initializeModel();
       }
 
-      if (_chatSession == null || _model == null) {
+      if (_model == null) {
         return 'Sorry, I\'m having trouble connecting. Please check your API key configuration.';
       }
 
+      // Create a new chat session for each message to avoid session issues
+      final chatSession = _model!.startChat();
+      
+      // Add context in the first message
+      final prompt = 'You are a helpful health and wellness assistant. '
+          'Provide accurate, evidence-based information about nutrition, fitness, exercise, '
+          'weight management, sleep, posture, and wellness. '
+          'Always be encouraging. If asked about medical conditions, recommend consulting a healthcare professional. '
+          'Keep responses concise.\n\nUser question: $question';
+      
       // Send message to Gemini
-      final response = await _chatSession!.sendMessage(
-        Content.text(question),
+      final response = await chatSession.sendMessage(
+        Content.text(prompt),
       );
 
-      // Extract text from response
-      final text = response.text;
+      // Extract text from response - try multiple ways
+      String? text = response.text;
+      
+      // If text is null, try to get from candidates
       if (text == null || text.isEmpty) {
+        if (response.candidates.isNotEmpty) {
+          final candidate = response.candidates.first;
+          if (candidate.content.parts.isNotEmpty) {
+            text = candidate.content.parts
+                .whereType<TextPart>()
+                .map((part) => part.text)
+                .join(' ');
+          }
+        }
+      }
+      
+      if (text == null || text.isEmpty) {
+        print('Response structure: ${response.toString()}');
+        print('Candidates: ${response.candidates.length}');
         return 'I apologize, but I couldn\'t generate a response. Please try rephrasing your question.';
       }
 
       return text;
     } catch (e) {
-      // Handle errors gracefully
-      if (e.toString().contains('API_KEY') || e.toString().contains('api key')) {
-        return 'API key error: Please make sure GEMINI_API_KEY is set in your .env file.';
+      // Log the actual error for debugging
+      print('Gemini AI Error: $e');
+      print('Error type: ${e.runtimeType}');
+      
+      // Handle specific error types
+      final errorString = e.toString().toLowerCase();
+      
+      if (errorString.contains('api_key') || errorString.contains('api key') || errorString.contains('invalid api key')) {
+        return '❌ API Key Error\n\n'
+            'Your API key may be invalid or not properly configured.\n\n'
+            'Please check:\n'
+            '1. The API key in your .env file is correct\n'
+            '2. The API key has not expired\n'
+            '3. Restart the app after adding the key';
+      }
+      
+      if (errorString.contains('quota') || errorString.contains('limit')) {
+        return '⚠️ API Quota Exceeded\n\n'
+            'You have reached the API usage limit. Please try again later or check your Google Cloud Console for quota limits.';
+      }
+      
+      if (errorString.contains('network') || errorString.contains('connection') || errorString.contains('timeout')) {
+        return '🌐 Connection Error\n\n'
+            'Unable to connect to Gemini AI. Please check your internet connection and try again.';
+      }
+      
+      if (errorString.contains('permission') || errorString.contains('forbidden')) {
+        return '🔒 Permission Error\n\n'
+            'Your API key may not have the necessary permissions. Please check your Google Cloud Console settings.';
       }
       
       // Try to reinitialize on error
       try {
+        _model = null;
+        _chatSession = null;
         _initializeModel();
-        if (_chatSession != null) {
+        if (_chatSession != null && _model != null) {
           final response = await _chatSession!.sendMessage(
             Content.text(question),
           );
           return response.text ?? 'Sorry, I couldn\'t generate a response.';
         }
-      } catch (_) {
-        // Fallback response
-        return 'I apologize, but I\'m experiencing technical difficulties. '
-            'Please try again in a moment. If the problem persists, check your internet connection and API configuration.';
+      } catch (retryError) {
+        print('Retry also failed: $retryError');
+        // Show more detailed error for debugging
+        return '⚠️ Error: ${e.toString().split(':').last.trim()}\n\n'
+            'Please check:\n'
+            '• Your internet connection\n'
+            '• API key is correct in .env file\n'
+            '• Gemini API is enabled in Google Cloud Console\n'
+            '• Try restarting the app';
       }
       
-      return 'I apologize, but I\'m experiencing technical difficulties. Please try again.';
+      return '⚠️ Error: ${e.toString().split(':').last.trim()}\n\nPlease try again or check your API configuration.';
     }
   }
 

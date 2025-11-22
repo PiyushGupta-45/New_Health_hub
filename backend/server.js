@@ -148,6 +148,33 @@ challengeSchema.index({ status: 1, endDate: 1 });
 
 const Challenge = mongoose.model('Challenge', challengeSchema);
 
+// Helper function to calculate challenge status based on dates
+const calculateChallengeStatus = (startDate, endDate) => {
+  const now = new Date();
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  // Normalize to start of day for date comparison (ignore time)
+  // Use local time to match the date normalization in create endpoint
+  const startOfStart = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const startOfEnd = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  const startOfNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  // If end date has passed, it's completed
+  if (startOfEnd < startOfNow) {
+    return 'completed';
+  }
+  
+  // If start date is today or in the past, it's active
+  // Use <= to include today
+  if (startOfStart <= startOfNow) {
+    return 'active';
+  }
+  
+  // Otherwise it's upcoming
+  return 'upcoming';
+};
+
 const generateJoinCode = async () => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code;
@@ -1454,8 +1481,16 @@ app.post('/api/challenges/create', verifyToken, async (req, res) => {
       });
     }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    // Normalize dates to start of day for consistent comparison
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+    
+    // Normalize start date to start of day (midnight)
+    const start = new Date(startDateObj.getFullYear(), startDateObj.getMonth(), startDateObj.getDate());
+    
+    // Normalize end date to end of day (23:59:59)
+    const end = new Date(endDateObj.getFullYear(), endDateObj.getMonth(), endDateObj.getDate(), 23, 59, 59);
+    
     const now = new Date();
 
     if (end <= start) {
@@ -1466,7 +1501,8 @@ app.post('/api/challenges/create', verifyToken, async (req, res) => {
     }
 
     const creatorProfile = await getUserProfile(req.userId);
-    const status = start > now ? 'upcoming' : (end < now ? 'completed' : 'active');
+    // Calculate status using helper function (considers date, not time)
+    const status = calculateChallengeStatus(start, end);
 
     const challenge = await Challenge.create({
       title: title.trim(),
@@ -1485,6 +1521,9 @@ app.post('/api/challenges/create', verifyToken, async (req, res) => {
       }]
     });
 
+    // Calculate status again to ensure it's current (should match database)
+    const returnedStatus = calculateChallengeStatus(challenge.startDate, challenge.endDate);
+    
     return res.status(201).json({
       success: true,
       data: {
@@ -1497,7 +1536,7 @@ app.post('/api/challenges/create', verifyToken, async (req, res) => {
         creatorId: challenge.creatorId.toString(),
         creatorName: challenge.creatorName,
         isPublic: challenge.isPublic,
-        status: challenge.status,
+        status: returnedStatus, // Use calculated status
         participantCount: challenge.participants.length,
         isParticipant: true
       }
@@ -1524,6 +1563,14 @@ app.get('/api/challenges/list', verifyToken, async (req, res) => {
       const isParticipant = challenge.participants.some(
         p => p.userId.toString() === userId
       );
+      // Calculate current status dynamically (in case dates have passed)
+      const currentStatus = calculateChallengeStatus(challenge.startDate, challenge.endDate);
+      
+      // Update status in database if it changed
+      if (currentStatus !== challenge.status) {
+        Challenge.updateOne({ _id: challenge._id }, { status: currentStatus }).exec();
+      }
+      
       return {
         _id: challenge._id.toString(),
         title: challenge.title,
@@ -1533,9 +1580,10 @@ app.get('/api/challenges/list', verifyToken, async (req, res) => {
         endDate: challenge.endDate,
         creatorId: challenge.creatorId.toString(),
         creatorName: challenge.creatorName,
-        status: challenge.status,
+        status: currentStatus, // Use calculated status
         participantCount: challenge.participants.length,
-        isParticipant
+        isParticipant,
+        isCreator: challenge.creatorId.toString() === userId
       };
     });
 
@@ -1566,6 +1614,14 @@ app.get('/api/challenges/my-challenges', verifyToken, async (req, res) => {
       const participant = challenge.participants.find(
         p => p.userId.toString() === userId.toString()
       );
+      // Calculate current status dynamically
+      const currentStatus = calculateChallengeStatus(challenge.startDate, challenge.endDate);
+      
+      // Update status in database if it changed
+      if (currentStatus !== challenge.status) {
+        Challenge.updateOne({ _id: challenge._id }, { status: currentStatus }).exec();
+      }
+      
       return {
         _id: challenge._id.toString(),
         title: challenge.title,
@@ -1575,7 +1631,7 @@ app.get('/api/challenges/my-challenges', verifyToken, async (req, res) => {
         endDate: challenge.endDate,
         creatorId: challenge.creatorId.toString(),
         creatorName: challenge.creatorName,
-        status: challenge.status,
+        status: currentStatus, // Use calculated status
         participantCount: challenge.participants.length,
         mySteps: participant?.steps || 0,
         isCreator: challenge.creatorId.toString() === userId.toString()
@@ -1667,6 +1723,14 @@ app.get('/api/challenges/:challengeId', verifyToken, async (req, res) => {
       });
     }
 
+    // Calculate current status dynamically
+    const currentStatus = calculateChallengeStatus(challenge.startDate, challenge.endDate);
+    
+    // Update status in database if it changed
+    if (currentStatus !== challenge.status) {
+      await Challenge.updateOne({ _id: challenge._id }, { status: currentStatus }).exec();
+    }
+    
     // Sort participants by steps (descending)
     const sortedParticipants = [...challenge.participants].sort((a, b) => b.steps - a.steps);
 
@@ -1685,7 +1749,7 @@ app.get('/api/challenges/:challengeId', verifyToken, async (req, res) => {
         endDate: challenge.endDate,
         creatorId: challenge.creatorId.toString(),
         creatorName: challenge.creatorName,
-        status: challenge.status,
+        status: currentStatus, // Use calculated status
         isPublic: challenge.isPublic,
         isParticipant: participant != null,
         mySteps: participant?.steps || 0,
@@ -1765,6 +1829,43 @@ app.post('/api/challenges/:challengeId/update-steps', verifyToken, async (req, r
     return res.status(500).json({
       success: false,
       message: 'Server error while updating steps'
+    });
+  }
+});
+
+// Delete challenge (only creator can delete)
+app.delete('/api/challenges/:challengeId', verifyToken, async (req, res) => {
+  try {
+    const { challengeId } = req.params;
+    const userId = req.userId;
+
+    const challenge = await Challenge.findById(challengeId);
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found'
+      });
+    }
+
+    // Only creator can delete
+    if (challenge.creatorId.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the creator can delete this challenge'
+      });
+    }
+
+    await Challenge.deleteOne({ _id: challengeId });
+
+    return res.json({
+      success: true,
+      message: 'Challenge deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete challenge error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while deleting challenge'
     });
   }
 });

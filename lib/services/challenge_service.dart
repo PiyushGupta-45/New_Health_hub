@@ -257,5 +257,39 @@ class ChallengeService {
       };
     }
   }
+
+  // Delete challenge (only creator can delete)
+  Future<Map<String, dynamic>> deleteChallenge(String challengeId) async {
+    try {
+      final url = baseUrl;
+      if (url == null) {
+        return {
+          'success': false,
+          'error': 'API_BASE_URL is not configured',
+        };
+      }
+
+      final headers = await _getHeaders();
+      final response = await http.delete(
+        Uri.parse('$url/api/challenges/$challengeId'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+
+      final error = json.decode(response.body);
+      return {
+        'success': false,
+        'error': error['message'] ?? 'Failed to delete challenge',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'error': 'Network error: $e',
+      };
+    }
+  }
 }
 
