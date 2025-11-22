@@ -143,21 +143,24 @@ class _WorkoutTrackerViewState extends State<WorkoutTrackerView> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: kBackgroundColor,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
-          title: const Text(
+          title: Text(
             'Workout Tracker',
             style: TextStyle(
-              color: Colors.black87,
+              color: isDark ? const Color(0xFFF1F5F9) : Colors.black87,
               fontWeight: FontWeight.bold,
             ),
           ),
-          backgroundColor: kBackgroundColor,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           elevation: 0,
-          iconTheme: const IconThemeData(color: Colors.black87),
+          iconTheme: IconThemeData(
+            color: isDark ? const Color(0xFFF1F5F9) : Colors.black87,
+          ),
           actions: [
             IconButton(
               onPressed: widget.controller.isSyncing ? null : _syncNow,
@@ -213,15 +216,16 @@ class _ManualWorkoutsTab extends StatelessWidget {
     final connectedGoals =
         activeGoals.where((goal) => goal.connectToTracker).toList();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const Text(
+        Text(
           'Choose a workout',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2937),
+            color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1F2937),
           ),
         ),
         const SizedBox(height: 12),
@@ -235,12 +239,12 @@ class _ManualWorkoutsTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        const Text(
+        Text(
           'Connected Goals',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF475569),
+            color: isDark ? Colors.grey.shade400 : const Color(0xFF475569),
           ),
         ),
         const SizedBox(height: 8),
@@ -366,10 +370,11 @@ class _EmptyGoalsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
@@ -381,12 +386,12 @@ class _EmptyGoalsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'No goals connected yet',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF1F2937),
+              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1F2937),
             ),
           ),
           const SizedBox(height: 8),
@@ -394,7 +399,7 @@ class _EmptyGoalsCard extends StatelessWidget {
             'Create a personalized goal and connect it to your tracker to view progress here.',
             style: TextStyle(
               fontSize: 13,
-              color: Colors.grey.shade600,
+              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
             ),
           ),
           const SizedBox(height: 14),
@@ -423,12 +428,13 @@ class _GoalProgressCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const double progress = 0.7;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(color: Colors.grey.withValues(alpha: 0.15), blurRadius: 8),
@@ -448,7 +454,9 @@ class _GoalProgressCard extends StatelessWidget {
           const SizedBox(height: 5),
           Text(
             'Target: ${goal.target} ${goal.unit}',
-            style: TextStyle(color: Colors.grey.shade700),
+            style: TextStyle(
+              color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+            ),
           ),
           const SizedBox(height: 10),
           LinearProgressIndicator(
@@ -468,7 +476,10 @@ class _GoalProgressCard extends StatelessWidget {
               ),
               Text(
                 'Due: ${goal.deadline.day}/${goal.deadline.month}',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey,
+                ),
               ),
             ],
           ),
@@ -657,11 +668,12 @@ class _WorkoutLogTile extends StatelessWidget {
       dateLabel,
     ];
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.grey.withValues(alpha: 0.12), blurRadius: 6),
@@ -686,16 +698,17 @@ class _WorkoutLogTile extends StatelessWidget {
                   children: [
                     Text(
                       '${entry.typeLabel} • $durationLabel',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
+                        color: isDark ? const Color(0xFFF1F5F9) : Colors.black87,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       details.join('\n'),
                       style: TextStyle(
-                        color: Colors.grey.shade600,
+                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                         fontSize: 13,
                       ),
                     ),

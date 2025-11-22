@@ -229,8 +229,12 @@ class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(template.title),
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
+          backgroundColor: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFF1E293B)
+              : Colors.white,
+          foregroundColor: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFFF1F5F9)
+              : Colors.black,
           elevation: 0,
         ),
         body: SingleChildScrollView(

@@ -6,8 +6,11 @@ import 'package:intl/intl.dart';
 
 // Assuming these controllers and views exist in the file structure
 // Replace with your actual import paths if needed.
+import 'package:provider/provider.dart';
 import '../controllers/health_sync_controller.dart';
 import '../controllers/auth_controller.dart';
+import '../services/theme_service.dart';
+import '../widgets/theme_toggle_button.dart';
 import 'workout_tracker_view.dart';
 import 'personalized_goals_view.dart';
 import 'posture_analysis_view.dart';
@@ -268,7 +271,13 @@ class _HomePageState extends State<HomePage> {
         return GestureDetector(
           onTap: () {
             if (isAuthenticated) {
-              _showUserMenu(context);
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => AccountPage(
+                    authController: widget.authController,
+                  ),
+                ),
+              );
             } else {
               Navigator.of(context).push(
                 MaterialPageRoute(
@@ -288,9 +297,9 @@ class _HomePageState extends State<HomePage> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: isAuthenticated
-                    ? [
-                        Colors.indigo.shade400,
-                        Colors.indigo.shade600,
+                    ? const [
+                        Color(0xFF2563EB),
+                        Color(0xFF3B82F6),
                       ]
                     : [
                         Colors.grey.shade400,
@@ -300,7 +309,7 @@ class _HomePageState extends State<HomePage> {
               boxShadow: [
                 BoxShadow(
                   color: (isAuthenticated
-                              ? Colors.indigo.shade300
+                              ? const Color(0xFF2563EB)
                               : Colors.grey.shade300)
                       .withOpacity(0.4),
                   blurRadius: 12,
@@ -359,12 +368,12 @@ class _HomePageState extends State<HomePage> {
                   height: 56,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(18.0),
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.indigo.shade400,
-                        Colors.indigo.shade600,
+                        Color(0xFF2563EB),
+                        Color(0xFF3B82F6),
                       ],
                     ),
                   ),
@@ -464,6 +473,7 @@ class _HomePageState extends State<HomePage> {
     required String subtitle,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -472,10 +482,10 @@ class _HomePageState extends State<HomePage> {
         child: Container(
           padding: const EdgeInsets.all(20.0),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
             borderRadius: BorderRadius.circular(20.0),
             border: Border.all(
-              color: Colors.grey.shade100,
+              color: isDark ? Colors.grey.shade700 : Colors.grey.shade100,
               width: 1,
             ),
             boxShadow: [
@@ -505,9 +515,11 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF1E293B),
+                        color: isDark
+                            ? const Color(0xFFF1F5F9)
+                            : const Color(0xFF1E293B),
                         fontSize: 17,
                         letterSpacing: -0.3,
                       ),
@@ -516,7 +528,9 @@ class _HomePageState extends State<HomePage> {
                     Text(
                       subtitle,
                       style: TextStyle(
-                        color: Colors.grey.shade600,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
                       ),
@@ -543,17 +557,27 @@ class _HomePageState extends State<HomePage> {
     final progress = (steps / _defaultStepGoal).clamp(0.0, 1.0);
     final percentage = (progress * 100).clamp(0, 100).toStringAsFixed(0);
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SafeArea(
       child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFF8FAFC), // Lightest grey/off-white
-              Color(0xFFF1F5F9), // Slightly darker grey
-            ],
-          ),
+        decoration: BoxDecoration(
+          gradient: isDark
+              ? const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF0F172A), // Dark slate
+                    Color(0xFF1E293B), // Slightly lighter dark
+                  ],
+                )
+              : const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFFF8FAFC), // Lightest grey/off-white
+                    Color(0xFFF1F5F9), // Slightly darker grey
+                  ],
+                ),
         ),
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -575,20 +599,24 @@ class _HomePageState extends State<HomePage> {
                           children: [
                             Text(
                               _getGreeting(),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.w800,
-                                color: Color(0xFF1E293B),
+                                color: Theme.of(context).brightness == Brightness.dark
+                                    ? const Color(0xFFF1F5F9)
+                                    : const Color(0xFF1E293B),
                                 letterSpacing: -0.5,
                               ),
                             ),
                             const SizedBox(height: 6),
-                            const Text(
+                            Text(
                               'Let\'s make today count!',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
-                                color: Color(0xFF64748B),
+                                color: Theme.of(context).brightness == Brightness.dark
+                                    ? Colors.grey.shade400
+                                    : const Color(0xFF64748B),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -627,17 +655,17 @@ class _HomePageState extends State<HomePage> {
                   margin: const EdgeInsets.only(bottom: 28.0),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(28.0),
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.indigo.shade600,
-                        Colors.indigo.shade800,
+                        Color(0xFF2563EB),
+                        Color(0xFF3B82F6),
                       ],
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.indigo.shade400.withOpacity(0.4),
+                        color: const Color(0xFF2563EB).withOpacity(0.4),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       ),
@@ -853,8 +881,8 @@ class _HomePageState extends State<HomePage> {
                                               height: 20,
                                               child: CircularProgressIndicator(
                                                 strokeWidth: 2.5,
-                                                valueColor: AlwaysStoppedAnimation<Color>(
-                                                  Colors.indigo.shade600,
+                                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                                  Color(0xFF6366F1),
                                                 ),
                                               ),
                                             )
@@ -862,17 +890,17 @@ class _HomePageState extends State<HomePage> {
                                             Icon(
                                               Icons.refresh_rounded,
                                               size: 22,
-                                              color: Colors.indigo.shade600,
+                                              color: const Color(0xFF6366F1),
                                             ),
                                           const SizedBox(height: 6),
                                           Text(
                                             widget.controller.isSyncing
                                                 ? 'Syncing…'
                                                 : 'Sync',
-                                            style: TextStyle(
+                                            style: const TextStyle(
                                               fontWeight: FontWeight.w700,
                                               fontSize: 13,
-                                              color: Colors.indigo.shade600,
+                                              color: Color(0xFF6366F1),
                                             ),
                                           ),
                                         ],
@@ -953,12 +981,14 @@ class _HomePageState extends State<HomePage> {
                 // Quick Actions Section
                 Row(
                   children: [
-                    const Text(
+                    Text(
                       'Quick Actions',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF1E293B),
+                        color: isDark
+                            ? const Color(0xFFF1F5F9)
+                            : const Color(0xFF1E293B),
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -1070,7 +1100,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 100),
+                SizedBox(height: MediaQuery.of(context).padding.bottom + 150),
               ],
             ),
           ),

@@ -135,69 +135,185 @@ class _AuthPageState extends State<AuthPage>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Color(0xFF1E293B)),
-          onPressed: () => Navigator.of(context).pop(),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: isDark
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF0F172A),
+                    Color(0xFF1E293B),
+                  ],
+                )
+              : const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFF8FAFC),
+                    Color(0xFFF1F5F9),
+                  ],
+                ),
         ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'Welcome to FitTrack',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E293B),
-                      letterSpacing: -0.5,
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+                          size: 20,
+                        ),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Sign in to continue or create a new account',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  TabBar(
-                    controller: _tabController,
-                    labelColor: Colors.indigo.shade600,
-                    unselectedLabelColor: Colors.grey.shade600,
-                    indicatorColor: Colors.indigo.shade600,
-                    labelStyle: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                    ),
-                    tabs: const [
-                      Tab(text: 'Sign In'),
-                      Tab(text: 'Sign Up'),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildSignInForm(),
-                  _buildSignUpForm(),
-                ],
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 20),
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 20,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Color(0xFF6366F1),
+                                      Color(0xFF8B5CF6),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF6366F1).withOpacity(0.3),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.fitness_center_rounded,
+                                  color: Colors.white,
+                                  size: 40,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              Text(
+                                'Welcome to FitTrack',
+                                style: TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Sign in to continue or create a new account',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 20,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: TabBar(
+                            controller: _tabController,
+                            labelColor: const Color(0xFF6366F1),
+                            unselectedLabelColor: Colors.grey.shade600,
+                            indicatorColor: const Color(0xFF6366F1),
+                            indicatorWeight: 3,
+                            indicatorSize: TabBarIndicatorSize.tab,
+                            labelStyle: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                            unselectedLabelStyle: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                            ),
+                            tabs: const [
+                              Tab(text: 'Sign In'),
+                              Tab(text: 'Sign Up'),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          height: 500,
+                          child: TabBarView(
+                            controller: _tabController,
+                            children: [
+                              _buildSignInForm(),
+                              _buildSignUpForm(),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -205,13 +321,14 @@ class _AuthPageState extends State<AuthPage>
 
   Widget _buildSignInForm() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24.0, 0, 24.0, 24.0),
+      padding: EdgeInsets.zero,
       child: Form(
         key: _signInFormKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
           _buildTextField(
+            context: context,
             controller: _signInEmailController,
             label: 'Email',
             hint: 'Enter your email',
@@ -229,6 +346,7 @@ class _AuthPageState extends State<AuthPage>
           ),
           const SizedBox(height: 20),
           _buildTextField(
+            context: context,
             controller: _signInPasswordController,
             label: 'Password',
             hint: 'Enter your password',
@@ -257,17 +375,32 @@ class _AuthPageState extends State<AuthPage>
             },
           ),
           const SizedBox(height: 32),
-          ElevatedButton(
-            onPressed: widget.authController.isLoading ? null : _handleSignIn,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.indigo.shade600,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
               ),
-              elevation: 0,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6366F1).withOpacity(0.4),
+                  blurRadius: 15,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
+            child: ElevatedButton(
+              onPressed: widget.authController.isLoading ? null : _handleSignIn,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 0,
+              ),
             child: widget.authController.isLoading
                 ? const SizedBox(
                     height: 20,
@@ -284,6 +417,7 @@ class _AuthPageState extends State<AuthPage>
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+            ),
           ),
           const SizedBox(height: 24),
           Row(
@@ -303,32 +437,39 @@ class _AuthPageState extends State<AuthPage>
             ],
           ),
           const SizedBox(height: 24),
-          OutlinedButton.icon(
-            onPressed: widget.authController.isLoading
-                ? null
-                : _handleGoogleSignIn,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF1E293B),
-              side: BorderSide(color: Colors.grey.shade300),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            icon: Image.asset(
-              'assets/google_logo.png',
-              height: 20,
-              errorBuilder: (context, error, stackTrace) {
-                return const Icon(Icons.g_mobiledata, size: 24);
-              },
-            ),
-            label: const Text(
-              'Continue with Google',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+          Builder(
+            builder: (context) {
+              final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+              return OutlinedButton.icon(
+                onPressed: widget.authController.isLoading
+                    ? null
+                    : _handleGoogleSignIn,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+                  side: BorderSide(
+                    color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                icon: Image.asset(
+                  'assets/google_logo.png',
+                  height: 20,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Icon(Icons.g_mobiledata, size: 24);
+                  },
+                ),
+                label: const Text(
+                  'Continue with Google',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              );
+            },
           ),
         ],
         ),
@@ -338,13 +479,14 @@ class _AuthPageState extends State<AuthPage>
 
   Widget _buildSignUpForm() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24.0, 0, 24.0, 24.0),
+      padding: EdgeInsets.zero,
       child: Form(
         key: _signUpFormKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
           _buildTextField(
+            context: context,
             controller: _signUpNameController,
             label: 'Full Name',
             hint: 'Enter your full name',
@@ -361,6 +503,7 @@ class _AuthPageState extends State<AuthPage>
           ),
           const SizedBox(height: 20),
           _buildTextField(
+            context: context,
             controller: _signUpEmailController,
             label: 'Email',
             hint: 'Enter your email',
@@ -378,6 +521,7 @@ class _AuthPageState extends State<AuthPage>
           ),
           const SizedBox(height: 20),
           _buildTextField(
+            context: context,
             controller: _signUpPasswordController,
             label: 'Password',
             hint: 'Create a password',
@@ -407,6 +551,7 @@ class _AuthPageState extends State<AuthPage>
           ),
           const SizedBox(height: 20),
           _buildTextField(
+            context: context,
             controller: _signUpConfirmPasswordController,
             label: 'Confirm Password',
             hint: 'Confirm your password',
@@ -435,18 +580,33 @@ class _AuthPageState extends State<AuthPage>
             },
           ),
           const SizedBox(height: 32),
-          ElevatedButton(
-            onPressed:
-                widget.authController.isLoading ? null : _handleSignUp,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.indigo.shade600,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
               ),
-              elevation: 0,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6366F1).withOpacity(0.4),
+                  blurRadius: 15,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
+            child: ElevatedButton(
+              onPressed:
+                  widget.authController.isLoading ? null : _handleSignUp,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 0,
+              ),
             child: widget.authController.isLoading
                 ? const SizedBox(
                     height: 20,
@@ -463,6 +623,7 @@ class _AuthPageState extends State<AuthPage>
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+            ),
           ),
           const SizedBox(height: 24),
           Row(
@@ -482,32 +643,39 @@ class _AuthPageState extends State<AuthPage>
             ],
           ),
           const SizedBox(height: 24),
-          OutlinedButton.icon(
-            onPressed: widget.authController.isLoading
-                ? null
-                : _handleGoogleSignIn,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF1E293B),
-              side: BorderSide(color: Colors.grey.shade300),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            icon: Image.asset(
-              'assets/google_logo.png',
-              height: 20,
-              errorBuilder: (context, error, stackTrace) {
-                return const Icon(Icons.g_mobiledata, size: 24);
-              },
-            ),
-            label: const Text(
-              'Continue with Google',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+          Builder(
+            builder: (context) {
+              final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+              return OutlinedButton.icon(
+                onPressed: widget.authController.isLoading
+                    ? null
+                    : _handleGoogleSignIn,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+                  side: BorderSide(
+                    color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                icon: Image.asset(
+                  'assets/google_logo.png',
+                  height: 20,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Icon(Icons.g_mobiledata, size: 24);
+                  },
+                ),
+                label: const Text(
+                  'Continue with Google',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              );
+            },
           ),
         ],
         ),
@@ -516,6 +684,7 @@ class _AuthPageState extends State<AuthPage>
   }
 
   Widget _buildTextField({
+    required BuildContext context,
     required TextEditingController controller,
     required String label,
     required String hint,
@@ -525,15 +694,16 @@ class _AuthPageState extends State<AuthPage>
     Widget? suffixIcon,
     String? Function(String?)? validator,
   }) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF1E293B),
+            color: isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
           ),
         ),
         const SizedBox(height: 8),
@@ -547,18 +717,25 @@ class _AuthPageState extends State<AuthPage>
             prefixIcon: Icon(icon, color: Colors.grey.shade400),
             suffixIcon: suffixIcon,
             filled: true,
-            fillColor: Colors.white,
+            fillColor: isDarkMode ? const Color(0xFF1E293B) : Colors.white,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.grey.shade300),
+              borderSide: BorderSide(
+                color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+              ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.grey.shade300),
+              borderSide: BorderSide(
+                color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.indigo.shade600, width: 2),
+              borderSide: BorderSide(
+                color: isDarkMode ? const Color(0xFF818CF8) : const Color(0xFF6366F1),
+                width: 2,
+              ),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),

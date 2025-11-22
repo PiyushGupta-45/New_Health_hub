@@ -7,6 +7,27 @@ import 'pages/home_page.dart';
 import 'pages/community_page.dart';
 import 'widgets/health_chatbot_widget.dart';
 
+// Chatbot Dialog Wrapper
+class HealthChatbotDialog extends StatelessWidget {
+  const HealthChatbotDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(16),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const HealthChatbotWidget(),
+      ),
+    );
+  }
+}
+
 class MainScreen
     extends
         StatefulWidget {
@@ -49,6 +70,57 @@ class _MainScreenState
     );
   }
 
+  Widget _buildNavItem(IconData icon, String label, int index) {
+    final isSelected = _selectedIndex == index;
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _onItemTapped(index),
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFF2563EB).withOpacity(0.1)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: isSelected
+                        ? const Color(0xFF2563EB)
+                        : Colors.grey.shade500,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 200),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected
+                        ? const Color(0xFF2563EB)
+                        : Colors.grey.shade500,
+                  ),
+                  child: Text(label),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+
   Future<
     bool
   >
@@ -80,9 +152,7 @@ class _MainScreenState
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        backgroundColor: const Color(
-          0xFFF4F6F9,
-        ),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
 
         body: Stack(
           children: [
@@ -114,45 +184,40 @@ class _MainScreenState
                   const AboutPage(),
                 ],
               ),
-            // Floating Health Chatbot - always visible at bottom
+            // Floating Health Chatbot - positioned above About button
             const HealthChatbotWidget(),
           ],
         ),
 
-        bottomNavigationBar: BottomNavigationBar(
-          backgroundColor: Colors.white,
-          selectedItemColor: Colors.indigo.shade600,
-          unselectedItemColor: Colors.grey.shade500,
-          showUnselectedLabels: true,
-          currentIndex: _selectedIndex,
-          onTap: _onItemTapped,
-          type: BottomNavigationBarType.fixed,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.home,
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF1E293B)
+                : Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 20,
+                offset: const Offset(0, -5),
               ),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.people,
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Container(
+              height: 70,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildNavItem(Icons.home_rounded, 'Home', 0),
+                  _buildNavItem(Icons.people_rounded, 'Community', 1),
+                  _buildNavItem(Icons.star_rounded, 'Features', 2),
+                  _buildNavItem(Icons.info_outline_rounded, 'About', 3),
+                ],
               ),
-              label: 'Community',
             ),
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.star,
-              ),
-              label: 'Features',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.info_outline,
-              ),
-              label: 'About',
-            ),
-          ],
+          ),
         ),
       ),
     );

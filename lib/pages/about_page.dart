@@ -7,8 +7,9 @@ class AboutPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -19,12 +20,12 @@ class AboutPage extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
+                  gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.indigo.shade600,
-                      Colors.indigo.shade800,
+                      Color(0xFF6366F1),
+                      Color(0xFF8B5CF6),
                     ],
                   ),
                   borderRadius: const BorderRadius.only(
@@ -52,7 +53,7 @@ class AboutPage extends StatelessWidget {
                       child: const Icon(
                         Icons.fitness_center_rounded,
                         size: 60,
-                        color: Colors.indigo,
+                        color: Color(0xFF6366F1),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -103,16 +104,17 @@ class AboutPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Features',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E293B),
+                        color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
                       ),
                     ),
                     const SizedBox(height: 16),
                     _buildFeatureCard(
+                      context: context,
                       icon: Icons.directions_run_rounded,
                       title: 'Step Tracking',
                       description: 'Track your daily steps with real-time monitoring',
@@ -120,6 +122,7 @@ class AboutPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     _buildFeatureCard(
+                      context: context,
                       icon: Icons.flag_rounded,
                       title: 'Goal Setting',
                       description: 'Set personalized health goals and get reminders',
@@ -127,6 +130,7 @@ class AboutPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     _buildFeatureCard(
+                      context: context,
                       icon: Icons.accessibility_new_rounded,
                       title: 'Posture Analysis',
                       description: 'AI-powered posture correction and analysis',
@@ -134,6 +138,7 @@ class AboutPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     _buildFeatureCard(
+                      context: context,
                       icon: Icons.people_rounded,
                       title: 'Community',
                       description: 'Join communities and connect with others',
@@ -148,7 +153,7 @@ class AboutPage extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 24),
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
@@ -166,23 +171,23 @@ class AboutPage extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.indigo.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.info_outline_rounded,
-                            color: Colors.indigo.shade600,
-                            size: 24,
-                          ),
+                        color: const Color(0xFF6366F1).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.info_outline_rounded,
+                        color: Color(0xFF6366F1),
+                        size: 24,
+                      ),
                         ),
                         const SizedBox(width: 16),
-                        const Expanded(
+                        Expanded(
                           child: Text(
                             'About',
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF1E293B),
+                              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
                             ),
                           ),
                         ),
@@ -193,7 +198,7 @@ class AboutPage extends StatelessWidget {
                       'FitTrack is designed to help you achieve your fitness goals through intelligent tracking, personalized insights, and a supportive community. We believe in making health and wellness accessible to everyone.',
                       style: TextStyle(
                         fontSize: 15,
-                        color: Colors.grey.shade700,
+                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
                         height: 1.6,
                       ),
                     ),
@@ -236,13 +241,13 @@ class AboutPage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 16),
-                        const Expanded(
+                        Expanded(
                           child: Text(
                             'Built With',
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF1E293B),
+                              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
                             ),
                           ),
                         ),
@@ -275,7 +280,7 @@ class AboutPage extends StatelessWidget {
                       'Made with ❤️ for your health',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.grey.shade600,
+                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -284,12 +289,13 @@ class AboutPage extends StatelessWidget {
                       '© 2025 FitTrack. All rights reserved.',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade500,
+                        color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
                       ),
                     ),
                   ],
                 ),
               ),
+              SizedBox(height: MediaQuery.of(context).padding.bottom + 110),
             ],
           ),
         ),
@@ -298,18 +304,20 @@ class AboutPage extends StatelessWidget {
   }
 
   Widget _buildFeatureCard({
+    required BuildContext context,
     required IconData icon,
     required String title,
     required String description,
     required Color color,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.grey.shade200,
+          color: isDark ? Colors.grey.shade700 : Colors.grey.shade200,
           width: 1,
         ),
         boxShadow: [
@@ -341,10 +349,10 @@ class AboutPage extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E293B),
+                    color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -352,7 +360,7 @@ class AboutPage extends StatelessWidget {
                   description,
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.grey.shade600,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   ),
                 ),
               ],
@@ -367,21 +375,21 @@ class AboutPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.indigo.shade50,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.indigo.shade200,
-          width: 1,
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: Colors.indigo.shade700,
-        ),
-      ),
+                        color: const Color(0xFF6366F1).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: const Color(0xFF6366F1).withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF6366F1),
+                        ),
+                      ),
     );
   }
 }

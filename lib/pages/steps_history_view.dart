@@ -123,21 +123,24 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Steps History',
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w800,
-            color: Color(0xFF1E293B),
+            color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
             letterSpacing: -0.5,
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
+        iconTheme: IconThemeData(
+          color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+        ),
       ),
       body: _isLoading
           ? const Center(
@@ -161,12 +164,12 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
                               color: Colors.grey.shade300,
                             ),
                             const SizedBox(height: 16),
-                            const Text(
+                            Text(
                               'Sign In Required',
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF1E293B),
+                                color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -272,6 +275,7 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
                               children: [
                                 Expanded(
                                   child: _buildStatCard(
+                                    context: context,
                                     title: 'Total Steps',
                                     value: _formatNumber(_totalSteps),
                                     icon: Icons.trending_up,
@@ -281,6 +285,7 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: _buildStatCard(
+                                    context: context,
                                     title: 'Average',
                                     value: _formatNumber(_averageSteps),
                                     icon: Icons.analytics_outlined,
@@ -292,12 +297,12 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
                             const SizedBox(height: 24),
                             
                             // History List
-                            const Text(
+                            Text(
                               'Recent Activity',
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w800,
-                                color: Color(0xFF1E293B),
+                                color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
                                 letterSpacing: -0.5,
                               ),
                             ),
@@ -311,15 +316,17 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
   }
 
   Widget _buildStatCard({
+    required BuildContext context,
     required String title,
     required String value,
     required IconData icon,
     required Color color,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -359,7 +366,7 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
             title,
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey.shade600,
+              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -369,6 +376,7 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
   }
 
   Widget _buildHistoryCard(Map<String, dynamic> entry) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     DateTime date;
     if (entry['date'] is String) {
       date = DateTime.parse(entry['date']).toLocal();
@@ -391,10 +399,10 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: Colors.grey.shade100,
+          color: isDark ? Colors.grey.shade700 : Colors.grey.shade100,
           width: 1,
         ),
         boxShadow: [
@@ -416,10 +424,10 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
                 children: [
                   Text(
                     _formatDate(date),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF1E293B),
+                      color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -427,7 +435,7 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
                     _formatDayOfWeek(date),
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade600,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                     ),
                   ),
                 ],
@@ -455,10 +463,10 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
             children: [
               Text(
                 _formatNumber(steps),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF1E293B),
+                  color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
                   letterSpacing: -1,
                 ),
               ),
@@ -469,7 +477,7 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
                   'steps',
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.grey.shade600,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                     fontWeight: FontWeight.w500,
                   ),
                 ),

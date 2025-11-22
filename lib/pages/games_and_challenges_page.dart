@@ -34,17 +34,19 @@ class _GamesAndChallengesPageState extends State<GamesAndChallengesPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F9),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-          const Text(
+          Text(
             'Games & Challenges',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
+              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
             ),
           ),
           const SizedBox(height: 24),
@@ -53,11 +55,12 @@ class _GamesAndChallengesPageState extends State<GamesAndChallengesPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Challenges',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
+                    color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
                   ),
                 ),
                 TextButton.icon(
@@ -88,11 +91,12 @@ class _GamesAndChallengesPageState extends State<GamesAndChallengesPage> {
             const SizedBox(height: 24),
           ],
           // Games Section
-          const Text(
+          Text(
             'Games',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
+              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
             ),
           ),
           const SizedBox(height: 12),

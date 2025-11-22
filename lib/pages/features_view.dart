@@ -9,8 +9,8 @@ import 'personalized_goals_view.dart';
 import 'workout_tracker_view.dart';
 
 // --- Global Constants (for colors) ---
-const Color kPrimaryColor = Color(0xFF4C5BF1);
-const Color kBackgroundColor = Color(0xFFF7F8FC);
+const Color kPrimaryColor = Color(0xFF6366F1);
+const Color kBackgroundColor = Color(0xFFF8FAFC);
 
 // --- Feature Data Structure ---
 class FeatureData {
@@ -91,18 +91,20 @@ class FeaturesView extends StatelessWidget {
       ),
     ];
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: kBackgroundColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Health Hub Features',
           style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
+            color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+            fontWeight: FontWeight.w800,
+            fontSize: 28,
+            letterSpacing: -0.5,
           ),
         ),
-        backgroundColor: kBackgroundColor,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         centerTitle: false,
       ),
@@ -111,14 +113,18 @@ class FeaturesView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const Text(
-              'Explore your tools for a healthier life:',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+            Text(
+              'Explore your tools for a healthier life',
+              style: TextStyle(
+                fontSize: 16,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             const SizedBox(height: 15),
             // Build the Feature Cards
             ...quickActions.map((data) => _ActionTile(data: data)).toList(),
-            const SizedBox(height: 20),
+            SizedBox(height: MediaQuery.of(context).padding.bottom + 110),
           ],
         ),
       ),
@@ -139,18 +145,25 @@ class _ActionTile extends StatelessWidget {
         // Navigation Logic to the Feature Page
         Navigator.push(context, MaterialPageRoute(builder: data.builder));
       },
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 10.0),
-        padding: const EdgeInsets.all(18.0),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
+      child: Builder(
+        builder: (context) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          return Container(
+            margin: const EdgeInsets.symmetric(vertical: 8.0),
+            padding: const EdgeInsets.all(20.0),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isDark ? Colors.grey.shade700 : Colors.grey.shade100,
+                width: 1,
+              ),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.15),
-              spreadRadius: 1,
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+              color: Colors.black.withOpacity(0.05),
+              spreadRadius: 0,
+              blurRadius: 20,
+              offset: const Offset(0, 5),
             ),
           ],
         ),
@@ -158,10 +171,24 @@ class _ActionTile extends StatelessWidget {
           children: [
             // Icon Container
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: data.iconColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    data.iconColor.withOpacity(0.15),
+                    data.iconColor.withOpacity(0.25),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: data.iconColor.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Icon(data.icon, color: data.iconColor, size: 28),
             ),
@@ -173,23 +200,41 @@ class _ActionTile extends StatelessWidget {
                 children: [
                   Text(
                     data.title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: Colors.black87,
+                      color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+                      letterSpacing: -0.3,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     data.subtitle,
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 18, color: Colors.grey),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: isDark ? const Color(0xFF818CF8) : const Color(0xFF6366F1),
+              ),
+            ),
           ],
         ),
+      );
+        },
       ),
     );
   }

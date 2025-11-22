@@ -2,8 +2,10 @@
 // Allows users to manage their account: view profile, change password, deactivate, delete, etc.
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../controllers/auth_controller.dart';
 import '../services/auth_service.dart';
+import '../services/theme_service.dart';
 import 'auth_page.dart';
 
 class AccountPage extends StatefulWidget {
@@ -422,20 +424,23 @@ class _AccountPageState extends State<AccountPage> {
     final userEmail = widget.authController.userEmail ?? '';
     final userInitial = widget.authController.userInitial;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Account Settings',
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w800,
-            color: Color(0xFF1E293B),
+            color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
+        iconTheme: IconThemeData(
+          color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -448,7 +453,7 @@ class _AccountPageState extends State<AccountPage> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
@@ -475,10 +480,10 @@ class _AccountPageState extends State<AccountPage> {
                         const SizedBox(height: 16),
                         Text(
                           userName,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E293B),
+                            color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -521,6 +526,15 @@ class _AccountPageState extends State<AccountPage> {
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Appearance Section
+                  _buildSection(
+                    title: 'Appearance',
+                    children: [
+                      _buildThemeToggleTile(),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -602,10 +616,11 @@ class _AccountPageState extends State<AccountPage> {
     required String title,
     required List<Widget> children,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -620,10 +635,10 @@ class _AccountPageState extends State<AccountPage> {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF1E293B),
+              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
             ),
           ),
           const SizedBox(height: 16),
@@ -639,15 +654,52 @@ class _AccountPageState extends State<AccountPage> {
     required IconData icon,
     bool enabled = true,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return TextField(
       controller: controller,
       enabled: enabled,
+      style: TextStyle(
+        color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+      ),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon),
-        border: const OutlineInputBorder(),
-        filled: !enabled,
-        fillColor: enabled ? null : Colors.grey.shade100,
+        labelStyle: TextStyle(
+          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+        ),
+        prefixIcon: Icon(
+          icon,
+          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+            width: 2,
+          ),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+          ),
+        ),
+        filled: true,
+        fillColor: enabled
+            ? (isDark ? const Color(0xFF1E293B) : Colors.white)
+            : (isDark ? const Color(0xFF0F172A) : Colors.grey.shade100),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     );
   }
@@ -686,10 +738,12 @@ class _AccountPageState extends State<AccountPage> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF1E293B),
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFFF1F5F9)
+                          : const Color(0xFF1E293B),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -697,7 +751,9 @@ class _AccountPageState extends State<AccountPage> {
                     subtitle,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade600,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
                     ),
                   ),
                 ],
@@ -743,16 +799,87 @@ class _AccountPageState extends State<AccountPage> {
               const SizedBox(height: 4),
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF1E293B),
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFF1F5F9)
+                      : const Color(0xFF1E293B),
                 ),
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildThemeToggleTile() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Consumer<ThemeService>(
+      builder: (context, themeService, child) {
+        final isDarkMode = themeService.themeMode == ThemeMode.dark;
+        return InkWell(
+          onTap: () => themeService.toggleTheme(),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: (isDarkMode 
+                        ? const Color(0xFFFBBF24) 
+                        : const Color(0xFF2563EB)).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    color: isDarkMode 
+                        ? const Color(0xFFFBBF24) 
+                        : const Color(0xFF2563EB),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isDarkMode ? 'Light Mode' : 'Dark Mode',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: isDark
+                            ? const Color(0xFFF1F5F9)
+                            : const Color(0xFF1E293B),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Switch to ${isDarkMode ? 'light' : 'dark'} theme',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+                ),
+                Switch(
+                  value: isDarkMode,
+                  onChanged: (value) => themeService.toggleTheme(),
+                  activeColor: const Color(0xFF2563EB),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

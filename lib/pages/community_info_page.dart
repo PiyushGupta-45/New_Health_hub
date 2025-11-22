@@ -204,12 +204,14 @@ class _CommunityInfoPageState
         community['members'] ??
         [];
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           community['name'],
         ),
-        backgroundColor: Colors.indigo.shade600,
+        backgroundColor: const Color(0xFF6366F1),
         foregroundColor: Colors.white,
       ),
       body: _loading
@@ -237,11 +239,12 @@ class _CommunityInfoPageState
                 ),
 
                 // Members List
-                const Text(
+                Text(
                   "Members",
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
                   ),
                 ),
                 ...members.map(

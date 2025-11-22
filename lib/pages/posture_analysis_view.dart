@@ -73,19 +73,23 @@ class _PostureAnalysisViewState
     BuildContext context,
   ) {
     return Scaffold(
-      backgroundColor: kBackgroundColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Posture Analysis',
           style: TextStyle(
-            color: Colors.black87,
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFFF1F5F9)
+                : Colors.black87,
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: kBackgroundColor,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        iconTheme: const IconThemeData(
-          color: Colors.black87,
+        iconTheme: IconThemeData(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFFF1F5F9)
+              : Colors.black87,
         ),
       ),
       body: SingleChildScrollView(
@@ -125,12 +129,13 @@ class _PostureAnalysisViewState
   // --- Widget Builders ---
 
   Widget _buildInstructionsCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(
         20.0,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(
           15,
         ),
@@ -152,7 +157,7 @@ class _PostureAnalysisViewState
           ),
         ],
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
@@ -160,7 +165,7 @@ class _PostureAnalysisViewState
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: isDark ? const Color(0xFFF1F5F9) : Colors.black87,
             ),
           ),
           SizedBox(
@@ -223,24 +228,26 @@ class _PostureAnalysisViewState
   }
 
   Widget _buildLoadingIndicator() {
-    return const Center(
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(
+        padding: const EdgeInsets.all(
           20.0,
         ),
         child: Column(
           children: [
-            CircularProgressIndicator(
+            const CircularProgressIndicator(
               color: kPrimaryColor,
             ),
-            SizedBox(
+            const SizedBox(
               height: 15,
             ),
             Text(
               'Processing image, please wait...',
               style: TextStyle(
                 fontSize: 16,
-                color: Colors.grey,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey.shade400
+                    : Colors.grey,
               ),
             ),
           ],
@@ -336,12 +343,14 @@ class _PostureAnalysisViewState
               ),
 
               // Feedback Section
-              const Text(
+              Text(
                 'Personalized Feedback:',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFF1F5F9)
+                      : Colors.black87,
                 ),
               ),
               const SizedBox(
@@ -350,9 +359,11 @@ class _PostureAnalysisViewState
               Text(
                 _feedback,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
-                  color: Colors.black87,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFF1F5F9)
+                      : Colors.black87,
                   height: 1.4,
                 ),
               ),
@@ -416,9 +427,11 @@ class _InstructionStep
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
-                color: Colors.black87,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFFF1F5F9)
+                    : Colors.black87,
               ),
             ),
           ),

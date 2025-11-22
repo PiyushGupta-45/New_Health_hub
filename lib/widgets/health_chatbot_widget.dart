@@ -102,13 +102,31 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // Position in bottom right corner, above bottom navigation bar
-    final bottomNavHeight = 60.0;
+    // If used in dialog, show expanded chat directly
+    // Otherwise, show as positioned floating button
+    final isInDialog = context.findAncestorWidgetOfExactType<Dialog>() != null;
+    
+    if (isInDialog) {
+      return _buildExpandedChat();
+    }
+    
+    // Position above About button in bottom navigation
+    // About button is the 4th item (index 3), positioned on the right side
+    // With 4 evenly spaced items, About is centered at 87.5% of screen width
+    // Bottom nav is 70px + SafeArea padding
+    final bottomNavHeight = 70.0;
     final safeAreaBottom = MediaQuery.of(context).padding.bottom;
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // Position chatbot button above About button (4th item, centered at ~87.5% of width)
+    // Adjust to center the 56px button above the About button area
+    final aboutButtonCenter = screenWidth * 0.875; // Center of 4th item
+    final buttonWidth = 56.0;
+    final rightPosition = screenWidth - aboutButtonCenter - (buttonWidth / 2);
     
     return Positioned(
-      bottom: bottomNavHeight + safeAreaBottom + 16,
-      right: 16,
+      bottom: bottomNavHeight + safeAreaBottom + 8,
+      right: rightPosition,
       child: _isExpanded
           ? _buildExpandedChat()
           : _buildFloatingButton(),
@@ -130,16 +148,16 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
           width: 56,
           height: 56,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
+            gradient: const LinearGradient(
               colors: [
-                Colors.indigo.shade600,
-                Colors.indigo.shade400,
+                Color(0xFF2563EB),
+                Color(0xFF3B82F6),
               ],
             ),
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.indigo.withOpacity(0.4),
+                color: const Color(0xFF2563EB).withOpacity(0.4),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
                 spreadRadius: 2,
@@ -165,7 +183,9 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
         maxHeight: MediaQuery.of(context).size.height * 0.7,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF1E293B)
+            : Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -182,10 +202,10 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [
-                  Colors.indigo.shade600,
-                  Colors.indigo.shade400,
+                  Color(0xFF2563EB),
+                  Color(0xFF3B82F6),
                 ],
               ),
               borderRadius: const BorderRadius.only(
@@ -221,9 +241,14 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
                 IconButton(
                   icon: const Icon(Icons.close, color: Colors.white),
                   onPressed: () {
-                    setState(() {
-                      _isExpanded = false;
-                    });
+                    final isInDialog = context.findAncestorWidgetOfExactType<Dialog>() != null;
+                    if (isInDialog) {
+                      Navigator.of(context).pop();
+                    } else {
+                      setState(() {
+                        _isExpanded = false;
+                      });
+                    }
                   },
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -234,7 +259,9 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
           // Chat messages
           Expanded(
             child: Container(
-              color: const Color(0xFFF8FAFC),
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF0F172A)
+                  : const Color(0xFFF8FAFC),
               child: _messages.isEmpty
                   ? const Center(
                       child: Text(
@@ -284,10 +311,14 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF1E293B)
+                  : Colors.white,
               border: Border(
                 top: BorderSide(
-                  color: Colors.grey.shade200,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey.shade700
+                      : Colors.grey.shade200,
                   width: 1,
                 ),
               ),
@@ -297,26 +328,46 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
                 Expanded(
                   child: TextField(
                     controller: _messageController,
+                    style: TextStyle(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFFF1F5F9)
+                          : const Color(0xFF1E293B),
+                    ),
                     decoration: InputDecoration(
                       hintText: 'Ask about health, nutrition, exercise...',
+                      hintStyle: TextStyle(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade500,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(25),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
+                        borderSide: BorderSide(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.grey.shade700
+                              : Colors.grey.shade300,
+                        ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(25),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
+                        borderSide: BorderSide(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.grey.shade700
+                              : Colors.grey.shade300,
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(25),
-                        borderSide: BorderSide(color: Colors.indigo.shade400),
+                        borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 10,
                       ),
                       filled: true,
-                      fillColor: Colors.grey.shade50,
+                      fillColor: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF0F172A)
+                          : Colors.grey.shade50,
                     ),
                     maxLines: null,
                     textInputAction: TextInputAction.send,
@@ -330,8 +381,8 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          Colors.indigo.shade600,
-                          Colors.indigo.shade400,
+                          Color(0xFF2563EB),
+                          Color(0xFF3B82F6),
                         ],
                       ),
                       shape: BoxShape.circle,
@@ -365,8 +416,8 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    Colors.indigo.shade400,
-                    Colors.indigo.shade600,
+                    Color(0xFF3B82F6),
+                    Color(0xFF2563EB),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(12),
@@ -384,8 +435,10 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: message.isUser
-                    ? Colors.indigo.shade600
-                    : Colors.white,
+                    ? const Color(0xFF2563EB)
+                    : (Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF334155)
+                        : Colors.white),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
@@ -403,7 +456,11 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
               child: Text(
                 message.text,
                 style: TextStyle(
-                  color: message.isUser ? Colors.white : Colors.black87,
+                  color: message.isUser
+                      ? Colors.white
+                      : (Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFFF1F5F9)
+                          : Colors.black87),
                   fontSize: 14,
                   height: 1.4,
                 ),

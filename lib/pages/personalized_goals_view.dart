@@ -212,19 +212,23 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     BuildContext context,
   ) {
     return Scaffold(
-      backgroundColor: kBackgroundColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'My Active Goals',
           style: TextStyle(
-            color: Colors.black87,
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFFF1F5F9)
+                : Colors.black87,
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: kBackgroundColor,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        iconTheme: const IconThemeData(
-          color: Colors.black87,
+        iconTheme: IconThemeData(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFFF1F5F9)
+              : Colors.black87,
         ),
       ),
       body: activeGoals.isEmpty

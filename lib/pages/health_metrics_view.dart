@@ -150,34 +150,38 @@ class _HealthMetricsViewState
             60.0);
   }
 
-  BoxDecoration _neumorphic() {
+  BoxDecoration _neumorphic(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return BoxDecoration(
-      color: kCardColor,
+      color: isDark ? const Color(0xFF1E293B) : kCardColor,
       borderRadius: BorderRadius.circular(
         _cardRadius,
       ),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.white.withOpacity(
-            0.85,
-          ),
-          offset: const Offset(
-            -6,
-            -6,
-          ),
-          blurRadius: 14,
-        ),
-        BoxShadow(
-          color: Colors.black.withOpacity(
-            0.08,
-          ),
-          offset: const Offset(
-            6,
-            6,
-          ),
-          blurRadius: 14,
-        ),
-      ],
+      boxShadow: isDark
+          ? [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                offset: const Offset(4, 4),
+                blurRadius: 8,
+              ),
+              BoxShadow(
+                color: Colors.white.withOpacity(0.05),
+                offset: const Offset(-4, -4),
+                blurRadius: 8,
+              ),
+            ]
+          : [
+              BoxShadow(
+                color: Colors.white.withOpacity(0.85),
+                offset: const Offset(-6, -6),
+                blurRadius: 14,
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                offset: const Offset(6, 6),
+                blurRadius: 14,
+              ),
+            ],
     );
   }
 
@@ -186,20 +190,24 @@ class _HealthMetricsViewState
     BuildContext context,
   ) {
     return Scaffold(
-      backgroundColor: kBackgroundColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: kBackgroundColor,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        title: const Text(
+        title: Text(
           "Health Metrics",
           style: TextStyle(
-            color: Colors.black87,
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFFF1F5F9)
+                : Colors.black87,
             fontWeight: FontWeight.w600,
           ),
         ),
         centerTitle: true,
-        iconTheme: const IconThemeData(
-          color: Colors.black87,
+        iconTheme: IconThemeData(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFFF1F5F9)
+              : Colors.black87,
         ),
       ),
       body: SafeArea(
@@ -252,7 +260,7 @@ class _HealthMetricsViewState
       padding: const EdgeInsets.all(
         16,
       ),
-      decoration: _neumorphic(),
+      decoration: _neumorphic(context),
       child: Row(
         children: [
           Expanded(
@@ -268,6 +276,7 @@ class _HealthMetricsViewState
   }
 
   Widget _resetButton() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return InkWell(
       borderRadius: BorderRadius.circular(
         12,
@@ -289,26 +298,34 @@ class _HealthMetricsViewState
           12,
         ),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF334155) : Colors.white,
           borderRadius: BorderRadius.circular(
             12,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Icon(
           Icons.refresh_rounded,
-          color: Colors.grey.shade800,
+          color: isDark ? const Color(0xFFF1F5F9) : Colors.grey.shade800,
         ),
       ),
     );
   }
 
   Widget _buildGenderSegment() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(
         6,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF334155) : Colors.white,
         borderRadius: BorderRadius.circular(
           14,
         ),
@@ -329,10 +346,10 @@ class _HealthMetricsViewState
           CupertinoSegmentedControl<
             String
           >(
-            borderColor: kPrimaryAccent,
-            selectedColor: kPrimaryAccent,
-            unselectedColor: Colors.white,
-            pressedColor: kPrimaryAccent.withOpacity(
+            borderColor: isDark ? const Color(0xFF818CF8) : kPrimaryAccent,
+            selectedColor: isDark ? const Color(0xFF818CF8) : kPrimaryAccent,
+            unselectedColor: isDark ? const Color(0xFF334155) : Colors.white,
+            pressedColor: (isDark ? const Color(0xFF818CF8) : kPrimaryAccent).withOpacity(
               0.15,
             ),
 
@@ -352,7 +369,7 @@ class _HealthMetricsViewState
                           _gender ==
                               "Male"
                           ? Colors.white
-                          : Colors.black87,
+                          : (isDark ? const Color(0xFFF1F5F9) : Colors.black87),
                     ),
                     const SizedBox(
                       height: 4,
@@ -370,7 +387,7 @@ class _HealthMetricsViewState
                             _gender ==
                                 "Male"
                             ? Colors.white
-                            : Colors.black87,
+                            : (isDark ? const Color(0xFFF1F5F9) : Colors.black87),
                       ),
                     ),
                   ],
@@ -390,7 +407,7 @@ class _HealthMetricsViewState
                           _gender ==
                               "Female"
                           ? Colors.white
-                          : Colors.black87,
+                          : (isDark ? const Color(0xFFF1F5F9) : Colors.black87),
                     ),
                     const SizedBox(
                       height: 4,
@@ -408,7 +425,7 @@ class _HealthMetricsViewState
                             _gender ==
                                 "Female"
                             ? Colors.white
-                            : Colors.black87,
+                            : (isDark ? const Color(0xFFF1F5F9) : Colors.black87),
                       ),
                     ),
                   ],
@@ -439,7 +456,7 @@ class _HealthMetricsViewState
         horizontal: 18,
         vertical: 16,
       ),
-      decoration: _neumorphic(),
+      decoration: _neumorphic(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -449,7 +466,9 @@ class _HealthMetricsViewState
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade600,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey.shade400
+                  : Colors.grey.shade600,
             ),
           ),
           const SizedBox(
@@ -461,9 +480,12 @@ class _HealthMetricsViewState
             children: [
               Text(
                 "$_height",
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFF1F5F9)
+                      : const Color(0xFF1E293B),
                 ),
               ),
               const SizedBox(
@@ -473,7 +495,9 @@ class _HealthMetricsViewState
                 "cm",
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey.shade600,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey.shade400
+                      : Colors.grey.shade600,
                 ),
               ),
             ],
@@ -569,7 +593,7 @@ class _HealthMetricsViewState
         horizontal: 18,
         vertical: 16,
       ),
-      decoration: _neumorphic(),
+      decoration: _neumorphic(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -578,7 +602,9 @@ class _HealthMetricsViewState
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade600,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey.shade400
+                  : Colors.grey.shade600,
             ),
           ),
           const SizedBox(
@@ -591,9 +617,12 @@ class _HealthMetricsViewState
                 _weight.toStringAsFixed(
                   1,
                 ),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFF1F5F9)
+                      : const Color(0xFF1E293B),
                 ),
               ),
               const SizedBox(
@@ -603,7 +632,9 @@ class _HealthMetricsViewState
                 "kg",
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey.shade600,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey.shade400
+                      : Colors.grey.shade600,
                 ),
               ),
             ],
@@ -677,7 +708,7 @@ class _HealthMetricsViewState
         horizontal: 18,
         vertical: 16,
       ),
-      decoration: _neumorphic(),
+      decoration: _neumorphic(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -686,7 +717,9 @@ class _HealthMetricsViewState
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade600,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey.shade400
+                  : Colors.grey.shade600,
             ),
           ),
           const SizedBox(
@@ -697,9 +730,12 @@ class _HealthMetricsViewState
             children: [
               Text(
                 "$_age",
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFF1F5F9)
+                      : const Color(0xFF1E293B),
                 ),
               ),
               const SizedBox(
@@ -709,7 +745,9 @@ class _HealthMetricsViewState
                 "yrs",
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey.shade600,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey.shade400
+                      : Colors.grey.shade600,
                 ),
               ),
             ],
@@ -754,7 +792,9 @@ class _HealthMetricsViewState
       text,
       style: TextStyle(
         fontSize: 14,
-        color: Colors.grey.shade700,
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.grey.shade400
+            : Colors.grey.shade700,
         fontWeight: FontWeight.w600,
       ),
     );
@@ -796,14 +836,16 @@ class _HealthMetricsViewState
     )
     onChanged,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SliderTheme(
       data:
           SliderTheme.of(
             context,
           ).copyWith(
             trackHeight: 6,
-            activeTrackColor: kPrimaryAccent,
-            inactiveTrackColor: Colors.grey.shade300,
+            activeTrackColor: isDark ? const Color(0xFF818CF8) : kPrimaryAccent,
+            inactiveTrackColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+            thumbColor: isDark ? const Color(0xFF818CF8) : kPrimaryAccent,
             thumbShape: const RoundSliderThumbShape(
               enabledThumbRadius: 14,
             ),
@@ -821,6 +863,7 @@ class _HealthMetricsViewState
     IconData icon,
     VoidCallback onTap,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return InkWell(
       borderRadius: BorderRadius.circular(
         30,
@@ -830,14 +873,21 @@ class _HealthMetricsViewState
         padding: const EdgeInsets.all(
           14,
         ),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: Colors.white,
+          color: isDark ? const Color(0xFF334155) : Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Icon(
           icon,
           size: 22,
-          color: Colors.black87,
+          color: isDark ? const Color(0xFFF1F5F9) : Colors.black87,
         ),
       ),
     );
@@ -849,7 +899,7 @@ class _HealthMetricsViewState
       padding: const EdgeInsets.all(
         20,
       ),
-      decoration: _neumorphic(),
+      decoration: _neumorphic(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -890,9 +940,12 @@ class _HealthMetricsViewState
 
               Text(
                 "$_workoutDuration min",
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 24,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFF1F5F9)
+                      : const Color(0xFF1E293B),
                 ),
               ),
 
@@ -929,6 +982,7 @@ class _HealthMetricsViewState
 
   // ---------------- WORKOUT INTENSITY SEGMENT ----------------
   Widget _buildIntensitySegment() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: WorkoutIntensity.values.map(
         (
@@ -957,23 +1011,22 @@ class _HealthMetricsViewState
                 ),
                 decoration: BoxDecoration(
                   color: selected
-                      ? Colors.white
-                      : kCardColor,
+                      ? (isDark ? const Color(0xFF334155) : Colors.white)
+                      : (isDark ? const Color(0xFF1E293B) : kCardColor),
                   borderRadius: BorderRadius.circular(
                     12,
                   ),
                   border: Border.all(
                     color: selected
-                        ? kPrimaryAccent.withOpacity(
-                            .3,
-                          )
+                        ? (isDark ? const Color(0xFF818CF8) : kPrimaryAccent).withOpacity(0.5)
                         : Colors.transparent,
+                    width: 2,
                   ),
                   boxShadow: selected
                       ? [
                           BoxShadow(
                             color: Colors.black.withOpacity(
-                              0.06,
+                              isDark ? 0.3 : 0.06,
                             ),
                             blurRadius: 8,
                             offset: const Offset(
@@ -993,6 +1046,9 @@ class _HealthMetricsViewState
                       fontWeight: selected
                           ? FontWeight.w700
                           : FontWeight.w600,
+                      color: selected
+                          ? (isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B))
+                          : (isDark ? Colors.grey.shade400 : Colors.grey.shade700),
                     ),
                   ),
                 ),
@@ -1023,15 +1079,18 @@ class _HealthMetricsViewState
       padding: const EdgeInsets.all(
         20,
       ),
-      decoration: _neumorphic(),
+      decoration: _neumorphic(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             "RESULTS",
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 20,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFFF1F5F9)
+                  : const Color(0xFF1E293B),
             ),
           ),
           const SizedBox(
@@ -1040,7 +1099,9 @@ class _HealthMetricsViewState
           Text(
             "Auto-calculated based on your inputs",
             style: TextStyle(
-              color: Colors.grey.shade700,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey.shade400
+                  : Colors.grey.shade700,
             ),
           ),
 
@@ -1057,10 +1118,19 @@ class _HealthMetricsViewState
                     18,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF334155)
+                        : Colors.white,
                     borderRadius: BorderRadius.circular(
                       14,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Column(
                     children: [
@@ -1068,9 +1138,12 @@ class _HealthMetricsViewState
                         _bmiResult.toStringAsFixed(
                           1,
                         ),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 40,
                           fontWeight: FontWeight.w900,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFFF1F5F9)
+                              : const Color(0xFF1E293B),
                         ),
                       ),
                       const SizedBox(
@@ -1085,7 +1158,9 @@ class _HealthMetricsViewState
                       Text(
                         "BMI",
                         style: TextStyle(
-                          color: Colors.grey.shade600,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade600,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1104,10 +1179,19 @@ class _HealthMetricsViewState
                     18,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF334155)
+                        : Colors.white,
                     borderRadius: BorderRadius.circular(
                       14,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Column(
                     children: [
@@ -1115,9 +1199,12 @@ class _HealthMetricsViewState
                         _caloriesBurned.toStringAsFixed(
                           0,
                         ),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 40,
                           fontWeight: FontWeight.w900,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFFF1F5F9)
+                              : const Color(0xFF1E293B),
                         ),
                       ),
                       const SizedBox(
@@ -1126,7 +1213,9 @@ class _HealthMetricsViewState
                       Text(
                         "cal burned",
                         style: TextStyle(
-                          color: Colors.grey.shade700,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade700,
                           fontSize: 14,
                         ),
                       ),
@@ -1152,8 +1241,11 @@ class _HealthMetricsViewState
           Text(
             "BMR: ${_bmrResult.toStringAsFixed(0)} cal/day",
             style: TextStyle(
-              color: Colors.black87,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFFF1F5F9)
+                  : Colors.black87,
               fontWeight: FontWeight.bold,
+              fontSize: 16,
             ),
           ),
         ],
@@ -1164,29 +1256,30 @@ class _HealthMetricsViewState
   Widget _bmiChip(
     String status,
   ) {
-    Color bg = Colors.grey.shade300;
-    Color txt = Colors.black87;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    Color bg = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
+    Color txt = isDark ? Colors.grey.shade200 : Colors.black87;
 
     if (status ==
         "Healthy") {
-      bg = Colors.green.withOpacity(
-        .2,
-      );
-      txt = Colors.green.shade800;
+      bg = isDark
+          ? Colors.green.withOpacity(0.3)
+          : Colors.green.withOpacity(0.2);
+      txt = isDark ? Colors.green.shade300 : Colors.green.shade800;
     } else if (status ==
             "Overweight" ||
         status ==
             "Underweight") {
-      bg = Colors.orange.withOpacity(
-        .2,
-      );
-      txt = Colors.orange.shade800;
+      bg = isDark
+          ? Colors.orange.withOpacity(0.3)
+          : Colors.orange.withOpacity(0.2);
+      txt = isDark ? Colors.orange.shade300 : Colors.orange.shade800;
     } else if (status ==
         "Obese") {
-      bg = Colors.red.withOpacity(
-        .2,
-      );
-      txt = Colors.red.shade800;
+      bg = isDark
+          ? Colors.red.withOpacity(0.3)
+          : Colors.red.withOpacity(0.2);
+      txt = isDark ? Colors.red.shade300 : Colors.red.shade800;
     }
 
     return Container(
@@ -1214,22 +1307,24 @@ class _HealthMetricsViewState
   Widget _chip(
     String text,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: 10,
         vertical: 6,
       ),
       decoration: BoxDecoration(
-        color: Colors.grey.shade200,
+        color: isDark ? Colors.grey.shade700 : Colors.grey.shade200,
         borderRadius: BorderRadius.circular(
           10,
         ),
       ),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontWeight: FontWeight.w700,
           fontSize: 12,
+          color: isDark ? Colors.grey.shade200 : Colors.black87,
         ),
       ),
     );
