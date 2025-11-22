@@ -649,25 +649,25 @@ class _HomePageState extends State<HomePage> {
                 // Status Banner
                 if (_buildStatusBanner() != null) _buildStatusBanner()!,
                 
-                // --- Modern Progress Card with Gradient ---
+                // --- Modern Progress Card with Gradient (compact) ---
                 Container(
-                  padding: const EdgeInsets.all(28.0),
-                  margin: const EdgeInsets.only(bottom: 28.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 16.0),
+                  margin: const EdgeInsets.only(bottom: 20.0),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(28.0),
+                    borderRadius: BorderRadius.circular(20.0),
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
+                        Color(0xFF1E40AF),
                         Color(0xFF2563EB),
-                        Color(0xFF3B82F6),
                       ],
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF2563EB).withOpacity(0.4),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
+                        color: const Color(0xFF1E40AF).withOpacity(0.28),
+                        blurRadius: 14,
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
@@ -681,7 +681,7 @@ class _HomePageState extends State<HomePage> {
                           const Text(
                             "Today's Progress",
                             style: TextStyle(
-                              fontSize: 22,
+                              fontSize: 20,
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
                               letterSpacing: -0.3,
@@ -689,17 +689,17 @@ class _HomePageState extends State<HomePage> {
                           ),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
+                              horizontal: 10,
+                              vertical: 5,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withOpacity(0.18),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               '$percentage%',
                               style: const TextStyle(
-                                fontSize: 14,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.white,
                               ),
@@ -707,11 +707,11 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 12),
                       
                       // Progress Bar
                       Container(
-                        height: 14,
+                        height: 10,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(10),
                           color: Colors.white.withOpacity(0.2),
@@ -724,11 +724,11 @@ class _HomePageState extends State<HomePage> {
                             valueColor: const AlwaysStoppedAnimation<Color>(
                               Colors.white,
                             ),
-                            minHeight: 14,
+                            minHeight: 10,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 12),
                       
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -744,10 +744,10 @@ class _HomePageState extends State<HomePage> {
                                     Text(
                                       _formatSteps(steps),
                                       style: const TextStyle(
-                                        fontSize: 48,
+                                        fontSize: 36,
                                         fontWeight: FontWeight.w900,
                                         color: Colors.white,
-                                        letterSpacing: -1.5,
+                                        letterSpacing: -1.2,
                                         height: 1,
                                       ),
                                     ),
@@ -757,7 +757,7 @@ class _HomePageState extends State<HomePage> {
                                       child: Text(
                                         'steps',
                                         style: TextStyle(
-                                          fontSize: 18,
+                                          fontSize: 16,
                                           fontWeight: FontWeight.w600,
                                           color: Colors.white.withValues(alpha: 0.9),
                                         ),
@@ -766,19 +766,19 @@ class _HomePageState extends State<HomePage> {
                                   ],
                                 ),
                                 
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 10),
 
                                 // Calories Burned Card
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
+                                    horizontal: 12,
+                                    vertical: 10,
                                   ),
                                   decoration: BoxDecoration(
                                     color: Colors.white.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(16),
+                                    borderRadius: BorderRadius.circular(14),
                                     border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.3),
+                                      color: Colors.white.withValues(alpha: 0.28),
                                       width: 1,
                                     ),
                                   ),
@@ -788,29 +788,29 @@ class _HomePageState extends State<HomePage> {
                                       Icon(
                                         Icons.local_fire_department_rounded,
                                         color: Colors.orange.shade300,
-                                        size: 24,
+                                        size: 20,
                                       ),
-                                      const SizedBox(width: 10),
+                                      const SizedBox(width: 8),
                                       Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             'CALORIES BURNED',
                                             style: TextStyle(
-                                              fontSize: 11,
+                                              fontSize: 10,
                                               fontWeight: FontWeight.w500,
                                               color: Colors.white.withValues(alpha: 0.8),
-                                              letterSpacing: 0.5,
+                                              letterSpacing: 0.4,
                                             ),
                                           ),
                                           const SizedBox(height: 2),
                                           Text(
                                             '${_calculateCaloriesFromSteps(steps).toStringAsFixed(0)} kcal',
                                             style: const TextStyle(
-                                              fontSize: 20,
+                                              fontSize: 16,
                                               fontWeight: FontWeight.w800,
                                               color: Colors.white,
-                                              letterSpacing: -0.5,
+                                              letterSpacing: -0.3,
                                             ),
                                           ),
                                         ],
@@ -818,7 +818,7 @@ class _HomePageState extends State<HomePage> {
                                     ],
                                   ),
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 8),
                                 
                                 // Step Goal Info
                                 Row(
@@ -843,7 +843,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                           
-                          const SizedBox(width: 20),
+                          const SizedBox(width: 16),
                           
                           // Sync Button Column
                           Column(
@@ -851,11 +851,11 @@ class _HomePageState extends State<HomePage> {
                               Container(
                                 decoration: BoxDecoration(
                                   color: Colors.white,
-                                  borderRadius: BorderRadius.circular(18),
+                                  borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.15),
-                                      blurRadius: 12,
+                                      color: Colors.black.withValues(alpha: 0.12),
+                                      blurRadius: 10,
                                       offset: const Offset(0, 6),
                                     ),
                                   ],
@@ -866,21 +866,21 @@ class _HomePageState extends State<HomePage> {
                                     onTap: widget.controller.isSyncing
                                         ? null
                                         : _onSyncPressed,
-                                    borderRadius: BorderRadius.circular(18),
+                                    borderRadius: BorderRadius.circular(16),
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: 16,
+                                        horizontal: 16,
+                                        vertical: 12,
                                       ),
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           if (widget.controller.isSyncing)
                                             SizedBox(
-                                              width: 20,
-                                              height: 20,
+                                              width: 18,
+                                              height: 18,
                                               child: CircularProgressIndicator(
-                                                strokeWidth: 2.5,
+                                                strokeWidth: 2.2,
                                                 valueColor: const AlwaysStoppedAnimation<Color>(
                                                   Color(0xFF6366F1),
                                                 ),
@@ -889,10 +889,10 @@ class _HomePageState extends State<HomePage> {
                                           else
                                             Icon(
                                               Icons.refresh_rounded,
-                                              size: 22,
+                                              size: 20,
                                               color: const Color(0xFF6366F1),
                                             ),
-                                          const SizedBox(height: 6),
+                                          const SizedBox(height: 4),
                                           Text(
                                             widget.controller.isSyncing
                                                 ? 'Syncing…'
@@ -909,7 +909,7 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                               // Reset Button
                               TextButton(
                                 onPressed: widget.controller.isSyncing
@@ -920,8 +920,8 @@ class _HomePageState extends State<HomePage> {
                                 style: TextButton.styleFrom(
                                   foregroundColor: Colors.white.withValues(alpha: 0.85),
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 10,
+                                    horizontal: 12,
+                                    vertical: 8,
                                   ),
                                   minimumSize: Size.zero, // Remove default minimum size constraint
                                   tapTargetSize: MaterialTapTargetSize.shrinkWrap, // Shrink hit area
@@ -938,7 +938,7 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
                       
                       // View Details Button
                       SizedBox(
@@ -960,9 +960,9 @@ class _HomePageState extends State<HomePage> {
                               width: 1.5,
                             ),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(14),
                             ),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                           icon: const Icon(Icons.show_chart_rounded, size: 18),
                           label: const Text(
