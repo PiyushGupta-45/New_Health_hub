@@ -205,8 +205,8 @@ class _MainScreenState
           child: SafeArea(
             top: false,
             child: Container(
-              height: 70,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              height: 80,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [

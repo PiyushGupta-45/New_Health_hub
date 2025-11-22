@@ -119,55 +119,69 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
     final screenWidth = MediaQuery.of(context).size.width;
     
     // Position chatbot button above About button (4th item, centered at ~87.5% of width)
-    // Adjust to center the 56px button above the About button area
     final aboutButtonCenter = screenWidth * 0.875; // Center of 4th item
-    final buttonWidth = 56.0;
+    final buttonWidth = 60.0;
+    final buttonHeight = 56.0;
     final rightPosition = screenWidth - aboutButtonCenter - (buttonWidth / 2);
-    
+
+    // Place the floating button so its center sits just above the About nav item.
+    // Compute bottom as: safe area + half of bottom nav height - half of button height
+    // This keeps the button visually aligned with the nav item and slightly overlapping.
+    final bottomPosition = safeAreaBottom + (bottomNavHeight / 2) - (buttonHeight / 2);
+
     return Positioned(
-      bottom: bottomNavHeight + safeAreaBottom + 8,
+      bottom: bottomPosition,
       right: rightPosition,
-      child: _isExpanded
-          ? _buildExpandedChat()
-          : _buildFloatingButton(),
+      child: _isExpanded ? _buildExpandedChat() : _buildFloatingButton(),
     );
   }
 
   Widget _buildFloatingButton() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
+    return MouseRegion(
+      onEnter: (_) {
+        if (!_isExpanded) {
           setState(() {
             _isExpanded = true;
           });
           Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
-        },
-        borderRadius: BorderRadius.circular(28),
-        child: Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [
-                Color(0xFF2563EB),
-                Color(0xFF3B82F6),
+        }
+      },
+      cursor: SystemMouseCursors.click,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _isExpanded = true;
+            });
+            Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
+          },
+          borderRadius: BorderRadius.circular(28),
+          child: Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF2563EB),
+                  Color(0xFF3B82F6),
+                ],
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF2563EB).withOpacity(0.4),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                  spreadRadius: 2,
+                ),
               ],
             ),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF2563EB).withOpacity(0.4),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.chat_bubble,
-            color: Colors.white,
-            size: 28,
+            child: const Icon(
+              Icons.chat_bubble,
+              color: Colors.white,
+              size: 28,
+            ),
           ),
         ),
       ),
@@ -176,11 +190,11 @@ class _HealthChatbotWidgetState extends State<HealthChatbotWidget> {
 
   Widget _buildExpandedChat() {
     return Container(
-      width: 360,
+      width: 400,
       height: 500,
       constraints: BoxConstraints(
         maxWidth: MediaQuery.of(context).size.width - 32,
-        maxHeight: MediaQuery.of(context).size.height * 0.7,
+        maxHeight: MediaQuery.of(context).size.height * 0.5,
       ),
       decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark

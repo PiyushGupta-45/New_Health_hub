@@ -124,7 +124,7 @@ class FeaturesView extends StatelessWidget {
             const SizedBox(height: 15),
             // Build the Feature Cards
             ...quickActions.map((data) => _ActionTile(data: data)).toList(),
-            SizedBox(height: MediaQuery.of(context).padding.bottom + 110),
+                    SizedBox(height: MediaQuery.of(context).padding.bottom + 130),
           ],
         ),
       ),

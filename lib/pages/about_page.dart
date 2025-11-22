@@ -295,7 +295,7 @@ class AboutPage extends StatelessWidget {
                   ],
                 ),
               ),
-              SizedBox(height: MediaQuery.of(context).padding.bottom + 110),
+                      SizedBox(height: MediaQuery.of(context).padding.bottom + 130),
             ],
           ),
         ),

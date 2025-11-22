@@ -1298,7 +1298,7 @@ class _CommunityPageState
                       left: 16,
                       right: 16,
                       top: 16,
-                      bottom: MediaQuery.of(context).padding.bottom + 110,
+                      bottom: MediaQuery.of(context).padding.bottom + 130,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
