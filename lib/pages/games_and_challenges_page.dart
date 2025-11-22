@@ -1343,14 +1343,19 @@ class _ChallengesListPageState extends State<ChallengesListPage> with SingleTick
     }
     
     // Use backend status if available, otherwise use calculated
-    final status = challenge['status'] ?? calculatedStatus;
+    // Normalize status to lowercase for comparison
+    final status = (challenge['status'] ?? calculatedStatus).toString().toLowerCase();
     
     Color statusColor = Colors.grey;
-    String statusText = status;
-    if (status == 'active') {
+    String statusText = 'Upcoming';
+    
+    // Use calculated status if backend status seems wrong and calculated is active
+    final finalStatus = (status == 'upcoming' && calculatedStatus == 'active') ? calculatedStatus : status;
+    
+    if (finalStatus == 'active') {
       statusColor = Colors.green;
       statusText = 'Active';
-    } else if (status == 'completed') {
+    } else if (finalStatus == 'completed') {
       statusColor = Colors.blue;
       statusText = 'Completed';
     } else {
@@ -1396,11 +1401,15 @@ class _ChallengesListPageState extends State<ChallengesListPage> with SingleTick
                         labelStyle: TextStyle(color: statusColor),
                       ),
                       // Delete button - only show if user is creator
-                      if (challenge['isCreator'] == true)
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteChallenge(challenge['_id'], isPublic),
-                          tooltip: 'Delete challenge',
+                      // Check both boolean true and string 'true'
+                      if (challenge['isCreator'] == true || challenge['isCreator'] == 'true' || challenge['isCreator'] == 1)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8.0),
+                          child: IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteChallenge(challenge['_id'], isPublic),
+                            tooltip: 'Delete challenge',
+                          ),
                         ),
                     ],
                   ),

@@ -155,10 +155,13 @@ const calculateChallengeStatus = (startDate, endDate) => {
   const end = new Date(endDate);
   
   // Normalize to start of day for date comparison (ignore time)
-  // Use local time to match the date normalization in create endpoint
+  // Dates stored in DB are already normalized to local time from create endpoint
   const startOfStart = new Date(start.getFullYear(), start.getMonth(), start.getDate());
   const startOfEnd = new Date(end.getFullYear(), end.getMonth(), end.getDate());
   const startOfNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  // Debug: Log dates for troubleshooting
+  // console.log('Status calculation:', { startOfStart, startOfNow, startOfEnd, result: startOfStart <= startOfNow ? 'active' : 'upcoming' });
   
   // If end date has passed, it's completed
   if (startOfEnd < startOfNow) {
@@ -166,7 +169,7 @@ const calculateChallengeStatus = (startDate, endDate) => {
   }
   
   // If start date is today or in the past, it's active
-  // Use <= to include today
+  // Use <= to include today (start date is today or before)
   if (startOfStart <= startOfNow) {
     return 'active';
   }
@@ -1481,15 +1484,29 @@ app.post('/api/challenges/create', verifyToken, async (req, res) => {
       });
     }
 
-    // Normalize dates to start of day for consistent comparison
+    // Parse dates from ISO8601 string
+    // The dates come from frontend normalized to local time (midnight for start, 23:59:59 for end)
+    // When converted to ISO8601, they include timezone info
+    // We need to extract the LOCAL date components (what the user actually selected)
+    // Parse the ISO8601 string and get the date components
     const startDateObj = new Date(startDate);
     const endDateObj = new Date(endDate);
     
-    // Normalize start date to start of day (midnight)
-    const start = new Date(startDateObj.getFullYear(), startDateObj.getMonth(), startDateObj.getDate());
+    // Extract the LOCAL date components (year, month, day) - what the user sees in their timezone
+    // Use getFullYear/getMonth/getDate (not UTC versions) to get local time components
+    const startYear = startDateObj.getFullYear();
+    const startMonth = startDateObj.getMonth();
+    const startDay = startDateObj.getDate();
     
-    // Normalize end date to end of day (23:59:59)
-    const end = new Date(endDateObj.getFullYear(), endDateObj.getMonth(), endDateObj.getDate(), 23, 59, 59);
+    const endYear = endDateObj.getFullYear();
+    const endMonth = endDateObj.getMonth();
+    const endDay = endDateObj.getDate();
+    
+    // Create dates in local time at the specified calendar date
+    // Start date at midnight local time
+    const start = new Date(startYear, startMonth, startDay);
+    // End date at 23:59:59 local time
+    const end = new Date(endYear, endMonth, endDay, 23, 59, 59);
     
     const now = new Date();
 
@@ -1538,7 +1555,8 @@ app.post('/api/challenges/create', verifyToken, async (req, res) => {
         isPublic: challenge.isPublic,
         status: returnedStatus, // Use calculated status
         participantCount: challenge.participants.length,
-        isParticipant: true
+        isParticipant: true,
+        isCreator: true // User is always creator when creating
       }
     });
   } catch (error) {
@@ -1566,9 +1584,13 @@ app.get('/api/challenges/list', verifyToken, async (req, res) => {
       // Calculate current status dynamically (in case dates have passed)
       const currentStatus = calculateChallengeStatus(challenge.startDate, challenge.endDate);
       
-      // Update status in database if it changed
+      // Update status in database if it changed (fire and forget, don't wait)
       if (currentStatus !== challenge.status) {
-        Challenge.updateOne({ _id: challenge._id }, { status: currentStatus }).exec();
+        Challenge.updateOne({ _id: challenge._id }, { status: currentStatus }).exec().catch(err => {
+          console.error('Error updating challenge status:', err);
+        });
+        // Update the challenge object for response
+        challenge.status = currentStatus;
       }
       
       return {
@@ -1617,9 +1639,13 @@ app.get('/api/challenges/my-challenges', verifyToken, async (req, res) => {
       // Calculate current status dynamically
       const currentStatus = calculateChallengeStatus(challenge.startDate, challenge.endDate);
       
-      // Update status in database if it changed
+      // Update status in database if it changed (fire and forget, don't wait)
       if (currentStatus !== challenge.status) {
-        Challenge.updateOne({ _id: challenge._id }, { status: currentStatus }).exec();
+        Challenge.updateOne({ _id: challenge._id }, { status: currentStatus }).exec().catch(err => {
+          console.error('Error updating challenge status:', err);
+        });
+        // Update the challenge object for response
+        challenge.status = currentStatus;
       }
       
       return {
