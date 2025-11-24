@@ -49,10 +49,12 @@ class HealthSyncController
     minutes: 1,
   ); // Sync every 1 minute
   Timer? _periodicSyncTimer;
+  Timer? _periodicStepCheckTimer;
   bool _hydratedFromBackend = false;
   bool _hydratingFromBackend = false;
   bool _isSyncingFromSensor = false;
   DateTime? _lastBaselineAlignment;
+  int? _lastCumulativeSteps;
 
   void _startPeriodicBackendSync() {
     // Sync to backend every 1 minute regardless of step changes
@@ -60,6 +62,58 @@ class HealthSyncController
     _periodicSyncTimer = Timer.periodic(_syncInterval, (timer) async {
       if (_snapshot != null && _snapshot!.todaySteps >= 0) {
         await _syncStepsToBackend(_snapshot!.todaySteps, force: true);
+      }
+    });
+    
+    // Also periodically check step sensor directly in case stream isn't updating
+    _periodicStepCheckTimer?.cancel();
+    _periodicStepCheckTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      if (_isSyncingFromSensor || _hydratingFromBackend) return;
+      
+      try {
+        if (Platform.isAndroid) {
+          final isAvailable = await _directStepService.isStepCounterAvailable();
+          if (isAvailable) {
+            final currentCount = await _directStepService.getCurrentStepCount();
+            if (currentCount != null && currentCount > 0) {
+              // Only process if cumulative count has changed
+              if (_lastCumulativeSteps == null || currentCount != _lastCumulativeSteps) {
+                _lastCumulativeSteps = currentCount;
+                // Manually trigger step listener logic
+                final baseline = _directStepService.baselineStepCount;
+                if (baseline != null && baseline > 0) {
+                  final todaySteps = currentCount - baseline;
+                  if (todaySteps >= 0) {
+                    final currentSteps = _snapshot?.todaySteps ?? 0;
+                    if (todaySteps > currentSteps) {
+                      final now = DateTime.now();
+                      _snapshot = HealthSyncSnapshot(
+                        todaySteps: todaySteps,
+                        workouts: _snapshot?.workouts ?? const [],
+                        rangeStart: _snapshot?.rangeStart ?? now.subtract(const Duration(days: 7)),
+                        rangeEnd: now,
+                        locationPermissionGranted: _snapshot?.locationPermissionGranted ?? false,
+                        stepsBySource: {
+                          'Phone Sensor': todaySteps,
+                        },
+                        primaryStepsSource: 'Phone Sensor',
+                      );
+                      _status = HealthSyncStatus.ready;
+                      notifyListeners();
+                      if (kDebugMode) {
+                        print('📊 Periodic check: Steps updated to $todaySteps (cumulative=$currentCount, baseline=$baseline)');
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Periodic step check failed: $e');
+        }
       }
     });
   }
@@ -126,16 +180,21 @@ class HealthSyncController
           return; // skip further processing for this event
         }
 
-        // Don't update from sensor if we're currently syncing or just hydrated from backend
-        if (_isSyncingFromSensor || _hydratingFromBackend) {
+        // Don't update from sensor if we're currently syncing (but allow during hydration after a delay)
+        if (_isSyncingFromSensor) {
           return;
         }
         
         // Wait a brief moment after baseline alignment to let sensor stabilize
         if (_lastBaselineAlignment != null) {
           final timeSinceAlignment = DateTime.now().difference(_lastBaselineAlignment!);
-          if (timeSinceAlignment < const Duration(milliseconds: 500)) {
-            return;
+          if (timeSinceAlignment < const Duration(milliseconds: 1000)) {
+            // Still allow updates if sensor is increasing (cumulative steps are increasing)
+            // This ensures we don't block legitimate step increases
+            final lastCumulative = _directStepService.baselineStepCount ?? 0;
+            if (cumulativeSteps <= lastCumulative) {
+              return; // Sensor hasn't increased, wait for alignment to complete
+            }
           }
         }
 
@@ -145,6 +204,9 @@ class HealthSyncController
           try {
             // This will set the baseline if it doesn't exist
             await _directStepService.setBaseline(cumulativeSteps, today);
+            if (kDebugMode) {
+              print('📊 Initialized baseline: $cumulativeSteps');
+            }
           } catch (e) {
             if (kDebugMode) {
               print('⚠️ Failed to initialize baseline: $e');
@@ -152,34 +214,57 @@ class HealthSyncController
           }
         }
 
+        // Track last cumulative steps for comparison
+        _lastCumulativeSteps = cumulativeSteps;
+        
         if (_directStepService.baselineStepCount != null) {
           final baseline = _directStepService.baselineStepCount!;
-          final todaySteps =
-              cumulativeSteps -
-              baseline;
+          final todaySteps = cumulativeSteps - baseline;
           final now = DateTime.now();
           
           if (todaySteps < 0) {
             // Defensive: if sensor counter reset unexpectedly, set baseline to current cumulative
             try {
-              await _directStepService.setBaseline(
-                cumulativeSteps,
-                today,
+              await _directStepService.setBaseline(cumulativeSteps, today);
+              if (kDebugMode) {
+                print('🔁 Baseline adjusted because todaySteps < 0 (baseline=$baseline, cumulative=$cumulativeSteps)');
+              }
+              // Set steps to 0 after resetting baseline
+              _snapshot = HealthSyncSnapshot(
+                todaySteps: 0,
+                workouts: _snapshot?.workouts ?? const [],
+                rangeStart: _snapshot?.rangeStart ?? now.subtract(const Duration(days: 7)),
+                rangeEnd: now,
+                locationPermissionGranted: _snapshot?.locationPermissionGranted ?? false,
+                stepsBySource: {
+                  'Phone Sensor': 0,
+                },
+                primaryStepsSource: 'Phone Sensor',
               );
-              if (kDebugMode)
-                print(
-                  '🔁 Baseline adjusted because todaySteps < 0',
-                );
+              _status = HealthSyncStatus.ready;
+              notifyListeners();
               return;
             } catch (_) {}
           }
 
-          // Only update if we have valid steps and they're greater than or equal to current
-          // This prevents overwriting backend data with 0
+          // Always update if we have valid steps (>= 0)
+          // This ensures steps increase as you move
           if (todaySteps >= 0) {
             final currentSteps = _snapshot?.todaySteps ?? 0;
-            // Only update if sensor shows more steps, or if we don't have a snapshot yet
-            if (todaySteps >= currentSteps || _snapshot == null) {
+            
+            // Update if:
+            // 1. Sensor shows more steps than current (normal increase)
+            // 2. We don't have a snapshot yet
+            // 3. Steps increased from sensor (cumulative increased)
+            final shouldUpdate = todaySteps > currentSteps || 
+                                _snapshot == null ||
+                                (cumulativeSteps > (baseline + currentSteps));
+            
+            if (shouldUpdate) {
+              if (kDebugMode && todaySteps != currentSteps) {
+                print('📈 Steps updated: $currentSteps -> $todaySteps (baseline=$baseline, cumulative=$cumulativeSteps)');
+              }
+              
               _snapshot = HealthSyncSnapshot(
                 todaySteps: todaySteps,
                 workouts: _snapshot?.workouts ?? const [],
@@ -195,9 +280,7 @@ class HealthSyncController
               notifyListeners();
 
               // Auto-sync to backend (throttled)
-              _syncStepsToBackend(
-                todaySteps,
-              );
+              _syncStepsToBackend(todaySteps);
             }
           }
         } else {
@@ -342,29 +425,43 @@ class HealthSyncController
       final currentCount = await _directStepService.getCurrentStepCount();
       if (currentCount == null || currentCount <= 0) {
         // If sensor isn't ready, don't align yet
+        if (kDebugMode) {
+          print('⚠️ Sensor not ready for baseline alignment (currentCount=$currentCount)');
+        }
         return;
       }
       
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       
+      // Get current baseline to check if we need to update
+      final currentBaseline = _directStepService.baselineStepCount ?? 0;
+      
       // Calculate target baseline: current cumulative count minus steps from server
       final targetBaseline = currentCount - steps;
       
       // Only set baseline if it makes sense (targetBaseline should be >= 0 and <= currentCount)
-      if (targetBaseline >= 0 && targetBaseline <= currentCount) {
+      // Also only update if it's different from current baseline to avoid unnecessary updates
+      if (targetBaseline >= 0 && targetBaseline <= currentCount && targetBaseline != currentBaseline) {
         await _directStepService.setBaseline(targetBaseline, today);
         _lastBaselineAlignment = DateTime.now();
         if (kDebugMode) {
-          print('✅ Aligned sensor baseline: currentCount=$currentCount, steps=$steps, baseline=$targetBaseline');
+          print('✅ Aligned sensor baseline: currentCount=$currentCount, serverSteps=$steps, baseline=$targetBaseline (was $currentBaseline)');
+        }
+      } else if (targetBaseline < 0 || targetBaseline > currentCount) {
+        // If calculation doesn't make sense (server has more steps than sensor can account for),
+        // set baseline to current count so sensor can start tracking from now
+        // This preserves server steps but allows sensor to continue tracking
+        if (currentBaseline != currentCount) {
+          await _directStepService.setBaseline(currentCount, today);
+          _lastBaselineAlignment = DateTime.now();
+          if (kDebugMode) {
+            print('⚠️ Baseline alignment: serverSteps ($steps) > sensor can account for. Setting baseline to currentCount ($currentCount) to continue tracking.');
+          }
         }
       } else {
-        // If calculation doesn't make sense, set baseline to current count (start fresh)
-        // This happens if server has more steps than sensor shows (e.g., sensor reset)
-        await _directStepService.setBaseline(currentCount, today);
-        _lastBaselineAlignment = DateTime.now();
         if (kDebugMode) {
-          print('⚠️ Baseline alignment issue: currentCount=$currentCount, steps=$steps, setting baseline to currentCount');
+          print('ℹ️ Baseline already aligned: currentCount=$currentCount, serverSteps=$steps, baseline=$currentBaseline');
         }
       }
     } catch (e) {
@@ -701,6 +798,7 @@ class HealthSyncController
   @override
   void dispose() {
     _periodicSyncTimer?.cancel();
+    _periodicStepCheckTimer?.cancel();
     _directStepService.dispose();
     super.dispose();
   }
