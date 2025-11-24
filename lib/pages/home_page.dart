@@ -86,9 +86,13 @@ class _HomePageState extends State<HomePage> {
     setState(() {});
   }
 
-  void _onSyncPressed() {
-    widget.controller.hydrateFromBackend();
-    widget.controller.sync(force: true);
+  void _onSyncPressed() async {
+    // Clear cache and force a fresh sync
+    widget.controller.clearCache();
+    // First hydrate from backend to get latest data
+    await widget.controller.hydrateFromBackend();
+    // Then sync from sensor to get current steps
+    await widget.controller.sync(force: true);
   }
 
   String _getGreeting() {

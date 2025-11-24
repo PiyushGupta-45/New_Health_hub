@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -32,6 +33,8 @@ class HealthSyncController
            DirectStepService() {
     // Start listening to step updates when controller is created
     _initializeStepListener();
+    // Start periodic backend sync every 1 minute
+    _startPeriodicBackendSync();
   }
 
   final HealthSyncService? _service;
@@ -43,10 +46,21 @@ class HealthSyncController
 
   DateTime? _lastSyncedToBackend;
   static const Duration _syncInterval = Duration(
-    minutes: 5,
-  ); // Sync every 5 minutes
+    minutes: 1,
+  ); // Sync every 1 minute
+  Timer? _periodicSyncTimer;
   bool _hydratedFromBackend = false;
   bool _hydratingFromBackend = false;
+
+  void _startPeriodicBackendSync() {
+    // Sync to backend every 1 minute regardless of step changes
+    _periodicSyncTimer?.cancel();
+    _periodicSyncTimer = Timer.periodic(_syncInterval, (timer) async {
+      if (_snapshot != null && _snapshot!.todaySteps >= 0) {
+        await _syncStepsToBackend(_snapshot!.todaySteps, force: true);
+      }
+    });
+  }
 
   void _initializeStepListener() {
     // Start listening to step counter for real-time updates.
@@ -111,10 +125,22 @@ class HealthSyncController
         }
 
         // Normal per-event update using current baseline
-        if (_snapshot !=
-                null &&
-            _directStepService.baselineStepCount !=
-                null) {
+        // Initialize baseline if needed
+        if (_directStepService.baselineStepCount == null) {
+          try {
+            final currentSteps = await _directStepService.getTodaySteps();
+            // This will set the baseline if it doesn't exist
+            if (_directStepService.baselineStepCount == null) {
+              await _directStepService.setBaseline(cumulativeSteps, today);
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('⚠️ Failed to initialize baseline: $e');
+            }
+          }
+        }
+
+        if (_directStepService.baselineStepCount != null) {
           final baseline = _directStepService.baselineStepCount!;
           final todaySteps =
               cumulativeSteps -
@@ -142,21 +168,37 @@ class HealthSyncController
               0) {
             _snapshot = HealthSyncSnapshot(
               todaySteps: todaySteps,
-              workouts: _snapshot!.workouts,
-              rangeStart: _snapshot!.rangeStart,
+              workouts: _snapshot?.workouts ?? const [],
+              rangeStart: _snapshot?.rangeStart ?? now.subtract(const Duration(days: 7)),
               rangeEnd: now,
-              locationPermissionGranted: _snapshot!.locationPermissionGranted,
+              locationPermissionGranted: _snapshot?.locationPermissionGranted ?? false,
               stepsBySource: {
                 'Phone Sensor': todaySteps,
               },
               primaryStepsSource: 'Phone Sensor',
             );
+            _status = HealthSyncStatus.ready;
             notifyListeners();
 
             // Auto-sync to backend (throttled)
             _syncStepsToBackend(
               todaySteps,
             );
+          }
+        } else {
+          // If we still don't have a baseline, create a snapshot with 0 steps
+          final now = DateTime.now();
+          if (_snapshot == null) {
+            _snapshot = HealthSyncSnapshot(
+              todaySteps: 0,
+              workouts: const [],
+              rangeStart: now.subtract(const Duration(days: 7)),
+              rangeEnd: now,
+              locationPermissionGranted: false,
+              stepsBySource: const {},
+            );
+            _status = HealthSyncStatus.ready;
+            notifyListeners();
           }
         }
       },
@@ -313,8 +355,9 @@ class HealthSyncController
     void
   >
   _syncStepsToBackend(
-    int steps,
-  ) async {
+    int steps, {
+    bool force = false,
+  }) async {
     // Check if user is authenticated first
     final token = await _stepsSyncService.getAuthToken();
     if (token ==
@@ -329,8 +372,9 @@ class HealthSyncController
       return;
     }
 
-    // Only sync if enough time has passed since last sync
-    if (_lastSyncedToBackend !=
+    // Only sync if enough time has passed since last sync (unless forced)
+    if (!force &&
+        _lastSyncedToBackend !=
             null &&
         DateTime.now().difference(
               _lastSyncedToBackend!,
@@ -415,7 +459,7 @@ class HealthSyncController
   sync({
     bool force = false,
   }) async {
-    if (isSyncing) return;
+    if (isSyncing && !force) return;
     if (!force &&
         _snapshot !=
             null &&
@@ -428,8 +472,8 @@ class HealthSyncController
                   _lastSyncedAt!,
                 )
                 .inMinutes <
-            5) {
-      // Avoid hammering the API if data was synced very recently.
+            1) {
+      // Avoid hammering the API if data was synced very recently (1 minute now).
       return;
     }
 
@@ -451,7 +495,7 @@ class HealthSyncController
             ),
           );
 
-          // Create snapshot with steps from direct sensor
+          // Always create snapshot with steps from direct sensor (even if 0)
           _snapshot = HealthSyncSnapshot(
             todaySteps: todaySteps,
             workouts: const [], // No workout data without Health Connect
@@ -467,9 +511,10 @@ class HealthSyncController
           _status = HealthSyncStatus.ready;
           notifyListeners();
 
-          // Sync to backend
-          _syncStepsToBackend(
+          // Sync to backend (force if this is a manual sync)
+          await _syncStepsToBackend(
             todaySteps,
+            force: force,
           );
           return;
         }
@@ -482,12 +527,28 @@ class HealthSyncController
         _snapshot = result;
         _lastSyncedAt = DateTime.now();
         _status = HealthSyncStatus.ready;
+        notifyListeners();
 
-        // Sync to backend
-        _syncStepsToBackend(
+        // Sync to backend (force if this is a manual sync)
+        await _syncStepsToBackend(
           result.todaySteps,
+          force: force,
         );
       } else {
+        // If no sensor and no service, create empty snapshot so UI can display
+        final now = DateTime.now();
+        _snapshot = HealthSyncSnapshot(
+          todaySteps: 0,
+          workouts: const [],
+          rangeStart: now.subtract(const Duration(days: 7)),
+          rangeEnd: now,
+          locationPermissionGranted: false,
+          stepsBySource: const {},
+        );
+        _lastSyncedAt = DateTime.now();
+        _status = HealthSyncStatus.ready;
+        notifyListeners();
+        
         throw const HealthSyncException(
           HealthSyncErrorType.platformNotSupported,
           'Step counter sensor not available and Health Connect service not provided.',
@@ -605,6 +666,7 @@ class HealthSyncController
 
   @override
   void dispose() {
+    _periodicSyncTimer?.cancel();
     _directStepService.dispose();
     super.dispose();
   }
