@@ -51,6 +51,8 @@ class HealthSyncController
   Timer? _periodicSyncTimer;
   bool _hydratedFromBackend = false;
   bool _hydratingFromBackend = false;
+  bool _isSyncingFromSensor = false;
+  DateTime? _lastBaselineAlignment;
 
   void _startPeriodicBackendSync() {
     // Sync to backend every 1 minute regardless of step changes
@@ -124,15 +126,25 @@ class HealthSyncController
           return; // skip further processing for this event
         }
 
+        // Don't update from sensor if we're currently syncing or just hydrated from backend
+        if (_isSyncingFromSensor || _hydratingFromBackend) {
+          return;
+        }
+        
+        // Wait a brief moment after baseline alignment to let sensor stabilize
+        if (_lastBaselineAlignment != null) {
+          final timeSinceAlignment = DateTime.now().difference(_lastBaselineAlignment!);
+          if (timeSinceAlignment < const Duration(milliseconds: 500)) {
+            return;
+          }
+        }
+
         // Normal per-event update using current baseline
         // Initialize baseline if needed
         if (_directStepService.baselineStepCount == null) {
           try {
-            final currentSteps = await _directStepService.getTodaySteps();
             // This will set the baseline if it doesn't exist
-            if (_directStepService.baselineStepCount == null) {
-              await _directStepService.setBaseline(cumulativeSteps, today);
-            }
+            await _directStepService.setBaseline(cumulativeSteps, today);
           } catch (e) {
             if (kDebugMode) {
               print('⚠️ Failed to initialize baseline: $e');
@@ -146,8 +158,8 @@ class HealthSyncController
               cumulativeSteps -
               baseline;
           final now = DateTime.now();
-          if (todaySteps <
-              0) {
+          
+          if (todaySteps < 0) {
             // Defensive: if sensor counter reset unexpectedly, set baseline to current cumulative
             try {
               await _directStepService.setBaseline(
@@ -159,34 +171,37 @@ class HealthSyncController
                   '🔁 Baseline adjusted because todaySteps < 0',
                 );
               return;
-            } catch (
-              _
-            ) {}
+            } catch (_) {}
           }
 
-          if (todaySteps >=
-              0) {
-            _snapshot = HealthSyncSnapshot(
-              todaySteps: todaySteps,
-              workouts: _snapshot?.workouts ?? const [],
-              rangeStart: _snapshot?.rangeStart ?? now.subtract(const Duration(days: 7)),
-              rangeEnd: now,
-              locationPermissionGranted: _snapshot?.locationPermissionGranted ?? false,
-              stepsBySource: {
-                'Phone Sensor': todaySteps,
-              },
-              primaryStepsSource: 'Phone Sensor',
-            );
-            _status = HealthSyncStatus.ready;
-            notifyListeners();
+          // Only update if we have valid steps and they're greater than or equal to current
+          // This prevents overwriting backend data with 0
+          if (todaySteps >= 0) {
+            final currentSteps = _snapshot?.todaySteps ?? 0;
+            // Only update if sensor shows more steps, or if we don't have a snapshot yet
+            if (todaySteps >= currentSteps || _snapshot == null) {
+              _snapshot = HealthSyncSnapshot(
+                todaySteps: todaySteps,
+                workouts: _snapshot?.workouts ?? const [],
+                rangeStart: _snapshot?.rangeStart ?? now.subtract(const Duration(days: 7)),
+                rangeEnd: now,
+                locationPermissionGranted: _snapshot?.locationPermissionGranted ?? false,
+                stepsBySource: {
+                  'Phone Sensor': todaySteps,
+                },
+                primaryStepsSource: 'Phone Sensor',
+              );
+              _status = HealthSyncStatus.ready;
+              notifyListeners();
 
-            // Auto-sync to backend (throttled)
-            _syncStepsToBackend(
-              todaySteps,
-            );
+              // Auto-sync to backend (throttled)
+              _syncStepsToBackend(
+                todaySteps,
+              );
+            }
           }
         } else {
-          // If we still don't have a baseline, create a snapshot with 0 steps
+          // If we still don't have a baseline, create a snapshot with 0 steps only if we don't have one
           final now = DateTime.now();
           if (_snapshot == null) {
             _snapshot = HealthSyncSnapshot(
@@ -208,8 +223,8 @@ class HealthSyncController
   Future<
     void
   >
-  hydrateFromBackend() async {
-    if (_hydratedFromBackend ||
+  hydrateFromBackend({bool force = false}) async {
+    if ((_hydratedFromBackend && !force) ||
         _hydratingFromBackend)
       return;
     _hydratingFromBackend = true;
@@ -259,11 +274,8 @@ class HealthSyncController
           ),
         );
 
-        if (_snapshot ==
-                null ||
-            steps >
-                (_snapshot?.todaySteps ??
-                    0)) {
+        // Always update snapshot with backend data if it's available
+        if (steps >= 0) {
           _snapshot = HealthSyncSnapshot(
             todaySteps: steps,
             workouts:
@@ -284,6 +296,7 @@ class HealthSyncController
           notifyListeners();
         }
 
+        // Align sensor baseline with server data
         await _alignSensorBaselineWithServer(
           steps,
         );
@@ -323,31 +336,42 @@ class HealthSyncController
   _alignSensorBaselineWithServer(
     int steps,
   ) async {
-    if (steps <=
-        0)
-      return;
-    final currentCount = await _directStepService.getCurrentStepCount();
-    if (currentCount ==
-            null ||
-        currentCount <=
-            0)
-      return;
-    final targetBaseline =
-        currentCount -
-        steps;
-    if (targetBaseline <
-        0)
-      return;
-    final now = DateTime.now();
-    final today = DateTime(
-      now.year,
-      now.month,
-      now.day,
-    );
-    await _directStepService.setBaseline(
-      targetBaseline,
-      today,
-    );
+    if (steps < 0) return;
+    
+    try {
+      final currentCount = await _directStepService.getCurrentStepCount();
+      if (currentCount == null || currentCount <= 0) {
+        // If sensor isn't ready, don't align yet
+        return;
+      }
+      
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      
+      // Calculate target baseline: current cumulative count minus steps from server
+      final targetBaseline = currentCount - steps;
+      
+      // Only set baseline if it makes sense (targetBaseline should be >= 0 and <= currentCount)
+      if (targetBaseline >= 0 && targetBaseline <= currentCount) {
+        await _directStepService.setBaseline(targetBaseline, today);
+        _lastBaselineAlignment = DateTime.now();
+        if (kDebugMode) {
+          print('✅ Aligned sensor baseline: currentCount=$currentCount, steps=$steps, baseline=$targetBaseline');
+        }
+      } else {
+        // If calculation doesn't make sense, set baseline to current count (start fresh)
+        // This happens if server has more steps than sensor shows (e.g., sensor reset)
+        await _directStepService.setBaseline(currentCount, today);
+        _lastBaselineAlignment = DateTime.now();
+        if (kDebugMode) {
+          print('⚠️ Baseline alignment issue: currentCount=$currentCount, steps=$steps, setting baseline to currentCount');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Failed to align sensor baseline: $e');
+      }
+    }
   }
 
   // Sync steps to backend (throttled to avoid too many requests)
@@ -480,6 +504,7 @@ class HealthSyncController
     _status = HealthSyncStatus.syncing;
     _errorMessage = null;
     _lastError = null;
+    _isSyncingFromSensor = true;
     notifyListeners();
 
     try {
@@ -495,27 +520,34 @@ class HealthSyncController
             ),
           );
 
-          // Always create snapshot with steps from direct sensor (even if 0)
-          _snapshot = HealthSyncSnapshot(
-            todaySteps: todaySteps,
-            workouts: const [], // No workout data without Health Connect
-            rangeStart: rangeStart,
-            rangeEnd: now,
-            locationPermissionGranted: false,
-            stepsBySource: {
-              'Phone Sensor': todaySteps,
-            },
-            primaryStepsSource: 'Phone Sensor',
-          );
-          _lastSyncedAt = DateTime.now();
-          _status = HealthSyncStatus.ready;
-          notifyListeners();
+          // Only update if sensor shows valid steps (>= 0) and it's greater than or equal to current
+          final currentSteps = _snapshot?.todaySteps ?? 0;
+          if (todaySteps >= currentSteps || _snapshot == null) {
+            _snapshot = HealthSyncSnapshot(
+              todaySteps: todaySteps,
+              workouts: const [], // No workout data without Health Connect
+              rangeStart: rangeStart,
+              rangeEnd: now,
+              locationPermissionGranted: false,
+              stepsBySource: {
+                'Phone Sensor': todaySteps,
+              },
+              primaryStepsSource: 'Phone Sensor',
+            );
+            _lastSyncedAt = DateTime.now();
+            _status = HealthSyncStatus.ready;
+            notifyListeners();
 
-          // Sync to backend (force if this is a manual sync)
-          await _syncStepsToBackend(
-            todaySteps,
-            force: force,
-          );
+            // Sync to backend (force if this is a manual sync)
+            await _syncStepsToBackend(
+              todaySteps,
+              force: force,
+            );
+          } else {
+            // Keep current snapshot if sensor shows less
+            _status = HealthSyncStatus.ready;
+            notifyListeners();
+          }
           return;
         }
       }
@@ -579,6 +611,7 @@ class HealthSyncController
       _errorMessage = error.toString();
       _lastError = error;
     } finally {
+      _isSyncingFromSensor = false;
       notifyListeners();
     }
   }
@@ -634,6 +667,7 @@ class HealthSyncController
     _errorMessage = null;
     _lastError = null;
     _hydratedFromBackend = false;
+    _lastBaselineAlignment = null;
     notifyListeners();
   }
 

@@ -87,10 +87,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _onSyncPressed() async {
-    // Clear cache and force a fresh sync
-    widget.controller.clearCache();
-    // First hydrate from backend to get latest data
-    await widget.controller.hydrateFromBackend();
+    // First hydrate from backend to get latest data (force refresh)
+    await widget.controller.hydrateFromBackend(force: true);
+    // Wait a moment for baseline alignment to complete
+    await Future.delayed(const Duration(milliseconds: 500));
     // Then sync from sensor to get current steps
     await widget.controller.sync(force: true);
   }
