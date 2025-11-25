@@ -357,32 +357,94 @@ class HealthSyncController
           ),
         );
 
-        // Always update snapshot with backend data if it's available
-        if (steps >= 0) {
-          _snapshot = HealthSyncSnapshot(
-            todaySteps: steps,
-            workouts:
-                _snapshot?.workouts ??
-                const [],
-            rangeStart: rangeStart,
-            rangeEnd: referenceDate,
-            locationPermissionGranted:
-                _snapshot?.locationPermissionGranted ??
-                false,
-            stepsBySource: {
-              'Cloud Sync': steps,
-            },
-            primaryStepsSource: source,
-          );
-          _status = HealthSyncStatus.ready;
-          _lastSyncedAt = referenceDate;
-          notifyListeners();
-        }
-
-        // Align sensor baseline with server data
+        // Align sensor baseline with server data first
         await _alignSensorBaselineWithServer(
           steps,
         );
+        
+        // After aligning baseline, get steps from sensor (not server) for display
+        if (Platform.isAndroid) {
+          try {
+            final isAvailable = await _directStepService.isStepCounterAvailable();
+            if (isAvailable) {
+              final sensorSteps = await _directStepService.getTodaySteps();
+              if (sensorSteps >= 0) {
+                // Use sensor steps for display, not server steps
+                _snapshot = HealthSyncSnapshot(
+                  todaySteps: sensorSteps,
+                  workouts:
+                      _snapshot?.workouts ??
+                      const [],
+                  rangeStart: rangeStart,
+                  rangeEnd: referenceDate,
+                  locationPermissionGranted:
+                      _snapshot?.locationPermissionGranted ??
+                      false,
+                  stepsBySource: {
+                    'Phone Sensor': sensorSteps,
+                    'Cloud Sync': steps, // Keep server steps for reference
+                  },
+                  primaryStepsSource: 'Phone Sensor', // Always use sensor as primary
+                );
+                _status = HealthSyncStatus.ready;
+                _lastSyncedAt = referenceDate;
+                notifyListeners();
+                
+                if (kDebugMode) {
+                  print('📊 Hydrated: Sensor steps=$sensorSteps, Server steps=$steps (using sensor for display)');
+                }
+              }
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('⚠️ Failed to get sensor steps after hydration: $e');
+            }
+            // Fallback to server steps if sensor fails
+            if (steps >= 0) {
+              _snapshot = HealthSyncSnapshot(
+                todaySteps: steps,
+                workouts:
+                    _snapshot?.workouts ??
+                    const [],
+                rangeStart: rangeStart,
+                rangeEnd: referenceDate,
+                locationPermissionGranted:
+                    _snapshot?.locationPermissionGranted ??
+                    false,
+                stepsBySource: {
+                  'Cloud Sync': steps,
+                },
+                primaryStepsSource: source,
+              );
+              _status = HealthSyncStatus.ready;
+              _lastSyncedAt = referenceDate;
+              notifyListeners();
+            }
+          }
+        } else {
+          // Non-Android: use server steps as fallback
+          if (steps >= 0) {
+            _snapshot = HealthSyncSnapshot(
+              todaySteps: steps,
+              workouts:
+                  _snapshot?.workouts ??
+                  const [],
+              rangeStart: rangeStart,
+              rangeEnd: referenceDate,
+              locationPermissionGranted:
+                  _snapshot?.locationPermissionGranted ??
+                  false,
+              stepsBySource: {
+                'Cloud Sync': steps,
+              },
+              primaryStepsSource: source,
+            );
+            _status = HealthSyncStatus.ready;
+            _lastSyncedAt = referenceDate;
+            notifyListeners();
+          }
+        }
+        
         _hydratedFromBackend = true;
       } else {
         final error =

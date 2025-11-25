@@ -971,14 +971,17 @@ class _MemoryCardGameState extends State<MemoryCardGame> {
   }
 
   void _initializeGame() {
-    // Create pairs of numbers (0-7, so 8 pairs = 16 cards)
-    _cards = List.generate(8, (index) => index)..addAll(List.generate(8, (index) => index));
-    _cards.shuffle();
-    _flipped = List.filled(16, false);
-    _matched = List.filled(16, false);
-    _firstCardIndex = null;
-    _moves = 0;
-    _pairsFound = 0;
+    setState(() {
+      // Create pairs of numbers (0-7, so 8 pairs = 16 cards)
+      _cards = List.generate(8, (index) => index)..addAll(List.generate(8, (index) => index));
+      _cards.shuffle();
+      _flipped = List.filled(16, false);
+      _matched = List.filled(16, false);
+      _firstCardIndex = null;
+      _moves = 0;
+      _pairsFound = 0;
+      _isProcessing = false;
+    });
   }
 
   void _flipCard(int index) {

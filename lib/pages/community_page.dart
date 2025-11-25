@@ -17,7 +17,7 @@ class CommunityPage
     extends
         StatefulWidget {
   final HealthSyncController? healthSyncController;
-  
+
   const CommunityPage({
     super.key,
     this.healthSyncController,
@@ -82,7 +82,10 @@ class _CommunityPageState
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+    );
     _communityNotifications = CommunityNotificationController();
     _communityNotifications.initialize();
     _checkAuthStatus();
@@ -812,15 +815,28 @@ class _CommunityPageState
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        const Color(0xFF2563EB).withOpacity(0.1),
-                        const Color(0xFF3B82F6).withOpacity(0.1),
+                        const Color(
+                          0xFF2563EB,
+                        ).withOpacity(
+                          0.1,
+                        ),
+                        const Color(
+                          0xFF3B82F6,
+                        ).withOpacity(
+                          0.1,
+                        ),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(
                       16,
                     ),
                     border: Border.all(
-                      color: const Color(0xFF2563EB).withOpacity(0.3),
+                      color:
+                          const Color(
+                            0xFF2563EB,
+                          ).withOpacity(
+                            0.3,
+                          ),
                       width: 2,
                     ),
                   ),
@@ -832,7 +848,9 @@ class _CommunityPageState
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF2563EB),
+                          color: Color(
+                            0xFF2563EB,
+                          ),
                           letterSpacing: 2,
                         ),
                       ),
@@ -928,16 +946,24 @@ class _CommunityPageState
   Widget build(
     BuildContext context,
   ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark =
+        Theme.of(
+          context,
+        ).brightness ==
+        Brightness.dark;
     // Check if user is signed in
     if (!_isAuthenticated) {
       return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: Theme.of(
+          context,
+        ).scaffoldBackgroundColor,
         appBar: AppBar(
           title: const Text(
             'Community',
           ),
-          backgroundColor: const Color(0xFF2563EB),
+          backgroundColor: const Color(
+            0xFF2563EB,
+          ),
           foregroundColor: Colors.white,
           actions: [
             IconButton(
@@ -999,14 +1025,18 @@ class _CommunityPageState
                     'Check Again',
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
+                    backgroundColor: const Color(
+                      0xFF2563EB,
+                    ),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 24,
                       vertical: 12,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(
+                        12,
+                      ),
                     ),
                   ),
                 ),
@@ -1031,238 +1061,306 @@ class _CommunityPageState
     // Chat view - shown when a community is selected
     if (_selectedCommunity !=
         null) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        appBar: AppBar(
-          title: Text(
-            _selectedCommunity!['name'] ??
-                'Community',
-          ),
-          backgroundColor: const Color(0xFF2563EB),
-          foregroundColor: Colors.white,
-          leading: IconButton(
-            icon: const Icon(
-              Icons.arrow_back,
-            ),
-            onPressed: () {
-              setState(
-                () {
-                  _selectedCommunity = null;
-                  _messages = [];
-                },
-              );
-              _communityNotifications.setActiveCommunity(
-                null,
-              );
-              _messageRefreshTimer?.cancel();
+      return PopScope(
+        canPop: false, // Prevent default back behavior
+        onPopInvoked:
+            (
+              didPop,
+            ) {
+              if (!didPop) {
+                // Handle back button - go back to community list
+                setState(
+                  () {
+                    _selectedCommunity = null;
+                    _messages = [];
+                  },
+                );
+                _communityNotifications.setActiveCommunity(
+                  null,
+                );
+                _messageRefreshTimer?.cancel();
+              }
             },
-          ),
-        ),
-        body: Column(
-          children: [
-            Expanded(
-              child:
-                  _isLoadingMessages &&
-                      _messages.isEmpty
-                  ? const Center(
-                      child: CircularProgressIndicator(),
-                    )
-                  : _messages.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No messages yet. Start the conversation!',
-                        style: TextStyle(
-                          color: Colors.grey,
-                        ),
-                      ),
-                    )
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.all(
-                        16,
-                      ),
-                      itemCount: _messages.length,
-                      itemBuilder:
-                          (
-                            context,
-                            index,
-                          ) {
-                            final message = _messages[index];
-                            final isMe =
-                                message['userId']?.toString() ==
-                                _userId;
-                            return Align(
-                              alignment: isMe
-                                  ? Alignment.centerRight
-                                  : Alignment.centerLeft,
-                              child: Container(
-                                margin: const EdgeInsets.only(
-                                  bottom: 12,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 10,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isMe
-                                      ? const Color(0xFF2563EB)
-                                      : (isDark ? const Color(0xFF1E293B) : Colors.white),
-                                  borderRadius: BorderRadius.circular(
-                                    20,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(
-                                        0.1,
-                                      ),
-                                      blurRadius: 4,
-                                      offset: const Offset(
-                                        0,
-                                        2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                constraints: BoxConstraints(
-                                  maxWidth:
-                                      MediaQuery.of(
-                                        context,
-                                      ).size.width *
-                                      0.7,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if (!isMe)
-                                      Text(
-                                        message['userName'] ??
-                                            'User',
-                                        style: const TextStyle(
-                                          color: Color(0xFF2563EB),
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    const SizedBox(
-                                      height: 4,
-                                    ),
-                                    Text(
-                                      message['message'] ??
-                                          '',
-                                      style: TextStyle(
-                                        color: isMe
-                                            ? Colors.white
-                                            : (isDark ? const Color(0xFFF1F5F9) : Colors.black87),
-                                      ),
-                                    ),
-                                    const SizedBox(
-                                      height: 4,
-                                    ),
-                                    Text(
-                                      _formatTime(
-                                        message['createdAt'],
-                                      ),
-                                      style: TextStyle(
-                                        color: isMe
-                                            ? Colors.white70
-                                            : (isDark ? Colors.grey.shade400 : Colors.grey),
-                                        fontSize: 10,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                    ),
+        child: Scaffold(
+          backgroundColor: Theme.of(
+            context,
+          ).scaffoldBackgroundColor,
+          appBar: AppBar(
+            title: Text(
+              _selectedCommunity!['name'] ??
+                  'Community',
+              style: const TextStyle(
+                color: Colors.white,
+              ),
             ),
-            Container(
-              padding: const EdgeInsets.all(
-                16,
+            backgroundColor: const Color(
+              0xFF2563EB,
+            ),
+            foregroundColor: Colors.white,
+            leading: IconButton(
+              icon: const Icon(
+                Icons.arrow_back,
               ),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(
-                      0.1,
-                    ),
-                    blurRadius: 4,
-                    offset: const Offset(
-                      0,
-                      -2,
-                    ),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      decoration: InputDecoration(
-                        hintText: 'Type a message...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            25,
+              onPressed: () {
+                setState(
+                  () {
+                    _selectedCommunity = null;
+                    _messages = [];
+                  },
+                );
+                _communityNotifications.setActiveCommunity(
+                  null,
+                );
+                _messageRefreshTimer?.cancel();
+              },
+            ),
+          ),
+          body: Column(
+            children: [
+              Expanded(
+                child:
+                    _isLoadingMessages &&
+                        _messages.isEmpty
+                    ? const Center(
+                        child: CircularProgressIndicator(),
+                      )
+                    : _messages.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No messages yet. Start the conversation!',
+                          style: TextStyle(
+                            color: Colors.grey,
                           ),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
+                      )
+                    : ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(
+                          16,
                         ),
+                        itemCount: _messages.length,
+                        itemBuilder:
+                            (
+                              context,
+                              index,
+                            ) {
+                              final message = _messages[index];
+                              final isMe =
+                                  message['userId']?.toString() ==
+                                  _userId;
+                              return Align(
+                                alignment: isMe
+                                    ? Alignment.centerRight
+                                    : Alignment.centerLeft,
+                                child: Container(
+                                  margin: const EdgeInsets.only(
+                                    bottom: 12,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isMe
+                                        ? const Color(
+                                            0xFF2563EB,
+                                          )
+                                        : (isDark
+                                              ? const Color(
+                                                  0xFF1E293B,
+                                                )
+                                              : Colors.white),
+                                    borderRadius: BorderRadius.circular(
+                                      20,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(
+                                          0.1,
+                                        ),
+                                        blurRadius: 4,
+                                        offset: const Offset(
+                                          0,
+                                          2,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  constraints: BoxConstraints(
+                                    maxWidth:
+                                        MediaQuery.of(
+                                          context,
+                                        ).size.width *
+                                        0.7,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      if (!isMe)
+                                        Text(
+                                          message['userName'] ??
+                                              'User',
+                                          style: const TextStyle(
+                                            color: Color(
+                                              0xFF2563EB,
+                                            ),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      const SizedBox(
+                                        height: 4,
+                                      ),
+                                      Text(
+                                        message['message'] ??
+                                            '',
+                                        style: TextStyle(
+                                          color: isMe
+                                              ? Colors.white
+                                              : (isDark
+                                                    ? const Color(
+                                                        0xFFF1F5F9,
+                                                      )
+                                                    : Colors.black87),
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        height: 4,
+                                      ),
+                                      Text(
+                                        _formatTime(
+                                          message['createdAt'],
+                                        ),
+                                        style: TextStyle(
+                                          color: isMe
+                                              ? Colors.white70
+                                              : (isDark
+                                                    ? Colors.grey.shade400
+                                                    : Colors.grey),
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
                       ),
-                      onSubmitted:
-                          (
-                            _,
-                          ) => _sendMessage(),
-                    ),
-                  ),
-                  const SizedBox(
-                    width: 12,
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
-                      ),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF2563EB).withOpacity(0.4),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: CircleAvatar(
-                      backgroundColor: Colors.transparent,
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.send_rounded,
-                          color: Colors.white,
-                        ),
-                        onPressed: _sendMessage,
-                      ),
-                    ),
-                  ),
-                ],
               ),
-            ),
-          ],
+              Container(
+                padding: const EdgeInsets.all(
+                  16,
+                ),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(
+                          0xFF1E293B,
+                        )
+                      : Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(
+                        0.1,
+                      ),
+                      blurRadius: 4,
+                      offset: const Offset(
+                        0,
+                        -2,
+                      ),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        decoration: InputDecoration(
+                          hintText: 'Type a message...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              25,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                        ),
+                        onSubmitted:
+                            (
+                              _,
+                            ) => _sendMessage(),
+                      ),
+                    ),
+                    const SizedBox(
+                      width: 12,
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(
+                              0xFF2563EB,
+                            ),
+                            Color(
+                              0xFF3B82F6,
+                            ),
+                          ],
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                const Color(
+                                  0xFF2563EB,
+                                ).withOpacity(
+                                  0.4,
+                                ),
+                            blurRadius: 10,
+                            offset: const Offset(
+                              0,
+                              4,
+                            ),
+                          ),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        backgroundColor: Colors.transparent,
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.send_rounded,
+                            color: Colors.white,
+                          ),
+                          onPressed: _sendMessage,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     // Community selection view - shown when no community is selected
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        appBar: AppBar(
-          title: const Text(
-            'Community',
+      backgroundColor: Theme.of(
+        context,
+      ).scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: const Text(
+          'Community',
+          style: TextStyle(
+            color: Colors.white,
           ),
-          backgroundColor: const Color(0xFF2563EB),
-          foregroundColor: Colors.white,
+        ),
+        backgroundColor: const Color(
+          0xFF2563EB,
+        ),
+        foregroundColor: Colors.white,
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
@@ -1270,11 +1368,15 @@ class _CommunityPageState
           unselectedLabelColor: Colors.white70,
           tabs: const [
             Tab(
-              icon: Icon(Icons.chat_bubble_outline),
+              icon: Icon(
+                Icons.chat_bubble_outline,
+              ),
               text: 'Chats & Groups',
             ),
             Tab(
-              icon: Icon(Icons.sports_esports),
+              icon: Icon(
+                Icons.sports_esports,
+              ),
               text: 'Games & Challenges',
             ),
           ],
@@ -1298,428 +1400,558 @@ class _CommunityPageState
                       left: 16,
                       right: 16,
                       top: 16,
-                      bottom: MediaQuery.of(context).padding.bottom + 130,
+                      bottom:
+                          MediaQuery.of(
+                            context,
+                          ).padding.bottom +
+                          130,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                    // Create Community Section
-                    Container(
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 20,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(
-                          20,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Create Community',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-                              ),
-                            ),
-                            const SizedBox(
-                              height: 12,
-                            ),
-                            TextField(
-                              controller: _communityNameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Community Name',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                            const SizedBox(
-                              height: 12,
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFF2563EB).withOpacity(0.3),
-                                    blurRadius: 15,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                ],
-                              ),
-                              child: ElevatedButton.icon(
-                                onPressed: _createCommunity,
-                                icon: const Icon(
-                                  Icons.add_rounded,
-                                ),
-                                label: const Text(
-                                  'Create Community',
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shadowColor: Colors.transparent,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(
-                      height: 16,
-                    ),
-                    // Join with Code Section
-                    Container(
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 20,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(
-                          20,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Join Private Community',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-                              ),
-                            ),
-                            const SizedBox(
-                              height: 12,
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFF2563EB).withOpacity(0.3),
-                                    blurRadius: 15,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                ],
-                              ),
-                              child: ElevatedButton.icon(
-                                onPressed: _showJoinCodeInputDialog,
-                                icon: const Icon(
-                                  Icons.vpn_key_rounded,
-                                ),
-                                label: const Text(
-                                  'Join with Code',
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shadowColor: Colors.transparent,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(
-                      height: 24,
-                    ),
-                    // My Communities
-                    if (_myCommunities.isNotEmpty) ...[
-                      Text(
-                        'My Communities',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-                        ),
-                      ),
-                      const SizedBox(
-                        height: 12,
-                      ),
-                      ..._myCommunities.map(
-                        (
-                          community,
-                        ) => Container(
-                          margin: const EdgeInsets.only(
-                            bottom: 12,
-                          ),
+                        // Create Community Section
+                        Container(
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                            borderRadius: BorderRadius.circular(16),
+                            color: isDark
+                                ? const Color(
+                                    0xFF1E293B,
+                                  )
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(
+                              20,
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 10,
-                                offset: const Offset(0, 2),
+                                color: Colors.black.withOpacity(
+                                  0.05,
+                                ),
+                                blurRadius: 20,
+                                offset: const Offset(
+                                  0,
+                                  5,
+                                ),
                               ),
                             ],
                           ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 12,
+                          child: Padding(
+                            padding: const EdgeInsets.all(
+                              20,
                             ),
-                            title: Text(
-                              community['name'] ??
-                                  'Untitled',
-                              style: TextStyle(
-                                color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${community['memberCount'] ?? 0} members • ${community['isPublic'] == true ? 'Public' : 'Private'}',
-                              style: TextStyle(
-                                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                              ),
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                // If owner and private show share icon
-                                if (community['isOwner'] ==
-                                        true &&
-                                    community['isPublic'] ==
-                                        false &&
-                                    community['joinCode'] !=
-                                        null)
-                                  IconButton(
+                                Text(
+                                  'Create Community',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark
+                                        ? const Color(
+                                            0xFFF1F5F9,
+                                          )
+                                        : const Color(
+                                            0xFF1E293B,
+                                          ),
+                                  ),
+                                ),
+                                const SizedBox(
+                                  height: 12,
+                                ),
+                                TextField(
+                                  controller: _communityNameController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Community Name',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                                const SizedBox(
+                                  height: 12,
+                                ),
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(
+                                          0xFF2563EB,
+                                        ),
+                                        Color(
+                                          0xFF3B82F6,
+                                        ),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(
+                                      16,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color:
+                                            const Color(
+                                              0xFF2563EB,
+                                            ).withOpacity(
+                                              0.3,
+                                            ),
+                                        blurRadius: 15,
+                                        offset: const Offset(
+                                          0,
+                                          8,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ElevatedButton.icon(
+                                    onPressed: _createCommunity,
                                     icon: const Icon(
-                                      Icons.share,
+                                      Icons.add_rounded,
                                     ),
-                                    onPressed: () => _showJoinCodeDialog(
-                                      community['joinCode'],
+                                    label: const Text(
+                                      'Create Community',
                                     ),
-                                    tooltip: 'Share Join Code',
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          16,
+                                        ),
+                                      ),
+                                    ),
                                   ),
-
-                                // Chat button (opens chat view)
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.chat_bubble_outline,
-                                  ),
-                                  onPressed: () {
-                                    // Open chat (previously onTap)
-                                    _selectCommunity(
-                                      community,
-                                    );
-                                  },
-                                  tooltip: 'Open Chat',
                                 ),
                               ],
                             ),
-                            // TILE TAP -> open Community Info Page
-                            onTap: () async {
-                              final changed = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder:
-                                      (
-                                        _,
-                                      ) => CommunityInfoPage(
-                                        community: community,
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 16,
+                        ),
+                        // Join with Code Section
+                        Container(
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(
+                                    0xFF1E293B,
+                                  )
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(
+                              20,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(
+                                  0.05,
+                                ),
+                                blurRadius: 20,
+                                offset: const Offset(
+                                  0,
+                                  5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(
+                              20,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Join Private Community',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark
+                                        ? const Color(
+                                            0xFFF1F5F9,
+                                          )
+                                        : const Color(
+                                            0xFF1E293B,
+                                          ),
+                                  ),
+                                ),
+                                const SizedBox(
+                                  height: 12,
+                                ),
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(
+                                          0xFF2563EB,
+                                        ),
+                                        Color(
+                                          0xFF3B82F6,
+                                        ),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(
+                                      16,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color:
+                                            const Color(
+                                              0xFF2563EB,
+                                            ).withOpacity(
+                                              0.3,
+                                            ),
+                                        blurRadius: 15,
+                                        offset: const Offset(
+                                          0,
+                                          8,
+                                        ),
                                       ),
+                                    ],
+                                  ),
+                                  child: ElevatedButton.icon(
+                                    onPressed: _showJoinCodeInputDialog,
+                                    icon: const Icon(
+                                      Icons.vpn_key_rounded,
+                                    ),
+                                    label: const Text(
+                                      'Join with Code',
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          16,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 24,
+                        ),
+                        // My Communities
+                        if (_myCommunities.isNotEmpty) ...[
+                          Text(
+                            'My Communities',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? const Color(
+                                      0xFFF1F5F9,
+                                    )
+                                  : const Color(
+                                      0xFF1E293B,
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(
+                            height: 12,
+                          ),
+                          ..._myCommunities
+                              .map(
+                                (
+                                  community,
+                                ) => Container(
+                                  margin: const EdgeInsets.only(
+                                    bottom: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? const Color(
+                                            0xFF1E293B,
+                                          )
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(
+                                      16,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(
+                                          0.05,
+                                        ),
+                                        blurRadius: 10,
+                                        offset: const Offset(
+                                          0,
+                                          2,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 12,
+                                    ),
+                                    title: Text(
+                                      community['name'] ??
+                                          'Untitled',
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? const Color(
+                                                0xFFF1F5F9,
+                                              )
+                                            : const Color(
+                                                0xFF1E293B,
+                                              ),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      '${community['memberCount'] ?? 0} members • ${community['isPublic'] == true ? 'Public' : 'Private'}',
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? Colors.grey.shade400
+                                            : Colors.grey.shade600,
+                                      ),
+                                    ),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        // If owner and private show share icon
+                                        if (community['isOwner'] ==
+                                                true &&
+                                            community['isPublic'] ==
+                                                false &&
+                                            community['joinCode'] !=
+                                                null)
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.share,
+                                            ),
+                                            onPressed: () => _showJoinCodeDialog(
+                                              community['joinCode'],
+                                            ),
+                                            tooltip: 'Share Join Code',
+                                          ),
+
+                                        // Chat button (opens chat view)
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.chat_bubble_outline,
+                                          ),
+                                          onPressed: () {
+                                            // Open chat (previously onTap)
+                                            _selectCommunity(
+                                              community,
+                                            );
+                                          },
+                                          tooltip: 'Open Chat',
+                                        ),
+                                      ],
+                                    ),
+                                    // TILE TAP -> open Community Info Page
+                                    onTap: () async {
+                                      final changed = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (
+                                                _,
+                                              ) => CommunityInfoPage(
+                                                community: community,
+                                              ),
+                                        ),
+                                      );
+
+                                      if (changed ==
+                                          true) {
+                                        // Refresh lists after leave/delete/transfer
+                                        await _loadMyCommunities();
+                                        await _loadPublicCommunities();
+                                        setState(
+                                          () {
+                                            _selectedCommunity = null;
+                                          },
+                                        );
+                                        _communityNotifications.setActiveCommunity(
+                                          null,
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          const SizedBox(
+                            height: 24,
+                          ),
+                        ],
+                        // Public Communities
+                        Text(
+                          'Public Communities',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isDark
+                                ? const Color(
+                                    0xFFF1F5F9,
+                                  )
+                                : const Color(
+                                    0xFF1E293B,
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 12,
+                        ),
+                        if (_publicCommunities.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(
+                              24.0,
+                            ),
+                            child: Text(
+                              'No public communities available',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: isDark
+                                    ? Colors.grey.shade400
+                                    : Colors.grey,
+                              ),
+                            ),
+                          )
+                        else
+                          ..._publicCommunities.map(
+                            (
+                              community,
+                            ) {
+                              final isMember = _myCommunities.any(
+                                (
+                                  c,
+                                ) =>
+                                    c['_id'] ==
+                                    community['_id'],
+                              );
+                              return Container(
+                                margin: const EdgeInsets.only(
+                                  bottom: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? const Color(
+                                          0xFF1E293B,
+                                        )
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(
+                                    16,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(
+                                        0.05,
+                                      ),
+                                      blurRadius: 10,
+                                      offset: const Offset(
+                                        0,
+                                        2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 12,
+                                  ),
+                                  title: Text(
+                                    community['name'] ??
+                                        'Untitled',
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? const Color(
+                                              0xFFF1F5F9,
+                                            )
+                                          : const Color(
+                                              0xFF1E293B,
+                                            ),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    '${community['memberCount'] ?? 0} members • Created by ${community['ownerName'] ?? 'Unknown'}',
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? Colors.grey.shade400
+                                          : Colors.grey.shade600,
+                                    ),
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      isMember
+                                          ? const Chip(
+                                              label: Text(
+                                                'Joined',
+                                              ),
+                                              backgroundColor: Colors.green,
+                                            )
+                                          : ElevatedButton(
+                                              onPressed: () => _joinPublicCommunity(
+                                                community['_id'],
+                                              ),
+                                              child: const Text(
+                                                'Join',
+                                              ),
+                                            ),
+                                      const SizedBox(
+                                        width: 8,
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.chat_bubble_outline,
+                                        ),
+                                        onPressed: () {
+                                          // Open chat (select community)
+                                          _selectCommunity(
+                                            community,
+                                          );
+                                        },
+                                        tooltip: 'Open Chat',
+                                      ),
+                                    ],
+                                  ),
+                                  // TILE TAP -> open Community Info Page
+                                  onTap: () async {
+                                    final changed = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder:
+                                            (
+                                              _,
+                                            ) => CommunityInfoPage(
+                                              community: community,
+                                            ),
+                                      ),
+                                    );
+
+                                    if (changed ==
+                                        true) {
+                                      // Refresh lists after leave/delete/transfer
+                                      await _loadMyCommunities();
+                                      await _loadPublicCommunities();
+                                      setState(
+                                        () {
+                                          _selectedCommunity = null;
+                                        },
+                                      );
+                                      _communityNotifications.setActiveCommunity(
+                                        null,
+                                      );
+                                    }
+                                  },
                                 ),
                               );
-
-                              if (changed ==
-                                  true) {
-                                // Refresh lists after leave/delete/transfer
-                                await _loadMyCommunities();
-                                await _loadPublicCommunities();
-                                setState(
-                                  () {
-                                    _selectedCommunity = null;
-                                  },
-                                );
-                                _communityNotifications.setActiveCommunity(
-                                  null,
-                                );
-                              }
                             },
-                          ),
-                        ),
-                      ).toList(),
-                      const SizedBox(
-                        height: 24,
-                      ),
-                    ],
-                    // Public Communities
-                    Text(
-                      'Public Communities',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-                      ),
-                    ),
-                    const SizedBox(
-                      height: 12,
-                    ),
-                    if (_publicCommunities.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(
-                          24.0,
-                        ),
-                        child: Text(
-                          'No public communities available',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: isDark ? Colors.grey.shade400 : Colors.grey,
-                          ),
-                        ),
-                      )
-                    else
-                      ..._publicCommunities.map(
-                        (
-                          community,
-                        ) {
-                          final isMember = _myCommunities.any(
-                            (
-                              c,
-                            ) =>
-                                c['_id'] ==
-                                community['_id'],
-                          );
-                          return Container(
-                            margin: const EdgeInsets.only(
-                              bottom: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 12,
-                              ),
-                              title: Text(
-                                community['name'] ??
-                                    'Untitled',
-                                style: TextStyle(
-                                  color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              subtitle: Text(
-                                '${community['memberCount'] ?? 0} members • Created by ${community['ownerName'] ?? 'Unknown'}',
-                                style: TextStyle(
-                                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                                ),
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  isMember
-                                      ? const Chip(
-                                          label: Text(
-                                            'Joined',
-                                          ),
-                                          backgroundColor: Colors.green,
-                                        )
-                                      : ElevatedButton(
-                                          onPressed: () => _joinPublicCommunity(
-                                            community['_id'],
-                                          ),
-                                          child: const Text(
-                                            'Join',
-                                          ),
-                                        ),
-                                  const SizedBox(
-                                    width: 8,
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.chat_bubble_outline,
-                                    ),
-                                    onPressed: () {
-                                      // Open chat (select community)
-                                      _selectCommunity(
-                                        community,
-                                      );
-                                    },
-                                    tooltip: 'Open Chat',
-                                  ),
-                                ],
-                              ),
-                              // TILE TAP -> open Community Info Page
-                              onTap: () async {
-                                final changed = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder:
-                                        (
-                                          _,
-                                        ) => CommunityInfoPage(
-                                          community: community,
-                                        ),
-                                  ),
-                                );
-
-                                if (changed ==
-                                    true) {
-                                  // Refresh lists after leave/delete/transfer
-                                  await _loadMyCommunities();
-                                  await _loadPublicCommunities();
-                                  setState(
-                                    () {
-                                      _selectedCommunity = null;
-                                    },
-                                  );
-                                  _communityNotifications.setActiveCommunity(
-                                    null,
-                                  );
-                                }
-                              },
-                            ),
-                          );
-                        },
-                      ).toList(),
-                  ],
+                          ).toList(),
+                      ],
                     ),
                   ),
                 ),

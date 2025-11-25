@@ -8,19 +8,35 @@ import 'pages/community_page.dart';
 import 'widgets/health_chatbot_widget.dart';
 
 // Chatbot Dialog Wrapper
-class HealthChatbotDialog extends StatelessWidget {
-  const HealthChatbotDialog({super.key});
+class HealthChatbotDialog
+    extends
+        StatelessWidget {
+  const HealthChatbotDialog({
+    super.key,
+  });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(16),
+      insetPadding: const EdgeInsets.all(
+        16,
+      ),
       child: Container(
-        height: MediaQuery.of(context).size.height * 0.7,
+        height:
+            MediaQuery.of(
+              context,
+            ).size.height *
+            0.7,
         decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: BorderRadius.circular(20),
+          color: Theme.of(
+            context,
+          ).scaffoldBackgroundColor,
+          borderRadius: BorderRadius.circular(
+            20,
+          ),
         ),
         child: const HealthChatbotWidget(),
       ),
@@ -70,47 +86,81 @@ class _MainScreenState
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, int index) {
-    final isSelected = _selectedIndex == index;
+  Widget _buildNavItem(
+    IconData icon,
+    String label,
+    int index,
+  ) {
+    final isSelected =
+        _selectedIndex ==
+        index;
     return Expanded(
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _onItemTapped(index),
-          borderRadius: BorderRadius.circular(16),
+          onTap: () => _onItemTapped(
+            index,
+          ),
+          borderRadius: BorderRadius.circular(
+            16,
+          ),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(
+              vertical: 8,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.all(8),
+                  duration: const Duration(
+                    milliseconds: 200,
+                  ),
+                  padding: const EdgeInsets.all(
+                    8,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFF2563EB).withOpacity(0.1)
+                        ? const Color(
+                            0xFF2563EB,
+                          ).withOpacity(
+                            0.1,
+                          )
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(
+                      12,
+                    ),
                   ),
                   child: Icon(
                     icon,
                     color: isSelected
-                        ? const Color(0xFF2563EB)
+                        ? const Color(
+                            0xFF2563EB,
+                          )
                         : Colors.grey.shade500,
                     size: 24,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(
+                  height: 4,
+                ),
                 AnimatedDefaultTextStyle(
-                  duration: const Duration(milliseconds: 200),
+                  duration: const Duration(
+                    milliseconds: 200,
+                  ),
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    fontWeight: isSelected
+                        ? FontWeight.w700
+                        : FontWeight.w500,
                     color: isSelected
-                        ? const Color(0xFF2563EB)
+                        ? const Color(
+                            0xFF2563EB,
+                          )
                         : Colors.grey.shade500,
                   ),
-                  child: Text(label),
+                  child: Text(
+                    label,
+                  ),
                 ),
               ],
             ),
@@ -120,70 +170,77 @@ class _MainScreenState
     );
   }
 
-
-  Future<
-    bool
-  >
-  _onWillPop() async {
-    if (_selectedIndex !=
-        0) {
-      setState(
-        () {
-          _selectedIndex--;
-        },
-      );
-
-      _pageController.animateToPage(
-        _selectedIndex,
-        duration: const Duration(
-          milliseconds: 300,
-        ),
-        curve: Curves.easeOut,
-      );
-      return false;
-    }
-    return true;
-  }
-
   @override
   Widget build(
     BuildContext context,
   ) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      // Allow pop only if on home page
+      // For Community tab: CommunityPage's PopScope handles all back navigation
+      canPop:
+          _selectedIndex ==
+          0,
+      onPopInvoked:
+          (
+            didPop,
+          ) {
+            if (!didPop &&
+                _selectedIndex !=
+                    0) {
+              // Handle back button - go to previous tab
+              // Note: If on Community tab and in chat view, CommunityPage's PopScope
+              // will handle it first (chat -> list) and this won't run because the
+              // back event is consumed. If in list view, this will handle it (list -> Home)
+              setState(
+                () {
+                  _selectedIndex--;
+                },
+              );
+
+              _pageController.animateToPage(
+                _selectedIndex,
+                duration: const Duration(
+                  milliseconds: 300,
+                ),
+                curve: Curves.easeOut,
+              );
+            }
+          },
       child: Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: Theme.of(
+          context,
+        ).scaffoldBackgroundColor,
 
         body: Stack(
           children: [
             // Page content
             PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
-                onPageChanged:
-                    (
-                      index,
-                    ) {
-                      setState(
-                        () {
-                          _selectedIndex = index;
-                        },
-                      );
-                    },
-                children: [
-                  HomePage(
-                    controller: _healthSyncController,
-                    authController: _authController,
-                  ),
-                  CommunityPage(
-                    healthSyncController: _healthSyncController,
-                  ),
-                  FeaturesView(
-                    controller: _healthSyncController,
-                  ),
-                  const AboutPage(),
-                ],
-              ),
+              controller: _pageController,
+              physics: const NeverScrollableScrollPhysics(),
+              onPageChanged:
+                  (
+                    index,
+                  ) {
+                    setState(
+                      () {
+                        _selectedIndex = index;
+                      },
+                    );
+                  },
+              children: [
+                HomePage(
+                  controller: _healthSyncController,
+                  authController: _authController,
+                ),
+                CommunityPage(
+                  healthSyncController: _healthSyncController,
+                ),
+                FeaturesView(
+                  controller: _healthSyncController,
+                ),
+                const AboutPage(),
+              ],
+            ),
             // Floating Health Chatbot - positioned above About button
             const HealthChatbotWidget(),
           ],
@@ -191,14 +248,25 @@ class _MainScreenState
 
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? const Color(0xFF1E293B)
+            color:
+                Theme.of(
+                      context,
+                    ).brightness ==
+                    Brightness.dark
+                ? const Color(
+                    0xFF1E293B,
+                  )
                 : Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withOpacity(
+                  0.05,
+                ),
                 blurRadius: 20,
-                offset: const Offset(0, -5),
+                offset: const Offset(
+                  0,
+                  -5,
+                ),
               ),
             ],
           ),
@@ -206,14 +274,33 @@ class _MainScreenState
             top: false,
             child: Container(
               height: 80,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 0,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildNavItem(Icons.home_rounded, 'Home', 0),
-                  _buildNavItem(Icons.people_rounded, 'Community', 1),
-                  _buildNavItem(Icons.star_rounded, 'Features', 2),
-                  _buildNavItem(Icons.info_outline_rounded, 'About', 3),
+                  _buildNavItem(
+                    Icons.home_rounded,
+                    'Home',
+                    0,
+                  ),
+                  _buildNavItem(
+                    Icons.people_rounded,
+                    'Community',
+                    1,
+                  ),
+                  _buildNavItem(
+                    Icons.star_rounded,
+                    'Features',
+                    2,
+                  ),
+                  _buildNavItem(
+                    Icons.info_outline_rounded,
+                    'About',
+                    3,
+                  ),
                 ],
               ),
             ),
