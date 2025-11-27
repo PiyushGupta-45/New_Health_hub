@@ -453,11 +453,12 @@ class _StepChallengeGameState extends State<StepChallengeGame> {
         backgroundColor: Colors.blue.shade600,
         foregroundColor: Colors.white,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            const SizedBox(height: 20),
             Text(
               'Daily Step Goal',
               style: TextStyle(
@@ -532,6 +533,7 @@ class _StepChallengeGameState extends State<StepChallengeGame> {
                 ),
               ),
             ),
+            const SizedBox(height: 20),
           ],
         ),
       ),
