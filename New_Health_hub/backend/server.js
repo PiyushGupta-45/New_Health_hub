@@ -1,0 +1,1903 @@
+// Simple Node.js/Express backend for FitTrack app
+// Install dependencies: npm install express mongoose bcryptjs jsonwebtoken cors dotenv
+
+const express = require('express');
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const cors = require('cors');
+require('dotenv').config();
+
+const ObjectId = mongoose.Types.ObjectId;
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Connect to MongoDB Atlas
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://admin:admin@cluster0.dsnzo0s.mongodb.net/?appName=Cluster0';
+
+console.log('Attempting to connect to MongoDB...');
+console.log('MongoDB URI:', MONGODB_URI ? 'Set (hidden)' : 'NOT SET');
+
+mongoose.connect(MONGODB_URI)
+  .then(() => {
+    console.log('✅ Connected to MongoDB Atlas successfully');
+    console.log('Database:', mongoose.connection.name);
+  })
+  .catch(err => {
+    console.error('❌ MongoDB connection error:', err.message);
+    console.error('Error details:', err);
+  });
+
+// Handle connection events
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('MongoDB disconnected');
+});
+
+// User Schema
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String },
+  googleId: { type: String },
+  isActive: { type: Boolean, default: true },
+  deactivatedAt: { type: Date },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const User = mongoose.model('User', userSchema);
+
+// Daily Steps Schema
+const dailyStepsSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userName: { type: String },
+  date: { type: Date, required: true },
+  steps: { type: Number, required: true, default: 0 },
+  source: { type: String, default: 'Phone Sensor' },
+  syncedAt: { type: Date, default: Date.now }
+}, {
+  timestamps: true
+});
+
+// Create compound index to ensure one entry per user per day
+dailyStepsSchema.index({ userId: 1, date: 1 }, { unique: true });
+
+const DailySteps = mongoose.model('DailySteps', dailyStepsSchema);
+
+// Workout Logs Schema
+const workoutLogSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  workoutType: { type: String, required: true },
+  startTime: { type: Date, required: true },
+  durationSeconds: { type: Number, required: true },
+  calories: { type: Number, required: true },
+  met: { type: Number },
+}, {
+  timestamps: true,
+});
+
+workoutLogSchema.index({ userId: 1, startTime: -1 });
+
+const WorkoutLog = mongoose.model('WorkoutLog', workoutLogSchema);
+
+// Community Schema
+const communityMemberSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userName: { type: String },
+  joinedAt: { type: Date, default: Date.now }
+}, { _id: false });
+
+const communitySchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  isPublic: { type: Boolean, default: true },
+  ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  ownerName: { type: String },
+  joinCode: { type: String, unique: true, sparse: true },
+  members: { type: [communityMemberSchema], default: [] }
+}, {
+  timestamps: true
+});
+
+const Community = mongoose.model('Community', communitySchema);
+
+// Community message schema
+const communityMessageSchema = new mongoose.Schema({
+  communityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Community', required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userName: { type: String },
+  message: { type: String, required: true }
+}, {
+  timestamps: true
+});
+
+const CommunityMessage = mongoose.model('CommunityMessage', communityMessageSchema);
+
+// Challenge Schema
+const challengeParticipantSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userName: { type: String },
+  steps: { type: Number, default: 0 },
+  joinedAt: { type: Date, default: Date.now }
+}, { _id: false });
+
+const challengeSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  description: { type: String },
+  targetSteps: { type: Number, required: true },
+  startDate: { type: Date, required: true },
+  endDate: { type: Date, required: true },
+  creatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  creatorName: { type: String },
+  isPublic: { type: Boolean, default: true },
+  participants: { type: [challengeParticipantSchema], default: [] },
+  status: { type: String, enum: ['upcoming', 'active', 'completed'], default: 'upcoming' }
+}, {
+  timestamps: true
+});
+
+challengeSchema.index({ creatorId: 1, createdAt: -1 });
+challengeSchema.index({ status: 1, endDate: 1 });
+
+const Challenge = mongoose.model('Challenge', challengeSchema);
+
+// Helper function to calculate challenge status based on dates
+const calculateChallengeStatus = (startDate, endDate) => {
+  const now = new Date();
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  // Normalize to start of day for date comparison (ignore time)
+  // Dates stored in DB are already normalized to local time from create endpoint
+  const startOfStart = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const startOfEnd = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  const startOfNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  // Debug: Log dates for troubleshooting
+  // console.log('Status calculation:', { startOfStart, startOfNow, startOfEnd, result: startOfStart <= startOfNow ? 'active' : 'upcoming' });
+  
+  // If end date has passed, it's completed
+  if (startOfEnd < startOfNow) {
+    return 'completed';
+  }
+  
+  // If start date is today or in the past, it's active
+  // Use <= to include today (start date is today or before)
+  if (startOfStart <= startOfNow) {
+    return 'active';
+  }
+  
+  // Otherwise it's upcoming
+  return 'upcoming';
+};
+
+const generateJoinCode = async () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code;
+  let exists = true;
+  while (exists) {
+    code = '';
+    for (let i = 0; i < 6; i += 1) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    exists = await Community.exists({ joinCode: code });
+  }
+  return code;
+};
+
+const formatCommunityForUser = (communityDoc, userId) => {
+  if (!communityDoc) return null;
+  const community = communityDoc.toObject ? communityDoc.toObject() : communityDoc;
+  const isOwner = community.ownerId?.toString() === userId.toString();
+  const members = community.members || [];
+  const memberCount = members.length;
+  const joinCode = !community.isPublic && isOwner ? community.joinCode : null;
+
+  return {
+    _id: community._id?.toString(),
+    name: community.name,
+    isPublic: community.isPublic,
+    ownerId: community.ownerId?.toString(),
+    ownerName: community.ownerName,
+    memberCount,
+    isOwner,
+    joinCode,
+    members: members.map(member => ({
+      userId: member.userId?.toString(),
+      userName: member.userName,
+      joinedAt: member.joinedAt
+    })),
+    createdAt: community.createdAt,
+    updatedAt: community.updatedAt
+  };
+};
+
+const formatCommunityMessage = (messageDoc) => {
+  if (!messageDoc) return null;
+  const message = messageDoc.toObject ? messageDoc.toObject() : messageDoc;
+  return {
+    _id: message._id?.toString(),
+    communityId: message.communityId?.toString(),
+    userId: message.userId?.toString(),
+    userName: message.userName,
+    message: message.message,
+    createdAt: message.createdAt,
+    updatedAt: message.updatedAt
+  };
+};
+
+const formatWorkoutLog = (logDoc) => {
+  if (!logDoc) return null;
+  const log = logDoc.toObject ? logDoc.toObject() : logDoc;
+  return {
+    _id: log._id?.toString(),
+    workoutType: log.workoutType,
+    startTime: log.startTime,
+    durationSeconds: log.durationSeconds,
+    calories: log.calories,
+    met: log.met,
+    createdAt: log.createdAt,
+    updatedAt: log.updatedAt,
+  };
+};
+
+const getUserProfile = async (userId) => {
+  const user = await User.findById(userId).lean();
+  if (!user) {
+    return {
+      name: 'User',
+      email: '',
+    };
+  }
+  return {
+    name: user.name ?? user.email ?? 'User',
+    email: user.email ?? '',
+  };
+};
+
+// JWT Secret (use environment variable in production)
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
+
+// Helper function to generate JWT token
+const generateToken = (userId) => {
+  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
+};
+
+// Helper function to get start of today in IST (UTC+5:30)
+// Returns a UTC Date object representing midnight IST converted to UTC
+const getStartOfTodayIST = () => {
+  const now = new Date();
+  // Get current UTC time in milliseconds
+  const utcNow = now.getTime();
+  // IST is UTC+5:30, so add 5.5 hours to UTC to get IST
+  const istOffsetMs = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in milliseconds
+  const istNowMs = utcNow + istOffsetMs;
+  const istNow = new Date(istNowMs);
+  
+  // Get start of day in IST (midnight IST = 00:00:00 IST)
+  // Create a new date with the same year, month, day but at midnight
+  const istYear = istNow.getUTCFullYear();
+  const istMonth = istNow.getUTCMonth();
+  const istDay = istNow.getUTCDate();
+  
+  // Create date at midnight IST (00:00:00 IST)
+  const istMidnight = new Date(Date.UTC(istYear, istMonth, istDay, 0, 0, 0, 0));
+  
+  // Convert IST midnight back to UTC for database storage
+  // Subtract the IST offset to get the UTC equivalent
+  const utcStartOfDay = new Date(istMidnight.getTime() - istOffsetMs);
+  return utcStartOfDay;
+};
+
+// Helper function to get end of today in IST
+const getEndOfTodayIST = () => {
+  const startOfDay = getStartOfTodayIST();
+  const istOffsetMs = 5.5 * 60 * 60 * 1000;
+  // Add IST offset to get IST time, set to end of day, then convert back to UTC
+  const istStartMs = startOfDay.getTime() + istOffsetMs;
+  const istStart = new Date(istStartMs);
+  const istYear = istStart.getUTCFullYear();
+  const istMonth = istStart.getUTCMonth();
+  const istDay = istStart.getUTCDate();
+  const istEndOfDay = new Date(Date.UTC(istYear, istMonth, istDay, 23, 59, 59, 999));
+  const utcEndOfDay = new Date(istEndOfDay.getTime() - istOffsetMs);
+  return utcEndOfDay;
+};
+
+// Helper function to normalize a date to IST start of day
+const normalizeToISTStartOfDay = (date) => {
+  if (!date) {
+    return getStartOfTodayIST();
+  }
+  const inputDate = new Date(date);
+  const istOffsetMs = 5.5 * 60 * 60 * 1000;
+  
+  // Convert input date to IST
+  const istTimeMs = inputDate.getTime() + istOffsetMs;
+  const istTime = new Date(istTimeMs);
+  
+  // Get start of day in IST
+  const istYear = istTime.getUTCFullYear();
+  const istMonth = istTime.getUTCMonth();
+  const istDay = istTime.getUTCDate();
+  const istMidnight = new Date(Date.UTC(istYear, istMonth, istDay, 0, 0, 0, 0));
+  
+  // Convert back to UTC for database storage
+  const utcDateForDB = new Date(istMidnight.getTime() - istOffsetMs);
+  return utcDateForDB;
+};
+
+// Sign Up Endpoint
+app.post('/api/auth/signup', async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    // Validate input
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, and password are required'
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: 'Email already exists'
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user
+    const user = new User({
+      name,
+      email,
+      password: hashedPassword
+    });
+
+    await user.save();
+
+    // Generate token
+    const token = generateToken(user._id);
+
+    res.status(201).json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        token
+      }
+    });
+  } catch (error) {
+    console.error('Signup error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during signup'
+    });
+  }
+});
+
+// Sign In Endpoint
+app.post('/api/auth/signin', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required'
+      });
+    }
+
+    // Find user
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    // Check if account is active
+    if (user.isActive === false) {
+      // Reactivate account if user signs in
+      user.isActive = true;
+      user.deactivatedAt = null;
+      await user.save();
+    }
+
+    // Check password (skip if Google user)
+    if (user.password) {
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid credentials'
+        });
+      }
+    } else {
+      return res.status(401).json({
+        success: false,
+        message: 'Please sign in with Google'
+      });
+    }
+
+    // Generate token
+    const token = generateToken(user._id);
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        token
+      }
+    });
+  } catch (error) {
+    console.error('Signin error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during signin'
+    });
+  }
+});
+
+// Google Sign In Endpoint
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    console.log('Google signin request received:', JSON.stringify(req.body));
+    
+    const { email, name, idToken } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
+
+    // Check MongoDB connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error('MongoDB not connected. State:', mongoose.connection.readyState);
+      return res.status(500).json({
+        success: false,
+        message: 'Database connection error. Please check MongoDB connection.'
+      });
+    }
+
+    // Find or create user
+    let user = await User.findOne({ email });
+
+    if (user) {
+      // Reactivate account if it was deactivated
+      if (user.isActive === false) {
+        user.isActive = true;
+        user.deactivatedAt = null;
+      }
+      
+      // User exists, update Google ID if needed
+      if (!user.googleId && idToken) {
+        user.googleId = idToken; // In production, verify the Google token
+      }
+      await user.save();
+    } else {
+      // Create new user
+      user = new User({
+        name: name || 'User',
+        email,
+        googleId: idToken
+      });
+      await user.save();
+    }
+
+    // Generate token
+    const token = generateToken(user._id);
+
+    console.log('Google signin successful for:', email);
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        token
+      }
+    });
+  } catch (error) {
+    console.error('Google signin error:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      message: `Server error during Google signin: ${error.message}`,
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'OK', message: 'Server is running' });
+});
+
+// Middleware to verify JWT token
+const verifyToken = (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1] || req.headers['x-auth-token'];
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'No token provided'
+      });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.userId = decoded.userId;
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid or expired token'
+    });
+  }
+};
+
+// Store daily steps endpoint
+app.post('/api/steps', verifyToken, async (req, res) => {
+  try {
+    const { steps, date, source } = req.body;
+    const userId = req.userId;
+
+    if (!steps || steps < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid steps count is required'
+      });
+    }
+
+    // Get user profile to include userName
+    const userProfile = await getUserProfile(userId);
+
+    // Use provided date or today's date (start of day in IST)
+    const targetDate = normalizeToISTStartOfDay(date);
+    
+    const startOfDay = new Date(targetDate);
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Find or create daily steps entry
+    let dailySteps = await DailySteps.findOne({
+      userId,
+      date: {
+        $gte: startOfDay,
+        $lt: endOfDay
+      }
+    });
+
+    if (dailySteps) {
+      // Update existing entry (use higher value to handle multiple syncs)
+      dailySteps.steps = Math.max(dailySteps.steps, steps);
+      dailySteps.source = source || dailySteps.source;
+      dailySteps.userName = userProfile.name; // Update userName if changed
+      dailySteps.syncedAt = new Date();
+      await dailySteps.save();
+    } else {
+      // Create new entry
+      dailySteps = new DailySteps({
+        userId,
+        userName: userProfile.name,
+        date: targetDate,
+        steps,
+        source: source || 'Phone Sensor',
+        syncedAt: new Date()
+      });
+      await dailySteps.save();
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: dailySteps._id,
+        date: dailySteps.date,
+        steps: dailySteps.steps,
+        source: dailySteps.source
+      }
+    });
+  } catch (error) {
+    console.error('Store steps error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while storing steps'
+    });
+  }
+});
+
+// Get steps history endpoint
+app.get('/api/steps/history', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { startDate, endDate, limit = 30 } = req.query;
+
+    const query = { userId };
+
+    // Add date range if provided
+    if (startDate || endDate) {
+      query.date = {};
+      if (startDate) {
+        query.date.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        query.date.$lte = new Date(endDate);
+      }
+    }
+
+    const stepsHistory = await DailySteps.find(query)
+      .sort({ date: -1 })
+      .limit(parseInt(limit))
+      .select('date steps source syncedAt')
+      .lean();
+
+    // Format dates for response
+    const formattedHistory = stepsHistory.map(entry => ({
+      id: entry._id,
+      date: entry.date,
+      steps: entry.steps,
+      source: entry.source,
+      syncedAt: entry.syncedAt
+    }));
+
+    res.json({
+      success: true,
+      data: formattedHistory,
+      count: formattedHistory.length
+    });
+  } catch (error) {
+    console.error('Get steps history error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching steps history'
+    });
+  }
+});
+
+// Get today's steps endpoint
+app.get('/api/steps/today', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    // Use IST timezone to determine "today"
+    const today = getStartOfTodayIST();
+    const endOfToday = getEndOfTodayIST();
+    const tomorrow = new Date(endOfToday.getTime() + 1); // Add 1ms to make it exclusive
+
+    const todaySteps = await DailySteps.findOne({
+      userId,
+      date: {
+        $gte: today,
+        $lt: tomorrow
+      }
+    }).select('date steps source syncedAt').lean();
+
+    if (todaySteps) {
+      res.json({
+        success: true,
+        data: {
+          id: todaySteps._id,
+          date: todaySteps.date,
+          steps: todaySteps.steps,
+          source: todaySteps.source,
+          syncedAt: todaySteps.syncedAt
+        }
+      });
+    } else {
+      res.json({
+        success: true,
+        data: {
+          date: today,
+          steps: 0,
+          source: null,
+          syncedAt: null
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Get today steps error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching today\'s steps'
+    });
+  }
+});
+
+// Workout log endpoints
+app.post('/api/workouts/logs', verifyToken, async (req, res) => {
+  try {
+    const { workoutType, startTime, durationSeconds, calories, met } = req.body;
+
+    // Log received data for debugging
+    console.log('Received workout log data:', {
+      workoutType,
+      startTime,
+      durationSeconds,
+      calories,
+      met,
+      userId: req.userId,
+    });
+
+    if (!workoutType || !startTime || durationSeconds === undefined || calories === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: `Missing required fields. workoutType: ${!!workoutType}, startTime: ${!!startTime}, durationSeconds: ${durationSeconds !== undefined}, calories: ${calories !== undefined}`,
+      });
+    }
+
+    const parsedDuration = Number(durationSeconds);
+    const parsedCalories = Number(calories);
+    const parsedMet = met !== undefined ? Number(met) : undefined;
+    const parsedStart = new Date(startTime);
+    
+    console.log('Parsed values:', {
+      duration: parsedDuration,
+      calories: parsedCalories,
+      met: parsedMet,
+      startTime: parsedStart,
+      isValidStart: !Number.isNaN(parsedStart.getTime()),
+    });
+
+    if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Duration must be a positive number of seconds',
+      });
+    }
+
+    if (!Number.isFinite(parsedCalories) || parsedCalories < 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Calories must be a non-negative number. Received: ${calories}`,
+      });
+    }
+
+    if (Number.isNaN(parsedStart.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid start time provided',
+      });
+    }
+
+    const log = await WorkoutLog.create({
+      userId: req.userId,
+      workoutType: workoutType.toString().trim(),
+      startTime: parsedStart,
+      durationSeconds: Math.round(parsedDuration),
+      calories: parsedCalories,
+      met: parsedMet,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: formatWorkoutLog(log),
+    });
+  } catch (error) {
+    console.error('Create workout log error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while saving workout',
+    });
+  }
+});
+
+app.get('/api/workouts/logs', verifyToken, async (req, res) => {
+  try {
+    const { limit = 50 } = req.query;
+    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+
+    const logs = await WorkoutLog.find({ userId: req.userId })
+      .sort({ startTime: -1 })
+      .limit(parsedLimit)
+      .lean();
+
+    return res.json({
+      success: true,
+      data: logs.map(formatWorkoutLog),
+    });
+  } catch (error) {
+    console.error('Fetch workout logs error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching workouts',
+    });
+  }
+});
+
+// --- Community Endpoints ---
+
+// Create community
+app.post('/api/community/create', verifyToken, async (req, res) => {
+  try {
+    const { name, isPublic = true } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Community name is required'
+      });
+    }
+
+    const ownerProfile = await getUserProfile(req.userId);
+
+    const communityData = {
+      name: name.trim(),
+      isPublic,
+      ownerId: req.userId,
+      ownerName: ownerProfile.name,
+      members: [
+        {
+          userId: req.userId,
+          userName: ownerProfile.name
+        }
+      ]
+    };
+
+    if (!isPublic) {
+      communityData.joinCode = await generateJoinCode();
+    }
+
+    const community = await Community.create(communityData);
+
+    return res.status(201).json({
+      success: true,
+      data: formatCommunityForUser(community, req.userId)
+    });
+  } catch (error) {
+    console.error('Create community error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while creating community'
+    });
+  }
+});
+
+// List public communities
+app.get('/api/community/list', verifyToken, async (req, res) => {
+  try {
+    const communities = await Community.find({ isPublic: true })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({
+      success: true,
+      data: communities.map((community) => formatCommunityForUser(community, req.userId))
+    });
+  } catch (error) {
+    console.error('List communities error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching communities'
+    });
+  }
+});
+
+// Get user's communities
+app.get('/api/community/my-communities', verifyToken, async (req, res) => {
+  try {
+    const communities = await Community.find({
+      $or: [
+        { ownerId: req.userId },
+        { 'members.userId': req.userId }
+      ]
+    })
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    return res.json({
+      success: true,
+      data: communities.map((community) => formatCommunityForUser(community, req.userId))
+    });
+  } catch (error) {
+    console.error('My communities error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching your communities'
+    });
+  }
+});
+
+// Join public community
+app.post('/api/community/:communityId/join', verifyToken, async (req, res) => {
+  try {
+    const { communityId } = req.params;
+    const community = await Community.findById(communityId);
+
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: 'Community not found'
+      });
+    }
+
+    if (!community.isPublic) {
+      return res.status(403).json({
+        success: false,
+        message: 'This community requires a join code'
+      });
+    }
+
+    const members = community.members || [];
+    if (!community.members) {
+      community.members = members;
+    }
+    const alreadyMember = members.some(
+      (member) => member.userId.toString() === req.userId.toString()
+    );
+
+    if (!alreadyMember) {
+      const profile = await getUserProfile(req.userId);
+      community.members.push({
+        userId: req.userId,
+        userName: profile.name
+      });
+      await community.save();
+    }
+
+    return res.json({
+      success: true,
+      data: formatCommunityForUser(community, req.userId)
+    });
+  } catch (error) {
+    console.error('Join community error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while joining community'
+    });
+  }
+});
+
+// Join with code
+app.post('/api/community/join-with-code', verifyToken, async (req, res) => {
+  try {
+    const { joinCode } = req.body;
+    if (!joinCode || !joinCode.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Join code is required'
+      });
+    }
+
+    const community = await Community.findOne({
+      joinCode: joinCode.trim().toUpperCase()
+    });
+
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invalid join code'
+      });
+    }
+
+    const members = community.members || [];
+    if (!community.members) {
+      community.members = members;
+    }
+    const alreadyMember = members.some(
+      (member) => member.userId.toString() === req.userId.toString()
+    );
+
+    if (!alreadyMember) {
+      const profile = await getUserProfile(req.userId);
+      community.members.push({
+        userId: req.userId,
+        userName: profile.name
+      });
+      await community.save();
+    }
+
+    return res.json({
+      success: true,
+      data: formatCommunityForUser(community, req.userId)
+    });
+  } catch (error) {
+    console.error('Join with code error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while joining with code'
+    });
+  }
+});
+
+// Leave Community
+app.post('/api/community/leave', verifyToken, async (req, res) => {
+  try {
+    const { communityId } = req.body;
+
+    if (!communityId) {
+      return res.status(400).json({ success: false, message: 'Community ID required' });
+    }
+
+    const communityObjectId = new ObjectId(communityId);
+    console.log('🔍 Leave request - req.userId:', req.userId);
+    console.log('🔍 Leave request - communityId:', communityId);
+    
+    const community = await Community.findById(communityObjectId);
+    
+    if (!community) {
+      console.log('❌ Community not found with ID:', communityObjectId);
+      return res.status(404).json({ success: false, message: 'Community not found' });
+    }
+
+    console.log('✅ Community found:', community.name);
+    console.log('🔍 Community ownerId:', community.ownerId);
+    console.log('🔍 Community members:', community.members);
+
+    // Owner cannot leave
+    if (community.ownerId.toString() === req.userId.toString()) {
+      console.log('❌ User is owner, cannot leave');
+      return res.status(400).json({
+        success: false,
+        message: 'Owner must transfer ownership or delete community'
+      });
+    }
+
+    console.log('🔍 Removing user from members...');
+    const beforeCount = community.members.length;
+    community.members = (community.members || []).filter(
+      (m) => {
+        const isMember = m.userId.toString() === req.userId.toString();
+        console.log(`  Checking member ${m.userId} vs ${req.userId}: ${isMember}`);
+        return !isMember;
+      }
+    );
+    const afterCount = community.members.length;
+    console.log(`✅ Members before: ${beforeCount}, after: ${afterCount}`);
+
+    await community.save();
+    console.log('✅ Community saved successfully');
+    res.json({ success: true, message: 'Left community successfully' });
+
+  } catch (error) {
+    console.error('❌ Leave community error:', error);
+    res.status(500).json({ success: false, message: 'Error leaving community', error: error.message });
+  }
+});
+
+// Delete community (owner only)
+app.delete('/api/community/delete/:communityId', verifyToken, async (req, res) => {
+  try {
+    const { communityId } = req.params;
+
+    const communityObjectId = new ObjectId(communityId);
+    const community = await Community.findById(communityObjectId);
+    
+    if (!community) return res.status(404).json({ success: false, message: 'Not found' });
+
+    if (community.ownerId.toString() !== req.userId.toString()) {
+      return res.status(403).json({ success: false, message: 'Only owner can delete' });
+    }
+
+    await Community.deleteOne({ _id: communityObjectId });
+    await CommunityMessage.deleteMany({ communityId: communityObjectId });
+
+    res.json({ success: true, message: 'Community deleted successfully' });
+
+  } catch (error) {
+    console.error('Delete community error:', error);
+    res.status(500).json({ success: false, message: 'Error deleting community', error: error.message });
+  }
+});
+
+// Transfer ownership
+app.post('/api/community/transfer-owner', verifyToken, async (req, res) => {
+  try {
+    const { communityId, newOwnerId } = req.body;
+
+    const communityObjectId = new ObjectId(communityId);
+    const newOwnerObjectId = new ObjectId(newOwnerId);
+    const community = await Community.findById(communityObjectId);
+    
+    if (!community) return res.status(404).json({ success: false, message: 'Not found' });
+
+    if (community.ownerId.toString() !== req.userId.toString()) {
+      return res.status(403).json({ success: false, message: 'Only owner can transfer ownership' });
+    }
+
+    const memberExists = community.members.some(
+      (m) => m.userId.toString() === newOwnerObjectId.toString()
+    );
+
+    if (!memberExists) {
+      return res.status(400).json({ success: false, message: 'New owner must be a member' });
+    }
+
+    const newOwner = community.members.find(
+      (m) => m.userId.toString() === newOwnerObjectId.toString()
+    );
+
+    community.ownerId = newOwnerObjectId;
+    community.ownerName = newOwner.userName;
+    await community.save();
+
+    res.json({ success: true, message: 'Ownership transferred successfully' });
+
+  } catch (error) {
+    console.error('Transfer ownership error:', error);
+    res.status(500).json({ success: false, message: 'Error transferring ownership', error: error.message });
+  }
+});
+
+// Send a message
+app.post('/api/community/messages', verifyToken, async (req, res) => {
+  try {
+    const { message, communityId } = req.body;
+    if (!message || !message.toString().trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message cannot be empty'
+      });
+    }
+    if (!communityId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Community ID is required'
+      });
+    }
+
+    const community = await Community.findById(communityId).lean();
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: 'Community not found'
+      });
+    }
+
+    const members = community.members || [];
+    const isMember = members.some(
+      (member) => member.userId.toString() === req.userId.toString()
+    );
+    if (!isMember) {
+      return res.status(403).json({
+        success: false,
+        message: 'You must join the community to send messages'
+      });
+    }
+
+    const profile = await getUserProfile(req.userId);
+    const newMessage = await CommunityMessage.create({
+      communityId,
+      userId: req.userId,
+      userName: profile.name,
+      message: message.toString().trim()
+    });
+
+    // Return message data along with community info for notifications
+    const messageData = formatCommunityMessage(newMessage);
+    
+    return res.status(201).json({
+      success: true,
+      data: messageData,
+      community: {
+        _id: community._id?.toString(),
+        name: community.name,
+        members: community.members || []
+      }
+    });
+  } catch (error) {
+    console.error('Send message error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while sending message'
+    });
+  }
+});
+
+// Fetch messages
+app.get('/api/community/messages', verifyToken, async (req, res) => {
+  try {
+    const { communityId, limit = 50, sortOrder: sortOrderQuery } = req.query;
+    if (!communityId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Community ID is required'
+      });
+    }
+
+    const community = await Community.findById(communityId).lean();
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: 'Community not found'
+      });
+    }
+
+    const members = community.members || [];
+    const isMember = members.some(
+      (member) => member.userId.toString() === req.userId.toString()
+    );
+    if (!isMember) {
+      return res.status(403).json({
+        success: false,
+        message: 'You must join the community to read messages'
+      });
+    }
+
+    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+    const sortOrder = (sortOrderQuery || 'asc').toString().toLowerCase() === 'desc' ? -1 : 1;
+
+    let messages = await CommunityMessage.find({ communityId })
+      .sort({ createdAt: sortOrder })
+      .limit(parsedLimit)
+      .lean();
+
+    if (sortOrder === -1) {
+      messages = messages.reverse();
+    }
+
+    return res.json({
+      success: true,
+      data: messages.map(formatCommunityMessage)
+    });
+  } catch (error) {
+    console.error('Get messages error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching messages'
+    });
+  }
+});
+
+// --- Account Management Endpoints ---
+
+// Get user profile
+app.get('/api/user/profile', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('-password').lean();
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        createdAt: user.createdAt,
+        googleId: user.googleId,
+        isActive: user.isActive
+      }
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching profile'
+    });
+  }
+});
+
+// Update user profile
+app.put('/api/user/profile', verifyToken, async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name is required'
+      });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    user.name = name.trim();
+    await user.save();
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        token: generateToken(user._id)
+      }
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating profile'
+    });
+  }
+});
+
+// Change password
+app.post('/api/user/change-password', verifyToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password and new password are required'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters'
+      });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if user has a password (not Google-only account)
+    if (!user.password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password change not available for Google accounts'
+      });
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    // Update password
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while changing password'
+    });
+  }
+});
+
+// Deactivate account
+app.post('/api/user/deactivate', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    user.isActive = false;
+    user.deactivatedAt = new Date();
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Account deactivated successfully'
+    });
+  } catch (error) {
+    console.error('Deactivate account error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while deactivating account'
+    });
+  }
+});
+
+// Delete account (permanently)
+app.delete('/api/user/delete', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    // Delete user's steps data
+    await DailySteps.deleteMany({ userId });
+
+    // Delete user's workout logs
+    await WorkoutLog.deleteMany({ userId });
+
+    // Remove user from communities (but don't delete communities)
+    await Community.updateMany(
+      { 'members.userId': userId },
+      { $pull: { members: { userId } } }
+    );
+
+    // Delete community messages by user
+    await CommunityMessage.deleteMany({ userId });
+
+    // Delete communities owned by user
+    const userCommunities = await Community.find({ ownerId: userId });
+    for (const community of userCommunities) {
+      await CommunityMessage.deleteMany({ communityId: community._id });
+      await Community.deleteOne({ _id: community._id });
+    }
+
+    // Finally, delete the user
+    await User.deleteOne({ _id: userId });
+
+    res.json({
+      success: true,
+      message: 'Account and all associated data deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while deleting account'
+    });
+  }
+});
+
+// --- Challenge Endpoints ---
+
+// Create challenge
+app.post('/api/challenges/create', verifyToken, async (req, res) => {
+  try {
+    const { title, description, targetSteps, startDate, endDate, isPublic = true } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Challenge title is required'
+      });
+    }
+
+    if (!targetSteps || targetSteps <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Target steps must be greater than 0'
+      });
+    }
+
+    // Parse dates from ISO8601 string
+    // The dates come from frontend normalized to local time (midnight for start, 23:59:59 for end)
+    // When converted to ISO8601, they include timezone info
+    // We need to extract the LOCAL date components (what the user actually selected)
+    // Parse the ISO8601 string and get the date components
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+    
+    // Extract the LOCAL date components (year, month, day) - what the user sees in their timezone
+    // Use getFullYear/getMonth/getDate (not UTC versions) to get local time components
+    const startYear = startDateObj.getFullYear();
+    const startMonth = startDateObj.getMonth();
+    const startDay = startDateObj.getDate();
+    
+    const endYear = endDateObj.getFullYear();
+    const endMonth = endDateObj.getMonth();
+    const endDay = endDateObj.getDate();
+    
+    // Create dates in local time at the specified calendar date
+    // Start date at midnight local time
+    const start = new Date(startYear, startMonth, startDay);
+    // End date at 23:59:59 local time
+    const end = new Date(endYear, endMonth, endDay, 23, 59, 59);
+    
+    const now = new Date();
+
+    if (end <= start) {
+      return res.status(400).json({
+        success: false,
+        message: 'End date must be after start date'
+      });
+    }
+
+    const creatorProfile = await getUserProfile(req.userId);
+    // Calculate status using helper function (considers date, not time)
+    const status = calculateChallengeStatus(start, end);
+
+    const challenge = await Challenge.create({
+      title: title.trim(),
+      description: description?.trim() || '',
+      targetSteps,
+      startDate: start,
+      endDate: end,
+      creatorId: req.userId,
+      creatorName: creatorProfile.name,
+      isPublic,
+      status,
+      participants: [{
+        userId: req.userId,
+        userName: creatorProfile.name,
+        steps: 0
+      }]
+    });
+
+    // Calculate status again to ensure it's current (should match database)
+    const returnedStatus = calculateChallengeStatus(challenge.startDate, challenge.endDate);
+    
+    return res.status(201).json({
+      success: true,
+      data: {
+        _id: challenge._id.toString(),
+        title: challenge.title,
+        description: challenge.description,
+        targetSteps: challenge.targetSteps,
+        startDate: challenge.startDate,
+        endDate: challenge.endDate,
+        creatorId: challenge.creatorId.toString(),
+        creatorName: challenge.creatorName,
+        isPublic: challenge.isPublic,
+        status: returnedStatus, // Use calculated status
+        participantCount: challenge.participants.length,
+        isParticipant: true,
+        isCreator: true // User is always creator when creating
+      }
+    });
+  } catch (error) {
+    console.error('Create challenge error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while creating challenge'
+    });
+  }
+});
+
+// Get public challenges
+app.get('/api/challenges/list', verifyToken, async (req, res) => {
+  try {
+    const challenges = await Challenge.find({ isPublic: true })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+
+    const userId = req.userId.toString();
+    const formatted = challenges.map(challenge => {
+      const isParticipant = challenge.participants.some(
+        p => p.userId.toString() === userId
+      );
+      // Calculate current status dynamically (in case dates have passed)
+      const currentStatus = calculateChallengeStatus(challenge.startDate, challenge.endDate);
+      
+      // Update status in database if it changed (fire and forget, don't wait)
+      if (currentStatus !== challenge.status) {
+        Challenge.updateOne({ _id: challenge._id }, { status: currentStatus }).exec().catch(err => {
+          console.error('Error updating challenge status:', err);
+        });
+        // Update the challenge object for response
+        challenge.status = currentStatus;
+      }
+      
+      return {
+        _id: challenge._id.toString(),
+        title: challenge.title,
+        description: challenge.description,
+        targetSteps: challenge.targetSteps,
+        startDate: challenge.startDate,
+        endDate: challenge.endDate,
+        creatorId: challenge.creatorId.toString(),
+        creatorName: challenge.creatorName,
+        status: currentStatus, // Use calculated status
+        participantCount: challenge.participants.length,
+        isParticipant,
+        isCreator: challenge.creatorId.toString() === userId
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: formatted
+    });
+  } catch (error) {
+    console.error('List challenges error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching challenges'
+    });
+  }
+});
+
+// Get my challenges
+app.get('/api/challenges/my-challenges', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const challenges = await Challenge.find({
+      'participants.userId': userId
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const formatted = challenges.map(challenge => {
+      const participant = challenge.participants.find(
+        p => p.userId.toString() === userId.toString()
+      );
+      // Calculate current status dynamically
+      const currentStatus = calculateChallengeStatus(challenge.startDate, challenge.endDate);
+      
+      // Update status in database if it changed (fire and forget, don't wait)
+      if (currentStatus !== challenge.status) {
+        Challenge.updateOne({ _id: challenge._id }, { status: currentStatus }).exec().catch(err => {
+          console.error('Error updating challenge status:', err);
+        });
+        // Update the challenge object for response
+        challenge.status = currentStatus;
+      }
+      
+      return {
+        _id: challenge._id.toString(),
+        title: challenge.title,
+        description: challenge.description,
+        targetSteps: challenge.targetSteps,
+        startDate: challenge.startDate,
+        endDate: challenge.endDate,
+        creatorId: challenge.creatorId.toString(),
+        creatorName: challenge.creatorName,
+        status: currentStatus, // Use calculated status
+        participantCount: challenge.participants.length,
+        mySteps: participant?.steps || 0,
+        isCreator: challenge.creatorId.toString() === userId.toString()
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: formatted
+    });
+  } catch (error) {
+    console.error('Get my challenges error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching challenges'
+    });
+  }
+});
+
+// Join challenge
+app.post('/api/challenges/:challengeId/join', verifyToken, async (req, res) => {
+  try {
+    const { challengeId } = req.params;
+    const userId = req.userId;
+    const userProfile = await getUserProfile(userId);
+
+    const challenge = await Challenge.findById(challengeId);
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found'
+      });
+    }
+
+    if (!challenge.isPublic) {
+      return res.status(403).json({
+        success: false,
+        message: 'Challenge is not public'
+      });
+    }
+
+    const isParticipant = challenge.participants.some(
+      p => p.userId.toString() === userId.toString()
+    );
+
+    if (isParticipant) {
+      return res.status(400).json({
+        success: false,
+        message: 'Already participating in this challenge'
+      });
+    }
+
+    challenge.participants.push({
+      userId,
+      userName: userProfile.name,
+      steps: 0
+    });
+
+    await challenge.save();
+
+    return res.json({
+      success: true,
+      data: {
+        _id: challenge._id.toString(),
+        title: challenge.title,
+        participantCount: challenge.participants.length
+      }
+    });
+  } catch (error) {
+    console.error('Join challenge error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while joining challenge'
+    });
+  }
+});
+
+// Get challenge details with leaderboard
+app.get('/api/challenges/:challengeId', verifyToken, async (req, res) => {
+  try {
+    const { challengeId } = req.params;
+    const userId = req.userId;
+
+    const challenge = await Challenge.findById(challengeId).lean();
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found'
+      });
+    }
+
+    // Calculate current status dynamically
+    const currentStatus = calculateChallengeStatus(challenge.startDate, challenge.endDate);
+    
+    // Update status in database if it changed
+    if (currentStatus !== challenge.status) {
+      await Challenge.updateOne({ _id: challenge._id }, { status: currentStatus }).exec();
+    }
+    
+    // Sort participants by steps (descending)
+    const sortedParticipants = [...challenge.participants].sort((a, b) => b.steps - a.steps);
+
+    const participant = challenge.participants.find(
+      p => p.userId.toString() === userId.toString()
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        _id: challenge._id.toString(),
+        title: challenge.title,
+        description: challenge.description,
+        targetSteps: challenge.targetSteps,
+        startDate: challenge.startDate,
+        endDate: challenge.endDate,
+        creatorId: challenge.creatorId.toString(),
+        creatorName: challenge.creatorName,
+        status: currentStatus, // Use calculated status
+        isPublic: challenge.isPublic,
+        isParticipant: participant != null,
+        mySteps: participant?.steps || 0,
+        myRank: participant ? sortedParticipants.findIndex(p => p.userId.toString() === userId.toString()) + 1 : null,
+        participants: sortedParticipants.map((p, index) => ({
+          userId: p.userId.toString(),
+          userName: p.userName,
+          steps: p.steps,
+          rank: index + 1,
+          progress: (p.steps / challenge.targetSteps * 100).toFixed(1)
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Get challenge error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching challenge'
+    });
+  }
+});
+
+// Update participant steps (called when steps are synced)
+app.post('/api/challenges/:challengeId/update-steps', verifyToken, async (req, res) => {
+  try {
+    const { challengeId } = req.params;
+    const { steps } = req.body;
+    const userId = req.userId;
+
+    if (steps === undefined || steps < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid steps count is required'
+      });
+    }
+
+    const challenge = await Challenge.findById(challengeId);
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found'
+      });
+    }
+
+    const participant = challenge.participants.find(
+      p => p.userId.toString() === userId.toString()
+    );
+
+    if (!participant) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not a participant in this challenge'
+      });
+    }
+
+    // Update steps (use max to handle multiple syncs)
+    participant.steps = Math.max(participant.steps, steps);
+
+    // Update challenge status if needed
+    const now = new Date();
+    if (challenge.startDate <= now && challenge.endDate >= now && challenge.status !== 'active') {
+      challenge.status = 'active';
+    } else if (challenge.endDate < now && challenge.status !== 'completed') {
+      challenge.status = 'completed';
+    }
+
+    await challenge.save();
+
+    return res.json({
+      success: true,
+      data: {
+        steps: participant.steps
+      }
+    });
+  } catch (error) {
+    console.error('Update challenge steps error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while updating steps'
+    });
+  }
+});
+
+// Delete challenge (only creator can delete)
+app.delete('/api/challenges/:challengeId', verifyToken, async (req, res) => {
+  try {
+    const { challengeId } = req.params;
+    const userId = req.userId;
+
+    const challenge = await Challenge.findById(challengeId);
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found'
+      });
+    }
+
+    // Only creator can delete
+    if (challenge.creatorId.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the creator can delete this challenge'
+      });
+    }
+
+    await Challenge.deleteOne({ _id: challengeId });
+
+    return res.json({
+      success: true,
+      message: 'Challenge deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete challenge error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while deleting challenge'
+    });
+  }
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
