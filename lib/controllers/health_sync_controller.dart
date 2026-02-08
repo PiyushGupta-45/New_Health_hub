@@ -57,20 +57,83 @@ class HealthSyncController
   bool _isSyncingFromSensor = false;
   DateTime? _lastBaselineAlignment;
   int? _lastCumulativeSteps;
+  int _displayBaselineSteps = 0;
+  int? _displayBaselineCumulative;
   int? _lastSyncedSteps;
   DateTime? _lastBackendSyncAttemptAt;
   DateTime? _lastBackendSyncSuccessAt;
   int? _lastBackendSyncAttemptSteps;
   String? _lastBackendSyncResult;
 
+  int _resolveDisplaySteps({
+    required int sensorTodaySteps,
+    int? cumulativeSteps,
+  }) {
+    if (_displayBaselineSteps <= 0) return sensorTodaySteps;
+
+    var resolved = sensorTodaySteps < _displayBaselineSteps
+        ? _displayBaselineSteps
+        : sensorTodaySteps;
+
+    if (cumulativeSteps != null && _displayBaselineCumulative != null) {
+      final delta = cumulativeSteps - _displayBaselineCumulative!;
+      if (delta > 0) {
+        final baselinePlusDelta = _displayBaselineSteps + delta;
+        if (baselinePlusDelta > resolved) {
+          resolved = baselinePlusDelta;
+        }
+      }
+    }
+
+    return resolved;
+  }
+
+  Future<int> _resolveRawSensorStepsForBackend(int fallbackSteps) async {
+    if (!Platform.isAndroid) {
+      return fallbackSteps;
+    }
+
+    final currentCount = await _directStepService.getCurrentStepCount();
+    if (currentCount != null && currentCount > 0) {
+      return currentCount;
+    }
+
+    final cachedCumulative =
+        _lastCumulativeSteps ?? _directStepService.lastKnownCurrentStepCount;
+    if (cachedCumulative != null && cachedCumulative > 0) {
+      return cachedCumulative;
+    }
+
+    return fallbackSteps;
+  }
+
+  Future<void> _syncRawSensorStepsToBackend({
+    required int fallbackSteps,
+    bool force = false,
+  }) async {
+    final rawSteps = await _resolveRawSensorStepsForBackend(fallbackSteps);
+    if (rawSteps > 0) {
+      _lastCumulativeSteps = rawSteps;
+    }
+    await _syncStepsToBackend(rawSteps, force: force);
+  }
+
   void _startPeriodicBackendSync() {
-    // Sync to backend every 1 minute only when steps changed
+    // Sync to backend every 1 minute.
     _periodicSyncTimer?.cancel();
     _periodicSyncTimer = Timer.periodic(_syncInterval, (timer) async {
-      if (_snapshot != null && _snapshot!.todaySteps > 0) {
+      if (_snapshot == null) return;
+
+      try {
         final steps = _snapshot!.todaySteps;
-        if (_lastSyncedSteps == null || steps > _lastSyncedSteps!) {
-          await _syncStepsToBackend(steps);
+        await _syncRawSensorStepsToBackend(
+          fallbackSteps: steps,
+          force: true,
+        );
+      } catch (e) {
+        _lastBackendSyncResult = 'error: $e';
+        if (kDebugMode) {
+          print('⚠️ Periodic 1-minute backend sync failed: $e');
         }
       }
     });
@@ -80,15 +143,24 @@ class HealthSyncController
     _periodicStepCheckTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
       if (_isSyncingFromSensor || _hydratingFromBackend) return;
       
-      try {
-        if (Platform.isAndroid) {
-          final isAvailable = await _directStepService.isStepCounterAvailable();
-          if (isAvailable) {
-            // Always query today's steps. Some devices can keep this updated
-            // via native/background service even if cumulative callback is stale.
-            final todaySteps = await _directStepService.getTodaySteps();
-            if (todaySteps >= 0) {
-              final currentSteps = _snapshot?.todaySteps ?? 0;
+        try {
+          if (Platform.isAndroid) {
+            final isAvailable = await _directStepService.isStepCounterAvailable();
+            if (isAvailable) {
+              final latestCumulative = await _directStepService.getCurrentStepCount();
+              var cumulativeChanged = false;
+              if (latestCumulative != null &&
+                  latestCumulative > 0 &&
+                  latestCumulative != _lastCumulativeSteps) {
+                _lastCumulativeSteps = latestCumulative;
+                cumulativeChanged = true;
+              }
+
+              // Always query today's steps. Some devices can keep this updated
+              // via native/background service even if cumulative callback is stale.
+              final todaySteps = await _directStepService.getTodaySteps();
+              if (todaySteps >= 0) {
+                final currentSteps = _snapshot?.todaySteps ?? 0;
               if (_snapshot == null || todaySteps != currentSteps) {
                 final now = DateTime.now();
                 _snapshot = HealthSyncSnapshot(
@@ -105,15 +177,19 @@ class HealthSyncController
                   primaryStepsSource: 'Phone Sensor',
                 );
                 _status = HealthSyncStatus.ready;
-                notifyListeners();
-                if (kDebugMode) {
-                  print('Periodic check: Steps updated to $todaySteps');
+                  notifyListeners();
+                  if (kDebugMode) {
+                    print('Periodic check: Steps updated to $todaySteps');
+                  }
+                } else if (cumulativeChanged) {
+                  notifyListeners();
+                  if (kDebugMode) {
+                    print('Periodic check: Cumulative updated to $latestCumulative');
+                  }
                 }
-                _syncStepsToBackend(todaySteps);
               }
             }
           }
-        }
       } catch (e) {
         if (kDebugMode) {
           print('⚠️ Periodic step check failed: $e');
@@ -198,6 +274,8 @@ class HealthSyncController
               },
               primaryStepsSource: 'Phone Sensor',
             );
+            _displayBaselineSteps = 0;
+            _displayBaselineCumulative = null;
             notifyListeners();
           } catch (
             e
@@ -253,20 +331,24 @@ class HealthSyncController
         
         final todaySteps = await _directStepService.getTodaySteps();
         if (todaySteps >= 0) {
+          final displaySteps = _resolveDisplaySteps(
+            sensorTodaySteps: todaySteps,
+            cumulativeSteps: cumulativeSteps,
+          );
           final now = DateTime.now();
           final currentSteps = _snapshot?.todaySteps ?? 0;
-          if (_snapshot == null || todaySteps != currentSteps) {
+          if (_snapshot == null || displaySteps != currentSteps) {
             if (kDebugMode) {
               print('Steps updated:  ->  (cumulative=)');
             }
             _snapshot = HealthSyncSnapshot(
-              todaySteps: todaySteps,
+              todaySteps: displaySteps,
               workouts: _snapshot?.workouts ?? const [],
               rangeStart: _snapshot?.rangeStart ?? now.subtract(const Duration(days: 7)),
               rangeEnd: now,
               locationPermissionGranted: _snapshot?.locationPermissionGranted ?? false,
               stepsBySource: {
-                'Phone Sensor': todaySteps,
+                'Phone Sensor': displaySteps,
                 if (_snapshot?.stepsBySource['Cloud Sync'] != null)
                   'Cloud Sync': _snapshot!.stepsBySource['Cloud Sync']!,
               },
@@ -274,7 +356,6 @@ class HealthSyncController
             );
             _status = HealthSyncStatus.ready;
             notifyListeners();
-            _syncStepsToBackend(todaySteps);
           }
         }
       },
@@ -361,10 +442,13 @@ class HealthSyncController
               }
 
               if (sensorSteps >= 0) {
-                // Prefer sensor for display when it has data; otherwise fall back to server
-                final useServerForDisplay = sensorSteps == 0 && steps > 0;
-                final displaySteps = useServerForDisplay ? steps : sensorSteps;
-                final primarySource = useServerForDisplay ? 'Cloud Sync' : 'Phone Sensor';
+                _displayBaselineSteps = steps > 0 ? steps : 0;
+                _displayBaselineCumulative = currentCount;
+                final displaySteps = _resolveDisplaySteps(
+                  sensorTodaySteps: sensorSteps,
+                  cumulativeSteps: currentCount,
+                );
+                final primarySource = 'Phone Sensor';
 
                 _snapshot = HealthSyncSnapshot(
                   todaySteps: displaySteps,
@@ -383,7 +467,7 @@ class HealthSyncController
                 notifyListeners();
                 
                 if (kDebugMode) {
-                  print('Hydrated: Sensor steps=$sensorSteps, Server steps=$steps (display=$displaySteps, source=$primarySource)');
+                  print('Hydrated: Sensor steps=$sensorSteps, Server steps=$steps (display=$displaySteps, baseline=$_displayBaselineSteps)');
                 }
               }
             }
@@ -393,6 +477,8 @@ class HealthSyncController
             }
             // Fallback to server steps if sensor fails
             if (steps >= 0) {
+              _displayBaselineSteps = steps;
+              _displayBaselineCumulative = null;
               _snapshot = HealthSyncSnapshot(
                 todaySteps: steps,
                 workouts:
@@ -416,6 +502,8 @@ class HealthSyncController
         } else {
           // Non-Android: use server steps as fallback
           if (steps >= 0) {
+            _displayBaselineSteps = steps;
+            _displayBaselineCumulative = null;
             _snapshot = HealthSyncSnapshot(
               todaySteps: steps,
               workouts:
@@ -637,6 +725,7 @@ class HealthSyncController
   DateTime? get debugLastBackendSyncSuccessAt => _lastBackendSyncSuccessAt;
   int? get debugLastBackendSyncAttemptSteps => _lastBackendSyncAttemptSteps;
   String? get debugLastBackendSyncResult => _lastBackendSyncResult;
+  int get displayBaselineSteps => _displayBaselineSteps;
 
   /// Requests the latest data from the step sensor (or Health Connect if available).
   Future<
@@ -684,15 +773,16 @@ class HealthSyncController
 
           // Only update if sensor shows valid steps (>= 0) and it's greater than or equal to current
           final currentSteps = _snapshot?.todaySteps ?? 0;
-          if (todaySteps >= currentSteps || _snapshot == null) {
+          final displaySteps = _resolveDisplaySteps(sensorTodaySteps: todaySteps);
+          if (displaySteps >= currentSteps || _snapshot == null) {
             _snapshot = HealthSyncSnapshot(
-              todaySteps: todaySteps,
+              todaySteps: displaySteps,
               workouts: const [], // No workout data without Health Connect
               rangeStart: rangeStart,
               rangeEnd: now,
               locationPermissionGranted: false,
               stepsBySource: {
-                'Phone Sensor': todaySteps,
+                'Phone Sensor': displaySteps,
               },
               primaryStepsSource: 'Phone Sensor',
             );
@@ -701,8 +791,8 @@ class HealthSyncController
             notifyListeners();
 
             // Sync to backend (force if this is a manual sync)
-            await _syncStepsToBackend(
-              todaySteps,
+            await _syncRawSensorStepsToBackend(
+              fallbackSteps: displaySteps,
               force: force,
             );
           } else {
@@ -830,6 +920,8 @@ class HealthSyncController
     _lastError = null;
     _hydratedFromBackend = false;
     _lastBaselineAlignment = null;
+    _displayBaselineSteps = 0;
+    _displayBaselineCumulative = null;
     _lastSyncedSteps = null;
     _lastBackendSyncAttemptAt = null;
     _lastBackendSyncSuccessAt = null;
@@ -845,6 +937,8 @@ class HealthSyncController
     void
   >
   resetStepBaseline() async {
+    _displayBaselineSteps = 0;
+    _displayBaselineCumulative = null;
     // First get current count to set as baseline
     final currentCount = await _directStepService.getCurrentStepCount();
     if (currentCount !=

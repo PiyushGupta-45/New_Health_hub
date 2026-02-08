@@ -1,17 +1,21 @@
 // Authentication controller for managing auth state
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 
 class AuthController extends ChangeNotifier {
   final AuthService _authService = AuthService();
+  static const String _firstLaunchHandledKey = 'auth_first_launch_handled';
   Map<String, dynamic>? _currentUser;
   bool _isLoading = false;
   bool _isAuthenticated = false;
+  bool _isGuest = false;
 
   Map<String, dynamic>? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _isAuthenticated;
+  bool get isGuest => _isGuest;
 
   String? get userName => _currentUser?['name'] ?? _currentUser?['user']?['name'];
   String? get userEmail => _currentUser?['email'] ?? _currentUser?['user']?['email'];
@@ -31,10 +35,28 @@ class AuthController extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    final isAuth = await _authService.isAuthenticated();
-    if (isAuth) {
-      _currentUser = await _authService.getStoredUser();
-      _isAuthenticated = true;
+    final prefs = await SharedPreferences.getInstance();
+    final firstLaunchHandled = prefs.getBool(_firstLaunchHandledKey) ?? false;
+
+    if (!firstLaunchHandled) {
+      // First launch after install/reinstall: force auth entry.
+      await _authService.clearUser();
+      await prefs.setBool(_firstLaunchHandledKey, true);
+      _currentUser = null;
+      _isAuthenticated = false;
+      _isGuest = false;
+    } else {
+      // Normal launches: preserve signed-in state.
+      final isAuth = await _authService.isAuthenticated();
+      if (isAuth) {
+        _currentUser = await _authService.getStoredUser();
+        _isAuthenticated = true;
+        _isGuest = false;
+      } else {
+        _currentUser = null;
+        _isAuthenticated = false;
+        _isGuest = false;
+      }
     }
 
     _isLoading = false;
@@ -58,6 +80,7 @@ class AuthController extends ChangeNotifier {
     if (result['success'] == true) {
       _currentUser = result['user'];
       _isAuthenticated = true;
+      _isGuest = false;
     }
 
     _isLoading = false;
@@ -80,6 +103,7 @@ class AuthController extends ChangeNotifier {
     if (result['success'] == true) {
       _currentUser = result['user'];
       _isAuthenticated = true;
+      _isGuest = false;
     }
 
     _isLoading = false;
@@ -96,6 +120,7 @@ class AuthController extends ChangeNotifier {
     if (result['success'] == true) {
       _currentUser = result['user'];
       _isAuthenticated = true;
+      _isGuest = false;
     }
 
     _isLoading = false;
@@ -110,6 +135,7 @@ class AuthController extends ChangeNotifier {
     await _authService.signOut();
     _currentUser = null;
     _isAuthenticated = false;
+    _isGuest = false;
 
     _isLoading = false;
     notifyListeners();
@@ -117,14 +143,35 @@ class AuthController extends ChangeNotifier {
 
   // Refresh user data from storage
   Future<void> refreshUser() async {
+    if (_isGuest) {
+      _currentUser = null;
+      _isAuthenticated = false;
+      notifyListeners();
+      return;
+    }
     final isAuth = await _authService.isAuthenticated();
     if (isAuth) {
       _currentUser = await _authService.getStoredUser();
       _isAuthenticated = true;
+      _isGuest = false;
     } else {
       _currentUser = null;
       _isAuthenticated = false;
+      _isGuest = false;
     }
+    notifyListeners();
+  }
+
+  Future<void> signInAsGuest() async {
+    _isLoading = true;
+    notifyListeners();
+
+    await _authService.clearUser();
+    _currentUser = null;
+    _isAuthenticated = false;
+    _isGuest = true;
+
+    _isLoading = false;
     notifyListeners();
   }
 }

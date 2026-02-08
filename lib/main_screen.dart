@@ -5,6 +5,7 @@ import 'pages/about_page.dart';
 import 'pages/features_view.dart';
 import 'pages/home_page.dart';
 import 'pages/community_page.dart';
+import 'pages/auth_page.dart';
 import 'widgets/health_chatbot_widget.dart';
 
 // Chatbot Dialog Wrapper
@@ -68,9 +69,30 @@ class _MainScreenState
   final HealthSyncController _healthSyncController = HealthSyncController();
   final AuthController _authController = AuthController();
 
+  @override
+  void initState() {
+    super.initState();
+    _authController.addListener(_onAuthChanged);
+  }
+
+  void _onAuthChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
   void _onItemTapped(
     int index,
   ) {
+    if (_authController.isGuest &&
+        (index == 1)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sign in required to access Community and Challenges.'),
+        ),
+      );
+      return;
+    }
+
     setState(
       () {
         _selectedIndex = index;
@@ -174,6 +196,27 @@ class _MainScreenState
   Widget build(
     BuildContext context,
   ) {
+    if (_authController.isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (!_authController.isAuthenticated && !_authController.isGuest) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: AuthPage(
+          authController: _authController,
+          isEntryFlow: true,
+          onAuthenticated: () {
+            if (mounted) {
+              setState(() {});
+            }
+          },
+        ),
+      );
+    }
+
     return PopScope(
       // Allow pop only if on home page
       // For Community tab: CommunityPage's PopScope handles all back navigation
@@ -233,10 +276,12 @@ class _MainScreenState
                   authController: _authController,
                 ),
                 CommunityPage(
+                  authController: _authController,
                   healthSyncController: _healthSyncController,
                 ),
                 FeaturesView(
                   controller: _healthSyncController,
+                  authController: _authController,
                 ),
                 const AboutPage(),
               ],
@@ -312,6 +357,7 @@ class _MainScreenState
 
   @override
   void dispose() {
+    _authController.removeListener(_onAuthChanged);
     _pageController.dispose();
     _healthSyncController.dispose();
     _authController.dispose();

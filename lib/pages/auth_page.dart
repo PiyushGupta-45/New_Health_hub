@@ -5,10 +5,14 @@ import '../controllers/auth_controller.dart';
 
 class AuthPage extends StatefulWidget {
   final AuthController authController;
+  final bool isEntryFlow;
+  final VoidCallback? onAuthenticated;
 
   const AuthPage({
     super.key,
     required this.authController,
+    this.isEntryFlow = false,
+    this.onAuthenticated,
   });
 
   @override
@@ -64,7 +68,11 @@ class _AuthPageState extends State<AuthPage>
     if (!mounted) return;
 
     if (result['success'] == true) {
-      Navigator.of(context).pop();
+      if (widget.onAuthenticated != null) {
+        widget.onAuthenticated!();
+      } else {
+        Navigator.of(context).pop();
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Signed in successfully!'),
@@ -93,7 +101,11 @@ class _AuthPageState extends State<AuthPage>
     if (!mounted) return;
 
     if (result['success'] == true) {
-      Navigator.of(context).pop();
+      if (widget.onAuthenticated != null) {
+        widget.onAuthenticated!();
+      } else {
+        Navigator.of(context).pop();
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Account created successfully!'),
@@ -116,7 +128,11 @@ class _AuthPageState extends State<AuthPage>
     if (!mounted) return;
 
     if (result['success'] == true) {
-      Navigator.of(context).pop();
+      if (widget.onAuthenticated != null) {
+        widget.onAuthenticated!();
+      } else {
+        Navigator.of(context).pop();
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Signed in with Google successfully!'),
@@ -131,6 +147,23 @@ class _AuthPageState extends State<AuthPage>
         ),
       );
     }
+  }
+
+  Future<void> _handleGuestSignIn() async {
+    await widget.authController.signInAsGuest();
+    if (!mounted) return;
+
+    if (widget.onAuthenticated != null) {
+      widget.onAuthenticated!();
+    } else {
+      Navigator.of(context).pop();
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Signed in as guest'),
+        backgroundColor: Colors.blueGrey,
+      ),
+    );
   }
 
   @override
@@ -165,28 +198,29 @@ class _AuthPageState extends State<AuthPage>
                 padding: const EdgeInsets.all(24.0),
                 child: Row(
                   children: [
-                    IconButton(
-                      icon: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                    if (!widget.isEntryFlow)
+                      IconButton(
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.close_rounded,
+                            color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+                            size: 20,
+                          ),
                         ),
-                        child: Icon(
-                          Icons.close_rounded,
-                          color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-                          size: 20,
-                        ),
+                        onPressed: () => Navigator.of(context).pop(),
                       ),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
                   ],
                 ),
               ),
@@ -470,6 +504,12 @@ class _AuthPageState extends State<AuthPage>
                 ),
               );
             },
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: widget.authController.isLoading ? null : _handleGuestSignIn,
+            icon: const Icon(Icons.person_outline_rounded),
+            label: const Text('Sign in as Guest'),
           ),
         ],
         ),

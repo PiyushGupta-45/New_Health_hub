@@ -48,6 +48,7 @@ class _HomePageState extends State<HomePage> {
   static const int _defaultStepGoal = 10000;
   bool _requestedInitialSync = false;
   bool _checkedBackgroundPrompt = false;
+  bool _isDebugPanelExpanded = false;
   static const String _backgroundPromptKey = 'background_tracking_prompt_shown';
 
   @override
@@ -170,7 +171,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   String _formatLastSyncedAt() {
-    final lastSynced = widget.controller.lastSyncedAt;
+    final lastSynced =
+        widget.controller.debugLastBackendSyncSuccessAt ??
+        widget.controller.lastSyncedAt;
     if (lastSynced == null) return 'Not synced yet';
     final formatter = DateFormat('MMM d • h:mm a');
     return 'Last synced ${formatter.format(lastSynced)}';
@@ -210,45 +213,70 @@ class _HomePageState extends State<HomePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Step Debug Panel',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 8),
-          ...rows.map((entry) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () {
+              setState(() {
+                _isDebugPanelExpanded = !_isDebugPanelExpanded;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
-                    width: 128,
-                    child: Text(
-                      entry.key,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
-                      ),
+                  Text(
+                    'Step Debug Panel',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
                     ),
                   ),
-                  Expanded(
-                    child: Text(
-                      entry.value,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF111827),
-                      ),
-                    ),
+                  const Spacer(),
+                  Icon(
+                    _isDebugPanelExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    size: 20,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
                   ),
                 ],
               ),
-            );
-          }),
+            ),
+          ),
+          if (_isDebugPanelExpanded) ...[
+            const SizedBox(height: 8),
+            ...rows.map((entry) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 128,
+                      child: Text(
+                        entry.key,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        entry.value,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF111827),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );
@@ -683,7 +711,11 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final steps = widget.controller.todaySteps;
+    final steps =
+        (widget.controller.debugSensorCumulative != null &&
+                widget.controller.debugSensorCumulative! > 0)
+            ? widget.controller.debugSensorCumulative!
+            : widget.controller.todaySteps;
     final progress = (steps / _defaultStepGoal).clamp(0.0, 1.0);
     final percentage = (progress * 100).clamp(0, 100).toStringAsFixed(0);
 
@@ -1146,6 +1178,14 @@ class _HomePageState extends State<HomePage> {
                       title: 'Posture Analysis',
                       subtitle: 'AI-powered posture correction feedback',
                       onTap: () {
+                        if (widget.authController.isGuest) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Sign in required to use Posture Analysis.'),
+                            ),
+                          );
+                          return;
+                        }
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (context) => const PostureAnalysisView(),

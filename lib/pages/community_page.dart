@@ -12,14 +12,17 @@ import 'dart:async';
 import 'community_info_page.dart';
 import 'games_and_challenges_page.dart';
 import '../controllers/health_sync_controller.dart';
+import '../controllers/auth_controller.dart';
 
 class CommunityPage
     extends
         StatefulWidget {
   final HealthSyncController? healthSyncController;
+  final AuthController authController;
 
   const CommunityPage({
     super.key,
+    required this.authController,
     this.healthSyncController,
   });
 
@@ -951,6 +954,53 @@ class _CommunityPageState
           context,
         ).brightness ==
         Brightness.dark;
+    if (widget.authController.isGuest) {
+      return Scaffold(
+        backgroundColor: Theme.of(
+          context,
+        ).scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: const Text('Community'),
+          backgroundColor: const Color(0xFF2563EB),
+          foregroundColor: Colors.white,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.lock_outline_rounded,
+                  size: 56,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Community and Challenges are locked for guest mode.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Please sign in to access these core features.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     // Check if user is signed in
     if (!_isAuthenticated) {
       return Scaffold(

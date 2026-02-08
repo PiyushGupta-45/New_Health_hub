@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../controllers/auth_controller.dart';
 import '../controllers/health_sync_controller.dart';
 import 'health_metrics_view.dart'; // Import the calculator page
 import 'posture_analysis_view.dart'; // Import the new posture page
@@ -56,9 +57,14 @@ class PlaceholderFeatureView extends StatelessWidget {
 
 // --- The Main Feature Page (List of Cards) ---
 class FeaturesView extends StatelessWidget {
-  const FeaturesView({super.key, required this.controller});
+  const FeaturesView({
+    super.key,
+    required this.controller,
+    required this.authController,
+  });
 
   final HealthSyncController controller;
+  final AuthController authController;
 
   @override
   Widget build(BuildContext context) {
@@ -139,7 +145,15 @@ class FeaturesView extends StatelessWidget {
             ),
             const SizedBox(height: 15),
             // Build the Feature Cards
-            ...quickActions.map((data) => _ActionTile(data: data)).toList(),
+            ...quickActions
+                .map(
+                  (data) => _ActionTile(
+                    data: data,
+                    isLocked: authController.isGuest &&
+                        data.title == 'Posture Analysis',
+                  ),
+                )
+                .toList(),
                     SizedBox(height: MediaQuery.of(context).padding.bottom + 130),
           ],
         ),
@@ -151,13 +165,25 @@ class FeaturesView extends StatelessWidget {
 // --- The Clickable Feature Card Widget ---
 class _ActionTile extends StatelessWidget {
   final FeatureData data;
+  final bool isLocked;
 
-  const _ActionTile({required this.data});
+  const _ActionTile({
+    required this.data,
+    this.isLocked = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
+        if (isLocked) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Sign in required to use Posture Analysis.'),
+            ),
+          );
+          return;
+        }
         // Navigation Logic to the Feature Page
         Navigator.push(context, MaterialPageRoute(builder: data.builder));
       },
@@ -242,7 +268,7 @@ class _ActionTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
-                Icons.arrow_forward_ios_rounded,
+                isLocked ? Icons.lock_outline_rounded : Icons.arrow_forward_ios_rounded,
                 size: 16,
                 color: isDark ? const Color(0xFF818CF8) : const Color(0xFF6366F1),
               ),
