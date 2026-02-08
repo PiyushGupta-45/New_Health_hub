@@ -70,6 +70,15 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                         result.success(value)
                     }
                 }
+                "getTodayStepCount" -> {
+                    if (stepCounterSensor == null) {
+                        result.error("SENSOR_UNAVAILABLE", "Step counter sensor is not available", null)
+                    } else {
+                        val todaySteps = StepCounterService.readTodaySteps(this)
+                        Log.d(TAG, "getTodayStepCount -> $todaySteps")
+                        result.success(todaySteps)
+                    }
+                }
                 "startListening" -> {
                     if (stepCounterSensor == null) {
                         result.error("SENSOR_UNAVAILABLE", "Step counter sensor is not available", null)
@@ -77,11 +86,16 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                         result.success(null)
                     } else {
                         isListening = true
-                        if (!isSensorRegistered) {
-                            sensorManager?.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL)
-                            isSensorRegistered = true
-                            Log.d(TAG, "Sensor registered (startListening)")
+                        // Always re-register when listening starts. On some devices,
+                        // listeners registered before ACTIVITY_RECOGNITION permission
+                        // grant can remain silent until re-registered.
+                        if (isSensorRegistered) {
+                            sensorManager?.unregisterListener(this)
+                            isSensorRegistered = false
                         }
+                        sensorManager?.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL)
+                        isSensorRegistered = true
+                        Log.d(TAG, "Sensor re-registered (startListening)")
                         result.success(null)
                     }
                 }

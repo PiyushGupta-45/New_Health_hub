@@ -57,13 +57,21 @@ class HealthSyncController
   bool _isSyncingFromSensor = false;
   DateTime? _lastBaselineAlignment;
   int? _lastCumulativeSteps;
+  int? _lastSyncedSteps;
+  DateTime? _lastBackendSyncAttemptAt;
+  DateTime? _lastBackendSyncSuccessAt;
+  int? _lastBackendSyncAttemptSteps;
+  String? _lastBackendSyncResult;
 
   void _startPeriodicBackendSync() {
-    // Sync to backend every 1 minute regardless of step changes
+    // Sync to backend every 1 minute only when steps changed
     _periodicSyncTimer?.cancel();
     _periodicSyncTimer = Timer.periodic(_syncInterval, (timer) async {
-      if (_snapshot != null && _snapshot!.todaySteps >= 0) {
-        await _syncStepsToBackend(_snapshot!.todaySteps, force: true);
+      if (_snapshot != null && _snapshot!.todaySteps > 0) {
+        final steps = _snapshot!.todaySteps;
+        if (_lastSyncedSteps == null || steps > _lastSyncedSteps!) {
+          await _syncStepsToBackend(steps);
+        }
       }
     });
     
@@ -76,47 +84,32 @@ class HealthSyncController
         if (Platform.isAndroid) {
           final isAvailable = await _directStepService.isStepCounterAvailable();
           if (isAvailable) {
-            final currentCount = await _directStepService.getCurrentStepCount();
-            if (currentCount != null && currentCount > 0) {
-              // Only process if cumulative count has changed
-              if (_lastCumulativeSteps == null || currentCount != _lastCumulativeSteps) {
-                _lastCumulativeSteps = currentCount;
-                // Manually trigger step listener logic
-                final baseline = _directStepService.baselineStepCount;
-                if (baseline == null || baseline <= 0) {
-                  if (currentCount > 0) {
-                    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
-                    await _directStepService.setBaseline(currentCount, today);
-                    _lastBaselineAlignment = DateTime.now();
-                    if (kDebugMode) {
-                      print('Initialized baseline from periodic check: $currentCount');
-                    }
-                  }
-                } else {
-                  final todaySteps = currentCount - baseline;
-                  if (todaySteps >= 0) {
-                    final currentSteps = _snapshot?.todaySteps ?? 0;
-                    if (todaySteps > currentSteps) {
-                      final now = DateTime.now();
-                      _snapshot = HealthSyncSnapshot(
-                        todaySteps: todaySteps,
-                        workouts: _snapshot?.workouts ?? const [],
-                        rangeStart: _snapshot?.rangeStart ?? now.subtract(const Duration(days: 7)),
-                        rangeEnd: now,
-                        locationPermissionGranted: _snapshot?.locationPermissionGranted ?? false,
-                        stepsBySource: {
-                          'Phone Sensor': todaySteps,
-                        },
-                        primaryStepsSource: 'Phone Sensor',
-                      );
-                      _status = HealthSyncStatus.ready;
-                      notifyListeners();
-                      if (kDebugMode) {
-                        print('Periodic check: Steps updated to $todaySteps (cumulative=$currentCount, baseline=$baseline)');
-                      }
-                    }
-                  }
+            // Always query today's steps. Some devices can keep this updated
+            // via native/background service even if cumulative callback is stale.
+            final todaySteps = await _directStepService.getTodaySteps();
+            if (todaySteps >= 0) {
+              final currentSteps = _snapshot?.todaySteps ?? 0;
+              if (_snapshot == null || todaySteps != currentSteps) {
+                final now = DateTime.now();
+                _snapshot = HealthSyncSnapshot(
+                  todaySteps: todaySteps,
+                  workouts: _snapshot?.workouts ?? const [],
+                  rangeStart: _snapshot?.rangeStart ?? now.subtract(const Duration(days: 7)),
+                  rangeEnd: now,
+                  locationPermissionGranted: _snapshot?.locationPermissionGranted ?? false,
+                  stepsBySource: {
+                    'Phone Sensor': todaySteps,
+                    if (_snapshot?.stepsBySource['Cloud Sync'] != null)
+                      'Cloud Sync': _snapshot!.stepsBySource['Cloud Sync']!,
+                  },
+                  primaryStepsSource: 'Phone Sensor',
+                );
+                _status = HealthSyncStatus.ready;
+                notifyListeners();
+                if (kDebugMode) {
+                  print('Periodic check: Steps updated to $todaySteps');
                 }
+                _syncStepsToBackend(todaySteps);
               }
             }
           }
@@ -258,88 +251,30 @@ class HealthSyncController
         // Track last cumulative steps for comparison
         _lastCumulativeSteps = cumulativeSteps;
         
-        if (_directStepService.baselineStepCount != null) {
-          final baseline = _directStepService.baselineStepCount!;
-          final todaySteps = cumulativeSteps - baseline;
+        final todaySteps = await _directStepService.getTodaySteps();
+        if (todaySteps >= 0) {
           final now = DateTime.now();
-          
-          if (todaySteps < 0) {
-            // Defensive: if sensor counter reset unexpectedly, set baseline to current cumulative
-            try {
-              await _directStepService.setBaseline(cumulativeSteps, today);
-              if (kDebugMode) {
-                print('🔁 Baseline adjusted because todaySteps < 0 (baseline=$baseline, cumulative=$cumulativeSteps)');
-              }
-              // Set steps to 0 after resetting baseline
-              _snapshot = HealthSyncSnapshot(
-                todaySteps: 0,
-                workouts: _snapshot?.workouts ?? const [],
-                rangeStart: _snapshot?.rangeStart ?? now.subtract(const Duration(days: 7)),
-                rangeEnd: now,
-                locationPermissionGranted: _snapshot?.locationPermissionGranted ?? false,
-                stepsBySource: {
-                  'Phone Sensor': 0,
-                },
-                primaryStepsSource: 'Phone Sensor',
-              );
-              _status = HealthSyncStatus.ready;
-              notifyListeners();
-              return;
-            } catch (_) {}
-          }
-
-          // Always update if we have valid steps (>= 0)
-          // This ensures steps increase as you move
-          if (todaySteps >= 0) {
-            final currentSteps = _snapshot?.todaySteps ?? 0;
-            
-            // Update if:
-            // 1. Sensor shows more steps than current (normal increase)
-            // 2. We don't have a snapshot yet
-            // 3. Steps increased from sensor (cumulative increased)
-            final isCloudPrimary = _snapshot?.primaryStepsSource == 'Cloud Sync';
-            final shouldUpdate = todaySteps > currentSteps ||
-                                _snapshot == null ||
-                                (isCloudPrimary && todaySteps >= currentSteps) ||
-                                (cumulativeSteps > (baseline + currentSteps));
-            
-            if (shouldUpdate) {
-              if (kDebugMode && todaySteps != currentSteps) {
-                print('📈 Steps updated: $currentSteps -> $todaySteps (baseline=$baseline, cumulative=$cumulativeSteps)');
-              }
-              
-              _snapshot = HealthSyncSnapshot(
-                todaySteps: todaySteps,
-                workouts: _snapshot?.workouts ?? const [],
-                rangeStart: _snapshot?.rangeStart ?? now.subtract(const Duration(days: 7)),
-                rangeEnd: now,
-                locationPermissionGranted: _snapshot?.locationPermissionGranted ?? false,
-                stepsBySource: {
-                  'Phone Sensor': todaySteps,
-                },
-                primaryStepsSource: 'Phone Sensor',
-              );
-              _status = HealthSyncStatus.ready;
-              notifyListeners();
-
-              // Auto-sync to backend (throttled)
-              _syncStepsToBackend(todaySteps);
+          final currentSteps = _snapshot?.todaySteps ?? 0;
+          if (_snapshot == null || todaySteps != currentSteps) {
+            if (kDebugMode) {
+              print('Steps updated:  ->  (cumulative=)');
             }
-          }
-        } else {
-          // If we still don't have a baseline, create a snapshot with 0 steps only if we don't have one
-          final now = DateTime.now();
-          if (_snapshot == null) {
             _snapshot = HealthSyncSnapshot(
-              todaySteps: 0,
-              workouts: const [],
-              rangeStart: now.subtract(const Duration(days: 7)),
+              todaySteps: todaySteps,
+              workouts: _snapshot?.workouts ?? const [],
+              rangeStart: _snapshot?.rangeStart ?? now.subtract(const Duration(days: 7)),
               rangeEnd: now,
-              locationPermissionGranted: false,
-              stepsBySource: const {},
+              locationPermissionGranted: _snapshot?.locationPermissionGranted ?? false,
+              stepsBySource: {
+                'Phone Sensor': todaySteps,
+                if (_snapshot?.stepsBySource['Cloud Sync'] != null)
+                  'Cloud Sync': _snapshot!.stepsBySource['Cloud Sync']!,
+              },
+              primaryStepsSource: 'Phone Sensor',
             );
             _status = HealthSyncStatus.ready;
             notifyListeners();
+            _syncStepsToBackend(todaySteps);
           }
         }
       },
@@ -598,68 +533,62 @@ class HealthSyncController
     int steps, {
     bool force = false,
   }) async {
+    _lastBackendSyncAttemptAt = DateTime.now();
+    _lastBackendSyncAttemptSteps = steps;
+
     if (steps <= 0) {
+      _lastBackendSyncResult = 'skipped: steps <= 0';
       if (kDebugMode) {
         print('Skipping steps sync - invalid steps count: $steps');
       }
       return;
     }
 
-    // Check if user is authenticated first
+    if (!force && _lastSyncedSteps != null && steps <= _lastSyncedSteps!) {
+      _lastBackendSyncResult = 'skipped: not increased (last=$_lastSyncedSteps)';
+      return;
+    }
+
     final token = await _stepsSyncService.getAuthToken();
-    if (token ==
-            null ||
-        token.isEmpty) {
-      // User not authenticated, skip sync
+    if (token == null || token.isEmpty) {
+      _lastBackendSyncResult = 'skipped: no auth token';
       if (kDebugMode) {
-        print(
-          '⚠️ Skipping steps sync - user not authenticated',
-        );
+        print('Skipping steps sync - user not authenticated');
       }
       return;
     }
 
-    // Only sync if enough time has passed since last sync (unless forced)
     if (!force &&
-        _lastSyncedToBackend !=
-            null &&
-        DateTime.now().difference(
-              _lastSyncedToBackend!,
-            ) <
-            _syncInterval) {
+        _lastSyncedToBackend != null &&
+        DateTime.now().difference(_lastSyncedToBackend!) < _syncInterval) {
+      _lastBackendSyncResult = 'skipped: throttled < 1 min';
       return;
     }
 
     try {
       final result = await _stepsSyncService.storeSteps(
         steps: steps,
-        source:
-            _snapshot?.primaryStepsSource ??
-            'Phone Sensor',
+        source: _snapshot?.primaryStepsSource ?? 'Phone Sensor',
       );
 
-      if (result['success'] ==
-          true) {
+      if (result['success'] == true) {
         _lastSyncedToBackend = DateTime.now();
+        _lastSyncedSteps = steps;
+        _lastBackendSyncSuccessAt = _lastSyncedToBackend;
+        _lastBackendSyncResult = 'success';
         if (kDebugMode) {
-          print(
-            '✅ Steps synced to backend: $steps',
-          );
+          print('Steps synced to backend: $steps');
         }
       } else {
+        _lastBackendSyncResult = 'failed: ${result['error']}';
         if (kDebugMode) {
-          print(
-            '⚠️ Failed to sync steps: ${result['error']}',
-          );
+          print('Failed to sync steps: ${result['error']}');
         }
       }
-    } catch (
-      e
-    ) {
+    } catch (e) {
+      _lastBackendSyncResult = 'error: $e';
       if (kDebugMode) {
-        print(
-          '⚠️ Error syncing steps: $e',
-        );
+        print('Error syncing steps: $e');
       }
     }
   }
@@ -698,6 +627,16 @@ class HealthSyncController
   bool get locationPermissionGranted =>
       _snapshot?.locationPermissionGranted ??
       false;
+  int? get debugSensorCumulative => _directStepService.lastKnownCurrentStepCount;
+  int? get debugNativeTodaySteps => _directStepService.lastNativeTodaySteps;
+  int? get debugComputedTodaySteps => _directStepService.lastComputedTodaySteps;
+  int? get debugReturnedTodaySteps => _directStepService.lastReturnedTodaySteps;
+  int? get debugBaseline => _directStepService.baselineStepCount;
+  int? get debugLastSyncedSteps => _lastSyncedSteps;
+  DateTime? get debugLastBackendSyncAttemptAt => _lastBackendSyncAttemptAt;
+  DateTime? get debugLastBackendSyncSuccessAt => _lastBackendSyncSuccessAt;
+  int? get debugLastBackendSyncAttemptSteps => _lastBackendSyncAttemptSteps;
+  String? get debugLastBackendSyncResult => _lastBackendSyncResult;
 
   /// Requests the latest data from the step sensor (or Health Connect if available).
   Future<
@@ -891,6 +830,11 @@ class HealthSyncController
     _lastError = null;
     _hydratedFromBackend = false;
     _lastBaselineAlignment = null;
+    _lastSyncedSteps = null;
+    _lastBackendSyncAttemptAt = null;
+    _lastBackendSyncSuccessAt = null;
+    _lastBackendSyncAttemptSteps = null;
+    _lastBackendSyncResult = null;
     notifyListeners();
   }
 
@@ -930,3 +874,4 @@ class HealthSyncController
     super.dispose();
   }
 }
+

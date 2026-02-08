@@ -176,6 +176,84 @@ class _HomePageState extends State<HomePage> {
     return 'Last synced ${formatter.format(lastSynced)}';
   }
 
+  String _formatDebugDateTime(DateTime? value) {
+    if (value == null) return '-';
+    return DateFormat('HH:mm:ss').format(value);
+  }
+
+  Widget _buildStepDebugPanel(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final rows = <MapEntry<String, String>>[
+      MapEntry('UI todaySteps', '${widget.controller.todaySteps}'),
+      MapEntry('sensor cumulative', '${widget.controller.debugSensorCumulative ?? '-'}'),
+      MapEntry('native today', '${widget.controller.debugNativeTodaySteps ?? '-'}'),
+      MapEntry('computed today', '${widget.controller.debugComputedTodaySteps ?? '-'}'),
+      MapEntry('returned today', '${widget.controller.debugReturnedTodaySteps ?? '-'}'),
+      MapEntry('baseline', '${widget.controller.debugBaseline ?? '-'}'),
+      MapEntry('last synced steps', '${widget.controller.debugLastSyncedSteps ?? '-'}'),
+      MapEntry('sync attempt steps', '${widget.controller.debugLastBackendSyncAttemptSteps ?? '-'}'),
+      MapEntry('sync attempt at', _formatDebugDateTime(widget.controller.debugLastBackendSyncAttemptAt)),
+      MapEntry('sync success at', _formatDebugDateTime(widget.controller.debugLastBackendSyncSuccessAt)),
+      MapEntry('sync result', widget.controller.debugLastBackendSyncResult ?? '-'),
+    ];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF111827) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Step Debug Panel',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...rows.map((entry) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 128,
+                    child: Text(
+                      entry.key,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      entry.value,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF111827),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   Widget? _buildStatusBanner() {
     final status = widget.controller.status;
     final message = widget.controller.errorMessage;
@@ -700,6 +778,7 @@ class _HomePageState extends State<HomePage> {
                 
                 // Status Banner
                 if (_buildStatusBanner() != null) _buildStatusBanner()!,
+                _buildStepDebugPanel(context),
                 
                 // --- Modern Progress Card with Gradient (compact) ---
                 Container(
@@ -1061,22 +1140,6 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     _buildModernActionCard(
                       context: context,
-                      icon: Icons.flag_rounded,
-                      iconColor: const Color(0xFFFF4500), // Orange-Red
-                      iconBgColor: const Color(0xFFFF4500).withOpacity(0.1),
-                      title: 'Set Personalized Goals',
-                      subtitle: 'Customize your health targets',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const PersonalizedGoalsView(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    _buildModernActionCard(
-                      context: context,
                       icon: Icons.accessibility_new_rounded,
                       iconColor: const Color(0xFF20B2AA), // Sea Green
                       iconBgColor: const Color(0xFF20B2AA).withOpacity(0.1),
@@ -1103,6 +1166,22 @@ class _HomePageState extends State<HomePage> {
                           MaterialPageRoute(
                             builder: (context) =>
                                 WorkoutTrackerView(controller: widget.controller),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildModernActionCard(
+                      context: context,
+                      icon: Icons.flag_rounded,
+                      iconColor: const Color(0xFFFF4500), // Orange-Red
+                      iconBgColor: const Color(0xFFFF4500).withOpacity(0.1),
+                      title: 'Set Personalized Goals',
+                      subtitle: 'Customize your health targets',
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const PersonalizedGoalsView(),
                           ),
                         );
                       },

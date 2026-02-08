@@ -27,6 +27,10 @@ class DirectStepService {
   
   bool _isListening = false;
   bool _baselineLoaded = false;
+  int? _lastNativeTodaySteps;
+  int? _lastComputedTodaySteps;
+  int? _lastReturnedTodaySteps;
+  int? _lastKnownCurrentStepCount;
 
   static const String _baselineCountKey = 'step_baseline_count';
   static const String _baselineDateKey = 'step_baseline_date';
@@ -57,6 +61,7 @@ class DirectStepService {
       if (kDebugMode) {
         debugPrint('DirectStepService.getCurrentStepCount -> $result');
       }
+      _lastKnownCurrentStepCount = result;
       return result;
     } catch (e) {
       if (kDebugMode) {
@@ -112,6 +117,23 @@ class DirectStepService {
       return 0;
     }
 
+    // Try native background-calculated daily steps first so day rollover works
+    // even when the app was not opened at midnight.
+    int? nativeToday;
+    try {
+      nativeToday = await _channel.invokeMethod<int>('getTodayStepCount');
+      _lastNativeTodaySteps = nativeToday;
+      if (nativeToday != null && nativeToday > 0) {
+        if (kDebugMode) {
+          debugPrint('DirectStepService.getTodaySteps(native) -> $nativeToday');
+        }
+        _lastReturnedTodaySteps = nativeToday;
+        return nativeToday;
+      }
+    } catch (_) {
+      // Fallback to baseline-based computation below.
+    }
+
     // Load baseline from storage first
     await _loadBaseline();
 
@@ -134,6 +156,14 @@ class DirectStepService {
     
     if (currentCount == null || currentCount == 0) {
       // Sensor might not be ready yet, return 0 for now
+      // If native provided a valid value (including 0), prefer it.
+      if (nativeToday != null && nativeToday >= 0) {
+        _lastComputedTodaySteps = 0;
+        _lastReturnedTodaySteps = nativeToday;
+        return nativeToday;
+      }
+      _lastComputedTodaySteps = 0;
+      _lastReturnedTodaySteps = 0;
       return 0;
     }
 
@@ -149,7 +179,15 @@ class DirectStepService {
       _baselineDate = today;
       _lastStepCount = currentCount;
       await _saveBaseline(); // Persist the baseline
-      // Return 0 since we just set the baseline (no steps counted yet today from this baseline)
+      // If native has already counted some steps for today, trust it.
+      if (nativeToday != null && nativeToday > 0) {
+        _lastComputedTodaySteps = 0;
+        _lastReturnedTodaySteps = nativeToday;
+        return nativeToday;
+      }
+      // Otherwise start at 0 from the current baseline.
+      _lastComputedTodaySteps = 0;
+      _lastReturnedTodaySteps = 0;
       return 0;
     }
 
@@ -157,8 +195,16 @@ class DirectStepService {
     if (_baselineStepCount != null && _baselineStepCount! > 0) {
       final todaySteps = currentCount - _baselineStepCount!;
       _lastStepCount = currentCount;
-      // Return the difference (could be negative if device was rebooted, so clamp to 0)
-      return todaySteps > 0 ? todaySteps : 0;
+      // Prefer the larger non-negative value so stale native 0 doesn't freeze updates.
+      final computed = todaySteps > 0 ? todaySteps : 0;
+      _lastComputedTodaySteps = computed;
+      if (nativeToday != null && nativeToday >= 0) {
+        final resolved = nativeToday > computed ? nativeToday : computed;
+        _lastReturnedTodaySteps = resolved;
+        return resolved;
+      }
+      _lastReturnedTodaySteps = computed;
+      return computed;
     }
 
     // Fallback: if baseline is null or 0, set it to current count
@@ -167,6 +213,13 @@ class DirectStepService {
     _baselineDate = today;
     _lastStepCount = currentCount;
     await _saveBaseline();
+    if (nativeToday != null && nativeToday >= 0) {
+      _lastComputedTodaySteps = 0;
+      _lastReturnedTodaySteps = nativeToday;
+      return nativeToday;
+    }
+    _lastComputedTodaySteps = 0;
+    _lastReturnedTodaySteps = 0;
     return 0;
   }
 
@@ -208,6 +261,10 @@ class DirectStepService {
 
   /// Gets the stored baseline step count.
   int? get baselineStepCount => _baselineStepCount;
+  int? get lastNativeTodaySteps => _lastNativeTodaySteps;
+  int? get lastComputedTodaySteps => _lastComputedTodaySteps;
+  int? get lastReturnedTodaySteps => _lastReturnedTodaySteps;
+  int? get lastKnownCurrentStepCount => _lastKnownCurrentStepCount;
 
   /// Gets the date when baseline was set.
   DateTime? get baselineDate => _baselineDate;

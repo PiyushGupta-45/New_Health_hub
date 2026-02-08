@@ -7,6 +7,8 @@ import 'health_metrics_view.dart'; // Import the calculator page
 import 'posture_analysis_view.dart'; // Import the new posture page
 import 'personalized_goals_view.dart';
 import 'workout_tracker_view.dart';
+import 'ai_diet_view.dart';
+import 'ai_workout_plan_view.dart';
 
 // --- Global Constants (for colors) ---
 const Color kPrimaryColor = Color(0xFF6366F1);
@@ -88,6 +90,20 @@ class FeaturesView extends StatelessWidget {
         subtitle: 'Log and analyze your workouts.',
         iconColor: const Color(0xFFFF4500),
         builder: (context) => WorkoutTrackerView(controller: controller),
+      ),
+      FeatureData(
+        icon: Icons.restaurant_menu,
+        title: 'Diet AI',
+        subtitle: 'Create a diet plan with AI.',
+        iconColor: const Color(0xFF22C55E),
+        builder: (context) => const AiDietView(),
+      ),
+      FeatureData(
+        icon: Icons.auto_awesome_rounded,
+        title: 'Workout AI',
+        subtitle: 'Create a daily workout plan.',
+        iconColor: const Color(0xFF3B82F6),
+        builder: (context) => const AiWorkoutPlanView(),
       ),
     ];
 
