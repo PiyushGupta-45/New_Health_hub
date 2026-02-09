@@ -188,7 +188,8 @@ class _HomePageState extends State<HomePage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final rows = <MapEntry<String, String>>[
       MapEntry('UI todaySteps', '${widget.controller.todaySteps}'),
-      MapEntry('sensor cumulative', '${widget.controller.debugSensorCumulative ?? '-'}'),
+      MapEntry('sensor cumulative (raw)', '${widget.controller.debugSensorCumulative ?? '-'}'),
+      MapEntry('sensor daily (synced)', '${widget.controller.debugReturnedTodaySteps ?? widget.controller.todaySteps}'),
       MapEntry('native today', '${widget.controller.debugNativeTodaySteps ?? '-'}'),
       MapEntry('computed today', '${widget.controller.debugComputedTodaySteps ?? '-'}'),
       MapEntry('returned today', '${widget.controller.debugReturnedTodaySteps ?? '-'}'),
@@ -711,11 +712,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final steps =
-        (widget.controller.debugSensorCumulative != null &&
-                widget.controller.debugSensorCumulative! > 0)
-            ? widget.controller.debugSensorCumulative!
-            : widget.controller.todaySteps;
+    final steps = widget.controller.todaySteps;
     final progress = (steps / _defaultStepGoal).clamp(0.0, 1.0);
     final percentage = (progress * 100).clamp(0, 100).toStringAsFixed(0);
 

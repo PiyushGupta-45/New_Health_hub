@@ -88,34 +88,35 @@ class HealthSyncController
     return resolved;
   }
 
-  Future<int> _resolveRawSensorStepsForBackend(int fallbackSteps) async {
+  Future<int> _resolveSensorStepsForBackend(int fallbackSteps) async {
     if (!Platform.isAndroid) {
       return fallbackSteps;
     }
 
-    final currentCount = await _directStepService.getCurrentStepCount();
-    if (currentCount != null && currentCount > 0) {
-      return currentCount;
+    final uiSteps = _snapshot?.todaySteps;
+    if (uiSteps != null && uiSteps >= 0) {
+      return uiSteps;
     }
 
-    final cachedCumulative =
-        _lastCumulativeSteps ?? _directStepService.lastKnownCurrentStepCount;
-    if (cachedCumulative != null && cachedCumulative > 0) {
-      return cachedCumulative;
+    final todaySteps = await _directStepService.getTodaySteps();
+    if (todaySteps >= 0) {
+      return todaySteps;
+    }
+
+    final cachedToday = _directStepService.lastReturnedTodaySteps;
+    if (cachedToday != null && cachedToday >= 0) {
+      return cachedToday;
     }
 
     return fallbackSteps;
   }
 
-  Future<void> _syncRawSensorStepsToBackend({
+  Future<void> _syncSensorStepsToBackend({
     required int fallbackSteps,
     bool force = false,
   }) async {
-    final rawSteps = await _resolveRawSensorStepsForBackend(fallbackSteps);
-    if (rawSteps > 0) {
-      _lastCumulativeSteps = rawSteps;
-    }
-    await _syncStepsToBackend(rawSteps, force: force);
+    final todaySteps = await _resolveSensorStepsForBackend(fallbackSteps);
+    await _syncStepsToBackend(todaySteps, force: force);
   }
 
   void _startPeriodicBackendSync() {
@@ -126,7 +127,7 @@ class HealthSyncController
 
       try {
         final steps = _snapshot!.todaySteps;
-        await _syncRawSensorStepsToBackend(
+        await _syncSensorStepsToBackend(
           fallbackSteps: steps,
           force: true,
         );
@@ -331,10 +332,7 @@ class HealthSyncController
         
         final todaySteps = await _directStepService.getTodaySteps();
         if (todaySteps >= 0) {
-          final displaySteps = _resolveDisplaySteps(
-            sensorTodaySteps: todaySteps,
-            cumulativeSteps: cumulativeSteps,
-          );
+          final displaySteps = todaySteps;
           final now = DateTime.now();
           final currentSteps = _snapshot?.todaySteps ?? 0;
           if (_snapshot == null || displaySteps != currentSteps) {
@@ -444,10 +442,7 @@ class HealthSyncController
               if (sensorSteps >= 0) {
                 _displayBaselineSteps = steps > 0 ? steps : 0;
                 _displayBaselineCumulative = currentCount;
-                final displaySteps = _resolveDisplaySteps(
-                  sensorTodaySteps: sensorSteps,
-                  cumulativeSteps: currentCount,
-                );
+                final displaySteps = sensorSteps;
                 final primarySource = 'Phone Sensor';
 
                 _snapshot = HealthSyncSnapshot(
@@ -771,10 +766,10 @@ class HealthSyncController
             ),
           );
 
-          // Only update if sensor shows valid steps (>= 0) and it's greater than or equal to current
+          // Update whenever sensor daily steps changed, including day rollover decreases.
           final currentSteps = _snapshot?.todaySteps ?? 0;
-          final displaySteps = _resolveDisplaySteps(sensorTodaySteps: todaySteps);
-          if (displaySteps >= currentSteps || _snapshot == null) {
+          final displaySteps = todaySteps;
+          if (_snapshot == null || displaySteps != currentSteps) {
             _snapshot = HealthSyncSnapshot(
               todaySteps: displaySteps,
               workouts: const [], // No workout data without Health Connect
@@ -791,7 +786,7 @@ class HealthSyncController
             notifyListeners();
 
             // Sync to backend (force if this is a manual sync)
-            await _syncRawSensorStepsToBackend(
+            await _syncSensorStepsToBackend(
               fallbackSteps: displaySteps,
               force: force,
             );
