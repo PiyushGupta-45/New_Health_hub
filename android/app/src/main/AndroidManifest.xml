@@ -72,7 +72,7 @@
         <!-- Google Sign-In Client ID -->
         <meta-data
             android:name="com.google.android.gms.auth.GOOGLE_SIGN_IN_CLIENT_ID"
-            android:value="205906736542-lapogbd1fts4odobhm2ursq8irs28u82.apps.googleusercontent.com" />
+            android:value="205906736542-7g4mq8b6m9sn9a1oodqpejs5vp53emg8.apps.googleusercontent.com" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

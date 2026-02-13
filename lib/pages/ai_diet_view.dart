@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/openai_service.dart';
+import '../services/hugging_face_service.dart';
 
 class AiDietView extends StatefulWidget {
   const AiDietView({super.key});
@@ -18,12 +18,12 @@ class _AiDietViewState extends State<AiDietView> {
   String? _error;
   String? _result;
 
-  late final OpenAIService _openai;
+  late final HuggingFaceService _aiService;
 
   @override
   void initState() {
     super.initState();
-    _openai = OpenAIService();
+    _aiService = HuggingFaceService();
   }
 
   @override
@@ -58,7 +58,7 @@ Include meal timing and short portion guidance. Keep it realistic and safe.
 ''';
 
     try {
-      final text = await _openai.generateText(prompt);
+      final text = await _aiService.generateText(prompt);
       if (!mounted) return;
       setState(() => _result = text);
     } catch (e) {
@@ -176,7 +176,7 @@ Include meal timing and short portion guidance. Keep it realistic and safe.
                       style: const TextStyle(color: Colors.redAccent, fontSize: 14),
                     )
                   : Text(
-                      _result ?? 'AI result will appear here once Gemini is connected.',
+                      _result ?? 'AI result will appear here once Hugging Face is connected.',
                       style: TextStyle(color: sub, fontSize: 14),
                     ),
             ),

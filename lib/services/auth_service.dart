@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -9,11 +10,24 @@ import 'package:google_sign_in/google_sign_in.dart';
 class AuthService {
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
-  AuthService._internal();
+  AuthService._internal() {
+    final configuredClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID']?.trim();
+    final hasClientId = configuredClientId != null && configuredClientId.isNotEmpty;
+    _googleSignIn = GoogleSignIn(
+      scopes: ['email', 'profile'],
+      serverClientId: hasClientId ? configuredClientId : null,
+    );
+    if (hasClientId) {
+      final masked = configuredClientId.length > 12
+          ? '${configuredClientId.substring(0, 8)}...${configuredClientId.substring(configuredClientId.length - 8)}'
+          : configuredClientId;
+      print('✅ GoogleSignIn configured with GOOGLE_WEB_CLIENT_ID: $masked');
+    } else {
+      print('⚠️ GOOGLE_WEB_CLIENT_ID not set in .env. Using default GoogleSignIn config.');
+    }
+  }
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email', 'profile'],
-  );
+  late final GoogleSignIn _googleSignIn;
 
   String? get baseUrl {
     final url = dotenv.env['API_BASE_URL'];
@@ -253,13 +267,17 @@ class AuthService {
         };
       }
 
+      print('🔵 Starting Google sign in...');
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
+        print('🟡 Google sign in cancelled by user');
         return {'success': false, 'error': 'Google sign in cancelled'};
       }
+      print('✅ Google account selected: ${googleUser.email}');
 
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
+      print('✅ Google auth tokens received (idToken: ${googleAuth.idToken != null}, accessToken: ${googleAuth.accessToken != null})');
 
       final endpoint = '$url/api/auth/google';
       print('🌐 Making request to: $endpoint');
@@ -324,6 +342,12 @@ class AuthService {
           'error': data['message'] ?? 'Google sign in failed',
         };
       }
+    } on PlatformException catch (e) {
+      print('❌ Google sign in PlatformException: code=${e.code}, message=${e.message}, details=${e.details}');
+      return {
+        'success': false,
+        'error': 'Google sign in failed (${e.code}): ${e.message ?? 'Unknown platform error'}'
+      };
     } catch (e) {
       return {'success': false, 'error': 'Google sign in error: ${e.toString()}'};
     }

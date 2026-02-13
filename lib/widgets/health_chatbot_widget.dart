@@ -124,7 +124,7 @@ class _HealthChatbotWidgetState
     _messageController.clear();
     _scrollToBottom();
 
-    // Get bot response from Gemini AI
+    // Get bot response from AI service
     final response = await _chatbotService.getResponse(
       text,
     );

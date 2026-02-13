@@ -6,13 +6,11 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Bundle
-import android.util.Log
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterFragmentActivity(), SensorEventListener {
-    private val TAG = "StepCounter"
     private val CHANNEL = "com.example.health/step_counter"
     private var sensorManager: SensorManager? = null
     private var stepCounterSensor: Sensor? = null
@@ -27,7 +25,6 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
         
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         stepCounterSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-        Log.d(TAG, "Step sensor available: ${stepCounterSensor != null}")
 
         // Start background step service (foreground service) so steps keep counting.
         if (!didStartService) {
@@ -40,7 +37,6 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                 startService(intent)
             }
             didStartService = true
-            Log.d(TAG, "StepCounterService start requested")
         }
 
         // Keep the sensor registered so lastStepCount stays fresh.
@@ -48,7 +44,6 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
         if (stepCounterSensor != null && !isSensorRegistered) {
             sensorManager?.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL)
             isSensorRegistered = true
-            Log.d(TAG, "Sensor registered (persistent)")
         }
         
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
@@ -66,7 +61,6 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                         if (value == 0) {
                             value = StepCounterService.readLastStepCount(this)
                         }
-                        Log.d(TAG, "getCurrentStepCount -> $value")
                         result.success(value)
                     }
                 }
@@ -75,7 +69,6 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                         result.error("SENSOR_UNAVAILABLE", "Step counter sensor is not available", null)
                     } else {
                         val todaySteps = StepCounterService.readTodaySteps(this)
-                        Log.d(TAG, "getTodayStepCount -> $todaySteps")
                         result.success(todaySteps)
                     }
                 }
@@ -95,7 +88,6 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                         }
                         sensorManager?.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL)
                         isSensorRegistered = true
-                        Log.d(TAG, "Sensor re-registered (startListening)")
                         result.success(null)
                     }
                 }
@@ -115,7 +107,6 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
     override fun onSensorChanged(event: SensorEvent?) {
         if (event?.sensor?.type == Sensor.TYPE_STEP_COUNTER) {
             val newCount = event.values[0].toInt()
-            Log.d(TAG, "onSensorChanged -> $newCount")
             if (newCount > 0) {
                 lastStepCount = newCount
                 if (isListening) {

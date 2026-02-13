@@ -13,14 +13,11 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
 import android.os.IBinder
-import android.util.Log
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 class StepCounterService : Service(), SensorEventListener {
-    private val TAG = "StepCounterService"
-
     private var sensorManager: SensorManager? = null
     private var stepCounterSensor: Sensor? = null
     private var isRegistered = false
@@ -33,7 +30,6 @@ class StepCounterService : Service(), SensorEventListener {
         super.onCreate()
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         stepCounterSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-        Log.d(TAG, "Service created. Sensor available: ${stepCounterSensor != null}")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -54,7 +50,6 @@ class StepCounterService : Service(), SensorEventListener {
     override fun onDestroy() {
         super.onDestroy()
         unregisterSensor()
-        Log.d(TAG, "Service destroyed")
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -82,8 +77,6 @@ class StepCounterService : Service(), SensorEventListener {
                     .putInt(PREF_DAY_START_COUNT, dayStartCount)
                     .putInt(PREF_TODAY_STEPS, todaySteps)
                     .apply()
-
-                Log.d(TAG, "onSensorChanged -> cumulative=$newCount, dayStart=$dayStartCount, todaySteps=$todaySteps")
             }
         }
     }
@@ -96,14 +89,12 @@ class StepCounterService : Service(), SensorEventListener {
         if (stepCounterSensor == null || isRegistered) return
         sensorManager?.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL)
         isRegistered = true
-        Log.d(TAG, "Sensor registered")
     }
 
     private fun unregisterSensor() {
         if (!isRegistered) return
         sensorManager?.unregisterListener(this)
         isRegistered = false
-        Log.d(TAG, "Sensor unregistered")
     }
 
     private fun startAsForeground() {

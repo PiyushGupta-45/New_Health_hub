@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -58,15 +57,9 @@ class DirectStepService {
     
     try {
       final result = await _channel.invokeMethod<int>('getCurrentStepCount');
-      if (kDebugMode) {
-        debugPrint('DirectStepService.getCurrentStepCount -> $result');
-      }
       _lastKnownCurrentStepCount = result;
       return result;
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('DirectStepService.getCurrentStepCount error: $e');
-      }
       return null;
     }
   }
@@ -124,9 +117,6 @@ class DirectStepService {
       nativeToday = await _channel.invokeMethod<int>('getTodayStepCount');
       _lastNativeTodaySteps = nativeToday;
       if (nativeToday != null && nativeToday > 0) {
-        if (kDebugMode) {
-          debugPrint('DirectStepService.getTodaySteps(native) -> $nativeToday');
-        }
         _lastReturnedTodaySteps = nativeToday;
         return nativeToday;
       }
@@ -281,9 +271,6 @@ class DirectStepService {
     _isListening = true;
 
     _channel.invokeMethod('startListening');
-    if (kDebugMode) {
-      debugPrint('DirectStepService.startListening invoked');
-    }
 
     return _stepStream!;
   }

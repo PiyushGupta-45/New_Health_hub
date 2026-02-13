@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/openai_service.dart';
+import '../services/hugging_face_service.dart';
 
 class AiWorkoutPlanView extends StatefulWidget {
   const AiWorkoutPlanView({super.key});
@@ -18,12 +18,12 @@ class _AiWorkoutPlanViewState extends State<AiWorkoutPlanView> {
   String? _error;
   String? _result;
 
-  late final OpenAIService _openai;
+  late final HuggingFaceService _aiService;
 
   @override
   void initState() {
     super.initState();
-    _openai = OpenAIService();
+    _aiService = HuggingFaceService();
   }
 
   @override
@@ -58,7 +58,7 @@ Include warm-up, main sets, and cool-down. Keep it safe and realistic.
 ''';
 
     try {
-      final text = await _openai.generateText(prompt);
+      final text = await _aiService.generateText(prompt);
       if (!mounted) return;
       setState(() => _result = text);
     } catch (e) {
@@ -176,7 +176,7 @@ Include warm-up, main sets, and cool-down. Keep it safe and realistic.
                       style: const TextStyle(color: Colors.redAccent, fontSize: 14),
                     )
                   : Text(
-                      _result ?? 'AI plan will appear here once Gemini is connected.',
+                      _result ?? 'AI plan will appear here once Hugging Face is connected.',
                       style: TextStyle(color: sub, fontSize: 14),
                     ),
             ),
