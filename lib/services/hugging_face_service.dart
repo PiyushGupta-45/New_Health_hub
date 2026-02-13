@@ -5,22 +5,35 @@ import 'package:http/http.dart' as http;
 
 class HuggingFaceService {
   HuggingFaceService() {
-    _apiKey = dotenv.env['HF_API_KEY']?.trim() ?? '';
+    _apiKey = (dotenv.env['HF_API_KEY']?.trim().isNotEmpty == true)
+        ? dotenv.env['HF_API_KEY']!.trim()
+        : (dotenv.env['HUGGINGFACE_API_KEY']?.trim() ?? '');
 
-    final model = dotenv.env['HF_MODEL']?.trim();
+    final model = (dotenv.env['HF_MODEL']?.trim().isNotEmpty == true)
+        ? dotenv.env['HF_MODEL']!.trim()
+        : dotenv.env['HUGGINGFACE_MODEL']?.trim();
     _model = (model != null && model.isNotEmpty)
         ? model
-        : 'HuggingFaceH4/zephyr-7b-beta';
+        : 'Qwen/Qwen2.5-7B-Instruct';
+
+    final configuredBaseUrl =
+        (dotenv.env['HF_BASE_URL']?.trim().isNotEmpty == true)
+            ? dotenv.env['HF_BASE_URL']!.trim()
+            : dotenv.env['HUGGINGFACE_BASE_URL']?.trim();
+    _baseUrl = (configuredBaseUrl != null && configuredBaseUrl.isNotEmpty)
+        ? configuredBaseUrl.replaceAll(RegExp(r'/$'), '')
+        : 'https://router.huggingface.co/v1';
   }
 
   late final String _apiKey;
   late final String _model;
+  late final String _baseUrl;
 
   Future<String> generateText(String prompt) async {
     if (_apiKey.isEmpty) {
-      throw Exception('HF_API_KEY missing in .env');
+      throw Exception('HF_API_KEY/HUGGINGFACE_API_KEY missing in .env');
     }
-    final uri = Uri.parse('https://api-inference.huggingface.co/models/$_model');
+    final uri = Uri.parse('$_baseUrl/chat/completions');
     final response = await http.post(
       uri,
       headers: {
@@ -28,18 +41,18 @@ class HuggingFaceService {
         'Content-Type': 'application/json',
       },
       body: json.encode({
-        'inputs': prompt,
-        'parameters': {
-          'max_new_tokens': 600,
-          'temperature': 0.7,
-          'return_full_text': false,
-        },
+        'model': _model,
+        'messages': [
+          {'role': 'user', 'content': prompt}
+        ],
+        'max_tokens': 600,
+        'temperature': 0.7,
       }),
     );
 
-    final dynamic data = json.decode(response.body);
+    final dynamic data = _tryParseJson(response.body);
     if (response.statusCode >= 400) {
-      throw Exception(_extractError(data, response.statusCode));
+      throw Exception(_extractError(data, response.statusCode, response.body));
     }
 
     final text = _extractText(data);
@@ -50,20 +63,7 @@ class HuggingFaceService {
   }
 
   String _extractText(dynamic data) {
-    if (data is List && data.isNotEmpty && data.first is Map<String, dynamic>) {
-      final first = data.first as Map<String, dynamic>;
-      final generated = first['generated_text'];
-      if (generated is String && generated.trim().isNotEmpty) {
-        return generated.trim();
-      }
-    }
-
     if (data is Map<String, dynamic>) {
-      final generated = data['generated_text'];
-      if (generated is String && generated.trim().isNotEmpty) {
-        return generated.trim();
-      }
-
       final choices = data['choices'];
       if (choices is List &&
           choices.isNotEmpty &&
@@ -81,10 +81,27 @@ class HuggingFaceService {
     return '';
   }
 
-  String _extractError(dynamic data, int statusCode) {
+  dynamic _tryParseJson(String body) {
+    try {
+      return json.decode(body);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _extractError(dynamic data, int statusCode, String rawBody) {
     if (data is Map<String, dynamic>) {
       final error = data['error'];
+      if (error is Map<String, dynamic>) {
+        final msg = error['message']?.toString();
+        if (msg != null && msg.isNotEmpty) {
+          return 'Hugging Face request failed ($statusCode): $msg';
+        }
+      }
       if (error is String && error.isNotEmpty) {
+        if (statusCode == 410 || error.toLowerCase().contains('deprecated')) {
+          return 'Hugging Face request failed ($statusCode): $error';
+        }
         return 'Hugging Face request failed ($statusCode): $error';
       }
       final message = data['message'];
@@ -93,6 +110,9 @@ class HuggingFaceService {
       }
     }
 
-    return 'Hugging Face request failed ($statusCode).';
+    if (rawBody.trim().isNotEmpty) {
+      return 'Hugging Face request failed ($statusCode): ${rawBody.trim()}';
+    }
+    return 'Hugging Face request failed ($statusCode). Check HF_MODEL and API key.';
   }
 }

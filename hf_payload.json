@@ -1,0 +1,1 @@
+{"model":"HuggingFaceH4/zephyr-7b-beta","messages":[{"role":"user","content":"Hello"}],"max_tokens":40}
