@@ -88,6 +88,27 @@ workoutLogSchema.index({ userId: 1, startTime: -1 });
 
 const WorkoutLog = mongoose.model('WorkoutLog', workoutLogSchema);
 
+// Weekly AI Workout Plans Schema
+const weeklyWorkoutPlanSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userName: { type: String },
+  goal: { type: String, default: 'Not specified' },
+  duration: { type: String, default: '30 minutes' },
+  equipment: { type: String, default: 'None' },
+  intensity: { type: String, default: 'Moderate' },
+  injury: { type: String, default: 'No injury' },
+  notes: { type: String, default: '' },
+  planText: { type: String, required: true },
+  status: { type: String, enum: ['approved'], default: 'approved' },
+  approvedAt: { type: Date, default: Date.now },
+}, {
+  timestamps: true,
+});
+
+weeklyWorkoutPlanSchema.index({ userId: 1, createdAt: -1 });
+
+const WeeklyWorkoutPlan = mongoose.model('WeeklyWorkoutPlan', weeklyWorkoutPlanSchema);
+
 // Community Schema
 const communityMemberSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -245,6 +266,25 @@ const formatWorkoutLog = (logDoc) => {
     met: log.met,
     createdAt: log.createdAt,
     updatedAt: log.updatedAt,
+  };
+};
+
+const formatWeeklyWorkoutPlan = (planDoc) => {
+  if (!planDoc) return null;
+  const plan = planDoc.toObject ? planDoc.toObject() : planDoc;
+  return {
+    _id: plan._id?.toString(),
+    goal: plan.goal,
+    duration: plan.duration,
+    equipment: plan.equipment,
+    intensity: plan.intensity,
+    injury: plan.injury,
+    notes: plan.notes,
+    planText: plan.planText,
+    status: plan.status,
+    approvedAt: plan.approvedAt,
+    createdAt: plan.createdAt,
+    updatedAt: plan.updatedAt,
   };
 };
 
@@ -819,6 +859,102 @@ app.get('/api/workouts/logs', verifyToken, async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Server error while fetching workouts',
+    });
+  }
+});
+
+// Weekly workout plan endpoints
+app.post('/api/workout-plans', verifyToken, async (req, res) => {
+  try {
+    const {
+      goal,
+      duration,
+      equipment,
+      intensity,
+      injury,
+      notes,
+      planText,
+    } = req.body;
+
+    if (!planText || !planText.toString().trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'planText is required',
+      });
+    }
+
+    const userProfile = await getUserProfile(req.userId);
+    const plan = await WeeklyWorkoutPlan.create({
+      userId: req.userId,
+      userName: userProfile.name,
+      goal: goal?.toString().trim() || 'Not specified',
+      duration: duration?.toString().trim() || '30 minutes',
+      equipment: equipment?.toString().trim() || 'None',
+      intensity: intensity?.toString().trim() || 'Moderate',
+      injury: injury?.toString().trim() || 'No injury',
+      notes: notes?.toString().trim() || '',
+      planText: planText.toString().trim(),
+      status: 'approved',
+      approvedAt: new Date(),
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: formatWeeklyWorkoutPlan(plan),
+    });
+  } catch (error) {
+    console.error('Save weekly workout plan error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while saving weekly workout plan',
+    });
+  }
+});
+
+app.get('/api/workout-plans/latest', verifyToken, async (req, res) => {
+  try {
+    const plan = await WeeklyWorkoutPlan.findOne({
+      userId: req.userId,
+      status: 'approved',
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({
+      success: true,
+      data: formatWeeklyWorkoutPlan(plan),
+    });
+  } catch (error) {
+    console.error('Fetch latest weekly workout plan error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching latest weekly workout plan',
+    });
+  }
+});
+
+app.get('/api/workout-plans', verifyToken, async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 50);
+
+    const plans = await WeeklyWorkoutPlan.find({
+      userId: req.userId,
+      status: 'approved',
+    })
+      .sort({ createdAt: -1 })
+      .limit(parsedLimit)
+      .lean();
+
+    return res.json({
+      success: true,
+      data: plans.map(formatWeeklyWorkoutPlan),
+    });
+  } catch (error) {
+    console.error('Fetch weekly workout plans error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching weekly workout plans',
     });
   }
 });
@@ -1430,6 +1566,9 @@ app.delete('/api/user/delete', verifyToken, async (req, res) => {
 
     // Delete user's workout logs
     await WorkoutLog.deleteMany({ userId });
+
+    // Delete user's weekly workout plans
+    await WeeklyWorkoutPlan.deleteMany({ userId });
 
     // Remove user from communities (but don't delete communities)
     await Community.updateMany(
