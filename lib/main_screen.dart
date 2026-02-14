@@ -68,6 +68,8 @@ class _MainScreenState
   final PageController _pageController = PageController();
   final HealthSyncController _healthSyncController = HealthSyncController();
   final AuthController _authController = AuthController();
+  final GlobalKey<CommunityPageState> _communityPageKey =
+      GlobalKey<CommunityPageState>();
 
   @override
   void initState() {
@@ -230,10 +232,15 @@ class _MainScreenState
             if (!didPop &&
                 _selectedIndex !=
                     0) {
+              if (_selectedIndex == 1) {
+                final handledByCommunity =
+                    _communityPageKey.currentState?.handleBackFromSystem() ??
+                    false;
+                if (handledByCommunity) {
+                  return;
+                }
+              }
               // Handle back button - go to previous tab
-              // Note: If on Community tab and in chat view, CommunityPage's PopScope
-              // will handle it first (chat -> list) and this won't run because the
-              // back event is consumed. If in list view, this will handle it (list -> Home)
               setState(
                 () {
                   _selectedIndex--;
@@ -276,6 +283,7 @@ class _MainScreenState
                   authController: _authController,
                 ),
                 CommunityPage(
+                  key: _communityPageKey,
                   authController: _authController,
                   healthSyncController: _healthSyncController,
                 ),

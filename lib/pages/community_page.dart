@@ -27,13 +27,10 @@ class CommunityPage
   });
 
   @override
-  State<
-    CommunityPage
-  >
-  createState() => _CommunityPageState();
+  State<CommunityPage> createState() => CommunityPageState();
 }
 
-class _CommunityPageState
+class CommunityPageState
     extends
         State<
           CommunityPage
@@ -47,6 +44,8 @@ class _CommunityPageState
   final TextEditingController _communityNameController = TextEditingController();
   final TextEditingController _joinCodeController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  static const int _initialMessageLimit = 30;
+  static const int _messagePageSize = 20;
 
   List<
     Map<
@@ -76,6 +75,9 @@ class _CommunityPageState
   _selectedCommunity;
   bool _isLoading = false;
   bool _isLoadingMessages = false;
+  bool _isLoadingOlderMessages = false;
+  bool _hasMoreMessages = true;
+  int _messageLimit = _initialMessageLimit;
   bool _isAuthenticated = false;
   String? _userId;
   Timer? _messageRefreshTimer;
@@ -91,6 +93,7 @@ class _CommunityPageState
     );
     _communityNotifications = CommunityNotificationController();
     _communityNotifications.initialize();
+    _scrollController.addListener(_handleChatScroll);
     _checkAuthStatus();
     // Refresh auth status periodically in case user signs in/out elsewhere
     _checkTimer = Timer.periodic(
@@ -134,6 +137,8 @@ class _CommunityPageState
       setState(
         () {
           _selectedCommunity = community;
+          _messages = [];
+          _resetChatPaginationState();
         },
       );
       _communityNotifications.setActiveCommunity(
@@ -155,6 +160,34 @@ class _CommunityPageState
     _tabController.dispose();
     _communityNotifications.dispose();
     super.dispose();
+  }
+
+  bool handleBackFromSystem() {
+    if (_selectedCommunity == null) return false;
+    setState(() {
+      _selectedCommunity = null;
+      _messages = [];
+      _resetChatPaginationState();
+    });
+    _communityNotifications.setActiveCommunity(null);
+    _messageRefreshTimer?.cancel();
+    return true;
+  }
+
+  void _handleChatScroll() {
+    if (_selectedCommunity == null || !_scrollController.hasClients) return;
+    if (_scrollController.position.pixels <= 80 &&
+        !_isLoadingOlderMessages &&
+        _hasMoreMessages &&
+        !_isLoadingMessages) {
+      _loadOlderMessages();
+    }
+  }
+
+  void _resetChatPaginationState() {
+    _messageLimit = _initialMessageLimit;
+    _hasMoreMessages = true;
+    _isLoadingOlderMessages = false;
   }
 
   Future<
@@ -179,6 +212,7 @@ class _CommunityPageState
           _publicCommunities.clear();
           _messages.clear();
           _selectedCommunity = null;
+          _resetChatPaginationState();
         },
       );
       _communityNotifications.stop();
@@ -356,37 +390,40 @@ class _CommunityPageState
     void
   >
   _loadMessages() async {
-    if (_selectedCommunity ==
-            null ||
-        _isLoadingMessages)
+    if (_selectedCommunity == null || _isLoadingMessages)
       return;
+    final currentCommunityId = _selectedCommunity!['_id']?.toString();
+    if (currentCommunityId == null || currentCommunityId.isEmpty) return;
     setState(
       () => _isLoadingMessages = true,
     );
 
     final result = await _communityService.getMessages(
-      _selectedCommunity!['_id'],
+      currentCommunityId,
+      limit: _messageLimit,
+      sortOrder: 'asc',
     );
     if (result['success'] ==
             true &&
         mounted) {
+      final previousCount = _messages.length;
+      final wasNearBottom = _scrollController.hasClients
+          ? (_scrollController.position.maxScrollExtent -
+                      _scrollController.position.pixels) <
+                  120
+          : true;
+      final data = List<Map<String, dynamic>>.from(result['data'] ?? []);
       setState(
         () {
-          _messages =
-              List<
-                Map<
-                  String,
-                  dynamic
-                >
-              >.from(
-                result['data'] ??
-                    [],
-              );
+          _messages = data;
+          _hasMoreMessages = data.length >= _messageLimit;
           _isLoadingMessages = false;
         },
       );
-      // Auto-scroll to bottom
-      if (_scrollController.hasClients) {
+
+      // Auto-scroll only for initial load or when user is already near bottom.
+      if (_scrollController.hasClients &&
+          (previousCount == 0 || wasNearBottom)) {
         WidgetsBinding.instance.addPostFrameCallback(
           (
             _,
@@ -410,6 +447,59 @@ class _CommunityPageState
     }
   }
 
+  Future<void> _loadOlderMessages() async {
+    if (_selectedCommunity == null ||
+        _isLoadingOlderMessages ||
+        !_hasMoreMessages ||
+        _isLoadingMessages) {
+      return;
+    }
+    if (!_scrollController.hasClients) return;
+
+    final beforeOffset = _scrollController.offset;
+    final beforeMaxExtent = _scrollController.position.maxScrollExtent;
+
+    setState(() => _isLoadingOlderMessages = true);
+    _messageLimit += _messagePageSize;
+
+    final communityId = _selectedCommunity!['_id']?.toString();
+    if (communityId == null || communityId.isEmpty) {
+      setState(() => _isLoadingOlderMessages = false);
+      return;
+    }
+
+    final result = await _communityService.getMessages(
+      communityId,
+      limit: _messageLimit,
+      sortOrder: 'asc',
+    );
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final data = List<Map<String, dynamic>>.from(result['data'] ?? []);
+      setState(() {
+        _messages = data;
+        _hasMoreMessages = data.length >= _messageLimit;
+        _isLoadingOlderMessages = false;
+      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
+        final afterMaxExtent = _scrollController.position.maxScrollExtent;
+        final delta = afterMaxExtent - beforeMaxExtent;
+        if (delta > 0) {
+          _scrollController.jumpTo(beforeOffset + delta);
+        }
+      });
+      return;
+    }
+
+    // Revert limit increase on failure.
+    _messageLimit -= _messagePageSize;
+    setState(() => _isLoadingOlderMessages = false);
+  }
+
   Future<
     void
   >
@@ -427,7 +517,18 @@ class _CommunityPageState
     );
     if (result['success'] ==
         true) {
-      _loadMessages();
+      await _loadMessages();
+      if (_scrollController.hasClients) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            _scrollController.animateTo(
+              _scrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
     } else {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -769,6 +870,8 @@ class _CommunityPageState
     setState(
       () {
         _selectedCommunity = community;
+        _resetChatPaginationState();
+        _messages = [];
       },
     );
     _communityNotifications.setActiveCommunity(
@@ -1123,6 +1226,7 @@ class _CommunityPageState
                   () {
                     _selectedCommunity = null;
                     _messages = [];
+                    _resetChatPaginationState();
                   },
                 );
                 _communityNotifications.setActiveCommunity(
@@ -1156,6 +1260,7 @@ class _CommunityPageState
                   () {
                     _selectedCommunity = null;
                     _messages = [];
+                    _resetChatPaginationState();
                   },
                 );
                 _communityNotifications.setActiveCommunity(
@@ -1188,13 +1293,35 @@ class _CommunityPageState
                         padding: const EdgeInsets.all(
                           16,
                         ),
-                        itemCount: _messages.length,
+                        itemCount:
+                            _messages.length +
+                            (_isLoadingOlderMessages ? 1 : 0),
                         itemBuilder:
                             (
                               context,
                               index,
                             ) {
-                              final message = _messages[index];
+                              if (_isLoadingOlderMessages &&
+                                  index == 0) {
+                                return const Padding(
+                                  padding: EdgeInsets.only(bottom: 10),
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              final messageIndex =
+                                  _isLoadingOlderMessages
+                                  ? index - 1
+                                  : index;
+                              final message = _messages[messageIndex];
                               final isMe =
                                   message['userId']?.toString() ==
                                   _userId;
@@ -1820,6 +1947,8 @@ class _CommunityPageState
                                         setState(
                                           () {
                                             _selectedCommunity = null;
+                                            _messages = [];
+                                            _resetChatPaginationState();
                                           },
                                         );
                                         _communityNotifications.setActiveCommunity(
@@ -1990,6 +2119,8 @@ class _CommunityPageState
                                       setState(
                                         () {
                                           _selectedCommunity = null;
+                                          _messages = [];
+                                          _resetChatPaginationState();
                                         },
                                       );
                                       _communityNotifications.setActiveCommunity(
