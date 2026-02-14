@@ -161,17 +161,21 @@ class HealthSyncController
               // via native/background service even if cumulative callback is stale.
               final todaySteps = await _directStepService.getTodaySteps();
               if (todaySteps >= 0) {
+                final displaySteps = _resolveDisplaySteps(
+                  sensorTodaySteps: todaySteps,
+                  cumulativeSteps: latestCumulative,
+                );
                 final currentSteps = _snapshot?.todaySteps ?? 0;
-              if (_snapshot == null || todaySteps != currentSteps) {
+              if (_snapshot == null || displaySteps != currentSteps) {
                 final now = DateTime.now();
                 _snapshot = HealthSyncSnapshot(
-                  todaySteps: todaySteps,
+                  todaySteps: displaySteps,
                   workouts: _snapshot?.workouts ?? const [],
                   rangeStart: _snapshot?.rangeStart ?? now.subtract(const Duration(days: 7)),
                   rangeEnd: now,
                   locationPermissionGranted: _snapshot?.locationPermissionGranted ?? false,
                   stepsBySource: {
-                    'Phone Sensor': todaySteps,
+                    'Phone Sensor': displaySteps,
                     if (_snapshot?.stepsBySource['Cloud Sync'] != null)
                       'Cloud Sync': _snapshot!.stepsBySource['Cloud Sync']!,
                   },
@@ -180,7 +184,7 @@ class HealthSyncController
                 _status = HealthSyncStatus.ready;
                   notifyListeners();
                   if (kDebugMode) {
-                    print('Periodic check: Steps updated to $todaySteps');
+                    print('Periodic check: Steps updated to $displaySteps');
                   }
                 } else if (cumulativeChanged) {
                   notifyListeners();
@@ -332,7 +336,10 @@ class HealthSyncController
         
         final todaySteps = await _directStepService.getTodaySteps();
         if (todaySteps >= 0) {
-          final displaySteps = todaySteps;
+          final displaySteps = _resolveDisplaySteps(
+            sensorTodaySteps: todaySteps,
+            cumulativeSteps: cumulativeSteps,
+          );
           final now = DateTime.now();
           final currentSteps = _snapshot?.todaySteps ?? 0;
           if (_snapshot == null || displaySteps != currentSteps) {
@@ -442,7 +449,10 @@ class HealthSyncController
               if (sensorSteps >= 0) {
                 _displayBaselineSteps = steps > 0 ? steps : 0;
                 _displayBaselineCumulative = currentCount;
-                final displaySteps = sensorSteps;
+                final displaySteps = _resolveDisplaySteps(
+                  sensorTodaySteps: sensorSteps,
+                  cumulativeSteps: currentCount,
+                );
                 final primarySource = 'Phone Sensor';
 
                 _snapshot = HealthSyncSnapshot(
@@ -759,6 +769,7 @@ class HealthSyncController
         final isAvailable = await _directStepService.isStepCounterAvailable();
         if (isAvailable) {
           final todaySteps = await _directStepService.getTodaySteps();
+          final currentCumulative = await _directStepService.getCurrentStepCount();
           final now = DateTime.now();
           final rangeStart = now.subtract(
             const Duration(
@@ -768,7 +779,10 @@ class HealthSyncController
 
           // Update whenever sensor daily steps changed, including day rollover decreases.
           final currentSteps = _snapshot?.todaySteps ?? 0;
-          final displaySteps = todaySteps;
+          final displaySteps = _resolveDisplaySteps(
+            sensorTodaySteps: todaySteps,
+            cumulativeSteps: currentCumulative,
+          );
           if (_snapshot == null || displaySteps != currentSteps) {
             _snapshot = HealthSyncSnapshot(
               todaySteps: displaySteps,
