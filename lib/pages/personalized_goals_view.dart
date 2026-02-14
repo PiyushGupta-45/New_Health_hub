@@ -2,8 +2,11 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../services/notification_service.dart';
 import '../services/goals_storage_service.dart';
+import '../services/weekly_workout_plan_service.dart';
+import '../services/workout_log_service.dart';
 
 // --- Global Constants ---
 const Color
@@ -79,12 +82,20 @@ class PersonalizedGoalsView
 
 class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
   late final _GoalNotificationController _goalNotificationController;
+  final WeeklyWorkoutPlanService _weeklyWorkoutPlanService =
+      WeeklyWorkoutPlanService();
+  final WorkoutLogService _workoutLogService = WorkoutLogService();
+  WeeklyWorkoutPlan? _approvedWeeklyPlan;
+  List<ManualWorkoutLog> _completedLogs = const [];
+  bool _workoutDataLoading = false;
+  String? _workoutDataError;
 
   @override
   void initState() {
     super.initState();
     _goalNotificationController = _GoalNotificationController();
     _loadGoals();
+    _loadWorkoutData();
   }
 
   @override
@@ -103,6 +114,73 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
   Future<bool> scheduleGoalReminder(Goal goal) {
     return _goalNotificationController.scheduleGoal(goal);
   }
+
+  Future<void> _loadWorkoutData() async {
+    setState(() {
+      _workoutDataLoading = true;
+      _workoutDataError = null;
+    });
+    try {
+      final planResult = await _weeklyWorkoutPlanService.getLatestApprovedPlan();
+      final logs = await _workoutLogService.fetchLogs(limit: 100);
+      if (!mounted) return;
+      setState(() {
+        _approvedWeeklyPlan = planResult['success'] == true
+            ? planResult['data'] as WeeklyWorkoutPlan?
+            : null;
+        _completedLogs = logs;
+        _workoutDataLoading = false;
+        final planError = planResult['error']?.toString();
+        _workoutDataError = (planError != null && planError.isNotEmpty)
+            ? planError
+            : null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _workoutDataLoading = false;
+        _workoutDataError = e.toString();
+      });
+    }
+  }
+
+  List<_ScheduledWorkoutDay> _extractWeeklySchedule(WeeklyWorkoutPlan plan) {
+    final lines = plan.planText
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+
+    final List<_ScheduledWorkoutDay> days = [];
+    _ScheduledWorkoutDay? current;
+    final dayRegex = RegExp(r'^-?\s*Day\s+(\d+)\s*:\s*(.+)$', caseSensitive: false);
+
+    for (final rawLine in lines) {
+      final line = rawLine.startsWith('- ') ? rawLine.substring(2).trim() : rawLine;
+      final match = dayRegex.firstMatch(line);
+      if (match != null) {
+        if (current != null) {
+          days.add(current);
+        }
+        current = _ScheduledWorkoutDay(
+          dayNumber: int.tryParse(match.group(1) ?? '') ?? 0,
+          title: (match.group(2) ?? '').trim(),
+          details: <String>[],
+        );
+        continue;
+      }
+      if (current != null) {
+        current.details.add(line);
+      }
+    }
+    if (current != null) {
+      days.add(current);
+    }
+    days.sort((a, b) => a.dayNumber.compareTo(b.dayNumber));
+    return days;
+  }
+
+  DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
 
   /// Load goals from local storage
   Future<
@@ -205,12 +283,34 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     );
     
     await refreshGoalNotifications();
+    await _loadWorkoutData();
   }
 
   @override
   Widget build(
     BuildContext context,
   ) {
+    final schedule = _approvedWeeklyPlan == null
+        ? <_ScheduledWorkoutDay>[]
+        : _extractWeeklySchedule(_approvedWeeklyPlan!);
+    final now = _dateOnly(DateTime.now());
+    final planAnchor = _approvedWeeklyPlan?.approvedAt ??
+        _approvedWeeklyPlan?.createdAt ??
+        DateTime.now();
+    final anchorDate = _dateOnly(planAnchor);
+    final dayOffset = now.difference(anchorDate).inDays;
+    final todayDayNumber = dayOffset + 1;
+
+    _ScheduledWorkoutDay? todayWorkout;
+    final upcoming = <_ScheduledWorkoutDay>[];
+    for (final day in schedule) {
+      if (day.dayNumber == todayDayNumber) {
+        todayWorkout = day;
+      } else if (day.dayNumber > todayDayNumber) {
+        upcoming.add(day);
+      }
+    }
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -231,52 +331,71 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
               : Colors.black87,
         ),
       ),
-      body: activeGoals.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.flag_outlined,
-                    size: 80,
-                    color: Colors.grey.shade300,
-                  ),
-                  const SizedBox(
-                    height: 10,
-                  ),
-                  const Text(
-                    'Tap + to set your first goal!',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await _loadGoals();
+          await _loadWorkoutData();
+        },
+        child: ListView(
+          padding: const EdgeInsets.all(20.0),
+          children: [
+            if (_workoutDataLoading)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: LinearProgressIndicator(minHeight: 3),
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(
-                20.0,
-              ),
-              itemCount: activeGoals.length,
-              itemBuilder:
-                  (
-                    context,
-                    index,
-                  ) {
-                    final goal = activeGoals[index];
-                    return _GoalCard(
-                      goal: goal,
-                      onEdit: () => _navigateToAddOrEditGoal(
-                        context,
-                        goalToEdit: goal,
-                      ),
-                      onDelete: () => _deleteGoal(
-                        goal.goalId,
-                      ),
-                    );
-                  },
+            _WorkoutScheduleSection(
+              todayWorkout: todayWorkout,
+              upcomingWorkouts: upcoming,
+              anchorDate: anchorDate,
+              workoutDataError: _workoutDataError,
             ),
+            const SizedBox(height: 18),
+            _CompletedWorkoutHistorySection(
+              logs: _completedLogs,
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Icon(Icons.flag_rounded, color: Colors.orange.shade500),
+                const SizedBox(width: 8),
+                Text(
+                  'My Active Goals',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFFF1F5F9)
+                        : const Color(0xFF1F2937),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (activeGoals.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF1E293B)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Text('Tap + to set your first goal!'),
+              )
+            else
+              ...activeGoals.map((goal) => _GoalCard(
+                    goal: goal,
+                    onEdit: () => _navigateToAddOrEditGoal(
+                      context,
+                      goalToEdit: goal,
+                    ),
+                    onDelete: () => _deleteGoal(goal.goalId),
+                  )),
+            SizedBox(height: MediaQuery.of(context).padding.bottom + 90),
+          ],
+        ),
+      ),
 
       // --- Floating Action Button (FAB) ---
       floatingActionButton: FloatingActionButton(
@@ -290,6 +409,267 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
           color: Colors.white,
           size: 30,
         ),
+      ),
+    );
+  }
+}
+
+class _ScheduledWorkoutDay {
+  _ScheduledWorkoutDay({
+    required this.dayNumber,
+    required this.title,
+    required this.details,
+  });
+
+  final int dayNumber;
+  final String title;
+  final List<String> details;
+}
+
+class _WorkoutScheduleSection extends StatelessWidget {
+  const _WorkoutScheduleSection({
+    required this.todayWorkout,
+    required this.upcomingWorkouts,
+    required this.anchorDate,
+    this.workoutDataError,
+  });
+
+  final _ScheduledWorkoutDay? todayWorkout;
+  final List<_ScheduledWorkoutDay> upcomingWorkouts;
+  final DateTime anchorDate;
+  final String? workoutDataError;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.grey.shade700 : Colors.grey.shade200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Weekly Workout Schedule',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Plan start: ${DateFormat('EEE, MMM d').format(anchorDate)}',
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (todayWorkout == null)
+            _emptyInfo(
+              context,
+              'No workout assigned for today. Generate/approve a fresh weekly plan.',
+            )
+          else
+            _dayCard(
+              context: context,
+              title: 'Today',
+              day: todayWorkout!,
+              isToday: true,
+            ),
+          const SizedBox(height: 12),
+          Text(
+            'Upcoming Workouts',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (upcomingWorkouts.isEmpty)
+            _emptyInfo(context, 'No upcoming items in the current weekly plan.')
+          else
+            ...upcomingWorkouts.take(6).map(
+                  (day) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _dayCard(
+                      context: context,
+                      title: 'Day ${day.dayNumber}',
+                      day: day,
+                    ),
+                  ),
+                ),
+          if (workoutDataError != null && workoutDataError!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              workoutDataError!,
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyInfo(BuildContext context, String text) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 13,
+          color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+        ),
+      ),
+    );
+  }
+
+  Widget _dayCard({
+    required BuildContext context,
+    required String title,
+    required _ScheduledWorkoutDay day,
+    bool isToday = false,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isToday
+            ? (isDark ? const Color(0xFF1D4ED8) : const Color(0xFFDBEAFE))
+            : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isToday
+              ? (isDark ? const Color(0xFF60A5FA) : const Color(0xFF93C5FD))
+              : (isDark ? Colors.grey.shade700 : Colors.grey.shade200),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$title: ${day.title}',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: isToday
+                  ? (isDark ? Colors.white : const Color(0xFF1E3A8A))
+                  : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1F2937)),
+            ),
+          ),
+          if (day.details.isNotEmpty) const SizedBox(height: 6),
+          ...day.details.take(3).map(
+                (detail) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    '• $detail',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isToday
+                          ? (isDark
+                              ? Colors.white.withValues(alpha: 0.95)
+                              : const Color(0xFF1E40AF))
+                          : (isDark ? Colors.grey.shade300 : Colors.grey.shade700),
+                    ),
+                  ),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompletedWorkoutHistorySection extends StatelessWidget {
+  const _CompletedWorkoutHistorySection({
+    required this.logs,
+  });
+
+  final List<ManualWorkoutLog> logs;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final recent = logs.toList()
+      ..sort((a, b) => b.startTime.compareTo(a.startTime));
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.grey.shade700 : Colors.grey.shade200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Completed Workout History',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (recent.isEmpty)
+            Text(
+              'No completed workouts yet.',
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+              ),
+            )
+          else
+            ...recent.take(10).map(
+                  (log) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          size: 18,
+                          color: Colors.green.shade500,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${DateFormat('EEE, MMM d').format(log.startTime)}: ${log.workoutType} (${(log.durationSeconds / 60).round()} min)',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isDark
+                                  ? const Color(0xFFE2E8F0)
+                                  : const Color(0xFF1F2937),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+        ],
       ),
     );
   }

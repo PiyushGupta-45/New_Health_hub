@@ -29,11 +29,21 @@ class HuggingFaceService {
   late final String _model;
   late final String _baseUrl;
 
-  Future<String> generateText(String prompt) async {
+  Future<String> generateText(
+    String prompt, {
+    String? systemPrompt,
+    double temperature = 0.2,
+    int maxTokens = 600,
+  }) async {
     if (_apiKey.isEmpty) {
       throw Exception('HF_API_KEY/HUGGINGFACE_API_KEY missing in .env');
     }
     final uri = Uri.parse('$_baseUrl/chat/completions');
+    final messages = <Map<String, String>>[
+      if (systemPrompt != null && systemPrompt.trim().isNotEmpty)
+        {'role': 'system', 'content': systemPrompt.trim()},
+      {'role': 'user', 'content': prompt},
+    ];
     final response = await http.post(
       uri,
       headers: {
@@ -42,11 +52,9 @@ class HuggingFaceService {
       },
       body: json.encode({
         'model': _model,
-        'messages': [
-          {'role': 'user', 'content': prompt}
-        ],
-        'max_tokens': 600,
-        'temperature': 0.7,
+        'messages': messages,
+        'max_tokens': maxTokens,
+        'temperature': temperature,
       }),
     );
 

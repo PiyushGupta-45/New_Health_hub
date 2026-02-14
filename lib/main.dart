@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'main_screen.dart';
@@ -20,16 +21,41 @@ Future<void> main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  bool _isDarkMode(ThemeMode mode) {
+    if (mode == ThemeMode.dark) return true;
+    if (mode == ThemeMode.light) return false;
+    return WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+        Brightness.dark;
+  }
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => ThemeService(),
       child: Consumer<ThemeService>(
         builder: (context, themeService, child) {
+          final isDark = _isDarkMode(themeService.themeMode);
+          final overlayStyle = isDark
+              ? SystemUiOverlayStyle.light.copyWith(
+                  statusBarColor: Colors.transparent,
+                  systemNavigationBarColor: const Color(0xFF0F172A),
+                  systemNavigationBarIconBrightness: Brightness.light,
+                )
+              : SystemUiOverlayStyle.dark.copyWith(
+                  statusBarColor: Colors.transparent,
+                  systemNavigationBarColor: const Color(0xFFF8FAFC),
+                  systemNavigationBarIconBrightness: Brightness.dark,
+                );
           return MaterialApp(
             navigatorKey: navigatorKey,
             title: 'FitTrack',
             themeMode: themeService.themeMode,
+            builder: (context, appChild) {
+              return AnnotatedRegion<SystemUiOverlayStyle>(
+                value: overlayStyle,
+                child: appChild ?? const SizedBox.shrink(),
+              );
+            },
             theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -48,6 +74,9 @@ class MyApp extends StatelessWidget {
           centerTitle: false,
           backgroundColor: Colors.transparent,
           foregroundColor: const Color(0xFF1E293B),
+          systemOverlayStyle: SystemUiOverlayStyle.dark.copyWith(
+            statusBarColor: Colors.transparent,
+          ),
           titleTextStyle: const TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w800,
@@ -106,12 +135,15 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFF0F172A),
         fontFamily: 'Inter',
         visualDensity: VisualDensity.adaptivePlatformDensity,
-        appBarTheme: const AppBarTheme(
+        appBarTheme: AppBarTheme(
           elevation: 0,
           centerTitle: false,
           backgroundColor: Colors.transparent,
-          foregroundColor: Color(0xFFF1F5F9),
-          titleTextStyle: TextStyle(
+          foregroundColor: const Color(0xFFF1F5F9),
+          systemOverlayStyle: SystemUiOverlayStyle.light.copyWith(
+            statusBarColor: Colors.transparent,
+          ),
+          titleTextStyle: const TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w800,
             color: Color(0xFFF1F5F9),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/hugging_face_service.dart';
+import '../widgets/ai_result_renderer.dart';
 
 class AiDietView extends StatefulWidget {
   const AiDietView({super.key});
@@ -36,6 +37,8 @@ class _AiDietViewState extends State<AiDietView> {
   }
 
   Future<void> _generatePlan() async {
+    FocusScope.of(context).unfocus();
+
     setState(() {
       _isLoading = true;
       _error = null;
@@ -47,18 +50,56 @@ class _AiDietViewState extends State<AiDietView> {
     final allergy = _allergyController.text.trim();
     final meals = _mealsController.text.trim();
 
-    final prompt = '''
-Create a daily diet plan in simple bullet points.
-Goal: ${goal.isEmpty ? 'Not specified' : goal}
-Diet type: ${diet.isEmpty ? 'Not specified' : diet}
-Allergies: ${allergy.isEmpty ? 'None' : allergy}
-Meals per day: ${meals.isEmpty ? '3' : meals}
+    final selectedGoal = goal.isEmpty ? 'Not specified' : goal;
+    final selectedDiet = diet.isEmpty ? 'Not specified' : diet;
+    final selectedAllergy = allergy.isEmpty ? 'None' : allergy;
+    final selectedMeals = meals.isEmpty ? '3' : meals;
 
-Include meal timing and short portion guidance. Keep it realistic and safe.
+    const systemPrompt = '''
+You are a strict diet planning assistant.
+Follow user-selected inputs exactly.
+Never change, replace, or reinterpret selected values.
+Do not add conflicting assumptions.
+Return concise markdown only.
+''';
+
+    final prompt = '''
+Create a ONE-DAY diet plan using these exact selected inputs:
+- Goal: $selectedGoal
+- Diet type: $selectedDiet
+- Allergies: $selectedAllergy
+- Meals per day: $selectedMeals
+
+Rules:
+1) Use these selected values exactly as written above.
+2) Do not suggest foods that violate allergies.
+3) Keep the plan realistic and safe for a general healthy adult.
+4) Keep output short and practical.
+5) If an input is "Not specified", keep recommendations generic and say "Not specified" in Inputs Echo.
+
+Output format (follow exactly):
+## Inputs Echo
+- Goal: <exact value>
+- Diet type: <exact value>
+- Allergies: <exact value>
+- Meals per day: <exact value>
+
+## Plan
+- Time - Meal name: foods + portion hint
+- Time - Meal name: foods + portion hint
+(repeat to match meals per day exactly)
+
+## Notes
+- 2 to 4 short safety or hydration notes.
 ''';
 
     try {
-      final text = await _aiService.generateText(prompt);
+      final text = await _aiService.generateText(
+        prompt,
+        systemPrompt: systemPrompt,
+        temperature: 0.1,
+        maxTokens: 700,
+      );
       if (!mounted) return;
       setState(() => _result = text);
     } catch (e) {
@@ -175,10 +216,12 @@ Include meal timing and short portion guidance. Keep it realistic and safe.
                       _error!,
                       style: const TextStyle(color: Colors.redAccent, fontSize: 14),
                     )
-                  : Text(
-                      _result ?? 'AI result will appear here once Hugging Face is connected.',
-                      style: TextStyle(color: sub, fontSize: 14),
-                    ),
+                  : (_result == null
+                        ? Text(
+                            'AI result will appear here once Hugging Face is connected.',
+                            style: TextStyle(color: sub, fontSize: 14),
+                          )
+                        : AIResultRenderer(rawText: _result!)),
             ),
           ],
         ),

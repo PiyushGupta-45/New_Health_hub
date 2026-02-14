@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // This file contains the main home page widget, including the UI for
 // the progress card and quick actions.
 
@@ -16,6 +18,8 @@ import '../widgets/theme_toggle_button.dart';
 import 'workout_tracker_view.dart';
 import 'personalized_goals_view.dart';
 import 'posture_analysis_view.dart';
+import 'ai_diet_view.dart';
+import 'ai_workout_plan_view.dart';
 import 'auth_page.dart';
 import 'steps_history_view.dart';
 import 'account_page.dart';
@@ -46,15 +50,20 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   static const int _defaultStepGoal = 10000;
+  static const int _uspBannerCount = 3;
   bool _requestedInitialSync = false;
   bool _checkedBackgroundPrompt = false;
   bool _isDebugPanelExpanded = false;
+  final PageController _uspBannerController = PageController();
+  Timer? _uspBannerTimer;
+  int _uspBannerIndex = 0;
   static const String _backgroundPromptKey = 'background_tracking_prompt_shown';
 
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_handleControllerChanged);
+    _startUspBannerAutoplay();
   }
 
   @override
@@ -83,8 +92,23 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    _uspBannerTimer?.cancel();
+    _uspBannerController.dispose();
     widget.controller.removeListener(_handleControllerChanged);
     super.dispose();
+  }
+
+  void _startUspBannerAutoplay() {
+    _uspBannerTimer?.cancel();
+    _uspBannerTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted || !_uspBannerController.hasClients) return;
+      final nextIndex = (_uspBannerIndex + 1) % _uspBannerCount;
+      _uspBannerController.animateToPage(
+        nextIndex,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   void _handleControllerChanged() {
@@ -620,6 +644,184 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildUspBanner(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final items = <Map<String, dynamic>>[
+      {
+        'title': 'Posture Analysis',
+        'subtitle': 'AI-powered posture correction feedback',
+        'icon': Icons.accessibility_new_rounded,
+        'start': const Color(0xFF20B2AA),
+        'end': const Color(0xFF0EA5A5),
+        'onTap': () {
+          if (widget.authController.isGuest) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Sign in required to use Posture Analysis.'),
+              ),
+            );
+            return;
+          }
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const PostureAnalysisView(),
+            ),
+          );
+        },
+      },
+      {
+        'title': 'Diet AI',
+        'subtitle': 'Create a diet plan with AI',
+        'icon': Icons.restaurant_menu,
+        'start': const Color(0xFF22C55E),
+        'end': const Color(0xFF16A34A),
+        'onTap': () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const AiDietView(),
+            ),
+          );
+        },
+      },
+      {
+        'title': 'Workout AI',
+        'subtitle': 'Create a daily workout plan',
+        'icon': Icons.auto_awesome_rounded,
+        'start': const Color(0xFF3B82F6),
+        'end': const Color(0xFF2563EB),
+        'onTap': () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const AiWorkoutPlanView(),
+            ),
+          );
+        },
+      },
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 145,
+          child: PageView.builder(
+            controller: _uspBannerController,
+            itemCount: items.length,
+            onPageChanged: (index) {
+              if (!mounted) return;
+              setState(() {
+                _uspBannerIndex = index;
+              });
+            },
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: item['onTap'] as VoidCallback,
+                    borderRadius: BorderRadius.circular(22),
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(22),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            item['start'] as Color,
+                            item['end'] as Color,
+                          ],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (item['start'] as Color).withOpacity(0.28),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 54,
+                            height: 54,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.18),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Icon(
+                              item['icon'] as IconData,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item['title'] as String,
+                                  style: const TextStyle(
+                                    fontSize: 21,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                    letterSpacing: -0.4,
+                                  ),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  item['subtitle'] as String,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white.withOpacity(0.9),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white.withOpacity(0.95),
+                            size: 24,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(items.length, (index) {
+            final isActive = index == _uspBannerIndex;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              height: 7,
+              width: isActive ? 24 : 7,
+              decoration: BoxDecoration(
+                color: isActive
+                    ? (isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB))
+                    : (isDark ? Colors.grey.shade700 : Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            );
+          }),
+        ),
+      ],
     );
   }
 
@@ -1167,29 +1369,7 @@ class _HomePageState extends State<HomePage> {
                 
                 Column(
                   children: [
-                    _buildModernActionCard(
-                      context: context,
-                      icon: Icons.accessibility_new_rounded,
-                      iconColor: const Color(0xFF20B2AA), // Sea Green
-                      iconBgColor: const Color(0xFF20B2AA).withOpacity(0.1),
-                      title: 'Posture Analysis',
-                      subtitle: 'AI-powered posture correction feedback',
-                      onTap: () {
-                        if (widget.authController.isGuest) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Sign in required to use Posture Analysis.'),
-                            ),
-                          );
-                          return;
-                        }
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const PostureAnalysisView(),
-                          ),
-                        );
-                      },
-                    ),
+                    _buildUspBanner(context),
                     const SizedBox(height: 16),
                     _buildModernActionCard(
                       context: context,
