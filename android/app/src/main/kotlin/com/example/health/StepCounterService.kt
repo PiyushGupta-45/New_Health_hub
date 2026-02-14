@@ -13,11 +13,13 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 class StepCounterService : Service(), SensorEventListener {
+    private val TAG = "StepCounterService"
     private var sensorManager: SensorManager? = null
     private var stepCounterSensor: Sensor? = null
     private var isRegistered = false
@@ -40,7 +42,13 @@ class StepCounterService : Service(), SensorEventListener {
                 return START_NOT_STICKY
             }
             ACTION_START, null -> {
-                startAsForeground()
+                try {
+                    startAsForeground()
+                } catch (e: SecurityException) {
+                    Log.w(TAG, "FGS start blocked: ${e.message}")
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
                 registerSensorIfNeeded()
             }
         }

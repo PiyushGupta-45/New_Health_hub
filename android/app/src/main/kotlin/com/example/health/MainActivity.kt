@@ -1,16 +1,20 @@
 package com.example.health
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Bundle
+import android.util.Log
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterFragmentActivity(), SensorEventListener {
+    private val TAG = "MainActivity"
     private val CHANNEL = "com.example.health/step_counter"
     private var sensorManager: SensorManager? = null
     private var stepCounterSensor: Sensor? = null
@@ -28,15 +32,23 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
 
         // Start background step service (foreground service) so steps keep counting.
         if (!didStartService) {
-            val intent = Intent(this, StepCounterService::class.java).apply {
-                action = StepCounterService.ACTION_START
-            }
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                startForegroundService(intent)
+            if (canStartHealthForegroundService()) {
+                try {
+                    val intent = Intent(this, StepCounterService::class.java).apply {
+                        action = StepCounterService.ACTION_START
+                    }
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        startForegroundService(intent)
+                    } else {
+                        startService(intent)
+                    }
+                    didStartService = true
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to start StepCounterService on startup: ${e.message}")
+                }
             } else {
-                startService(intent)
+                Log.i(TAG, "Skipping StepCounterService startup until ACTIVITY_RECOGNITION permission is granted.")
             }
-            didStartService = true
         }
 
         // Keep the sensor registered so lastStepCount stays fresh.
@@ -88,6 +100,19 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                         }
                         sensorManager?.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL)
                         isSensorRegistered = true
+
+                        // Start background service only after permission is available.
+                        if (!didStartService && canStartHealthForegroundService()) {
+                            val intent = Intent(this, StepCounterService::class.java).apply {
+                                action = StepCounterService.ACTION_START
+                            }
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                startForegroundService(intent)
+                            } else {
+                                startService(intent)
+                            }
+                            didStartService = true
+                        }
                         result.success(null)
                     }
                 }
@@ -102,6 +127,13 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                 }
             }
         }
+    }
+
+    private fun canStartHealthForegroundService(): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+            return true
+        }
+        return checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
