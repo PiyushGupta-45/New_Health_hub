@@ -1,6 +1,7 @@
-// Modern About Page for FitTrack
+// Modern About Page for HealthHub
 
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
@@ -18,15 +19,15 @@ class AboutPage extends StatelessWidget {
               // Hero Section (compact)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 28,
+                  horizontal: 20,
+                ),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF1E40AF),
-                      Color(0xFF2563EB),
-                    ],
+                    colors: [Color(0xFF1E40AF), Color(0xFF2563EB)],
                   ),
                   borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(24),
@@ -58,7 +59,7 @@ class AboutPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'FitTrack',
+                      'HealthHub',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
@@ -85,13 +86,21 @@ class AboutPage extends StatelessWidget {
                         color: Colors.white.withOpacity(0.14),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: const Text(
-                        'Version 1.0.0',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      child: FutureBuilder<PackageInfo>(
+                        future: PackageInfo.fromPlatform(),
+                        builder: (context, snapshot) {
+                          final version = snapshot.hasData
+                              ? '${snapshot.data!.version}+${snapshot.data!.buildNumber}'
+                              : '...';
+                          return Text(
+                            'Version $version',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -109,7 +118,9 @@ class AboutPage extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+                        color: isDark
+                            ? const Color(0xFFF1F5F9)
+                            : const Color(0xFF1E293B),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -117,7 +128,8 @@ class AboutPage extends StatelessWidget {
                       context: context,
                       icon: Icons.directions_run_rounded,
                       title: 'Step Tracking',
-                      description: 'Track your daily steps with real-time monitoring',
+                      description:
+                          'Track your daily steps with real-time monitoring',
                       color: Colors.blue,
                     ),
                     const SizedBox(height: 12),
@@ -125,7 +137,8 @@ class AboutPage extends StatelessWidget {
                       context: context,
                       icon: Icons.flag_rounded,
                       title: 'Goal Setting',
-                      description: 'Set personalized health goals and get reminders',
+                      description:
+                          'Set personalized health goals and get reminders',
                       color: Colors.orange,
                     ),
                     const SizedBox(height: 12),
@@ -151,7 +164,10 @@ class AboutPage extends StatelessWidget {
               // About Section (compact card)
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 20),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF0F172A) : Colors.white,
                   borderRadius: BorderRadius.circular(16),
@@ -187,7 +203,9 @@ class AboutPage extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+                              color: isDark
+                                  ? const Color(0xFFF1F5F9)
+                                  : const Color(0xFF0F172A),
                             ),
                           ),
                         ),
@@ -195,10 +213,12 @@ class AboutPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'FitTrack helps you reach fitness goals with intelligent tracking, personalized insights, and a friendly community. We make wellness simple and actionable for everyone.',
+                      'HealthHub helps you reach fitness goals with intelligent tracking, personalized insights, and a friendly community. We make wellness simple and actionable for everyone.',
                       style: TextStyle(
                         fontSize: 14,
-                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade700,
                         height: 1.5,
                       ),
                     ),
@@ -211,7 +231,10 @@ class AboutPage extends StatelessWidget {
               // Technology Section (compact)
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 20),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF0F172A) : Colors.white,
                   borderRadius: BorderRadius.circular(16),
@@ -247,7 +270,9 @@ class AboutPage extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+                              color: isDark
+                                  ? const Color(0xFFF1F5F9)
+                                  : const Color(0xFF0F172A),
                             ),
                           ),
                         ),
@@ -273,23 +298,30 @@ class AboutPage extends StatelessWidget {
 
               // Footer
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 18.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20.0,
+                  vertical: 18.0,
+                ),
                 child: Column(
                   children: [
                     Text(
                       'Made with ❤️ for your health',
                       style: TextStyle(
                         fontSize: 13,
-                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '© 2025 FitTrack. All rights reserved.',
+                      '© 2025 HealthHub. All rights reserved.',
                       style: TextStyle(
                         fontSize: 12,
-                        color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
+                        color: isDark
+                            ? Colors.grey.shade500
+                            : Colors.grey.shade500,
                       ),
                     ),
                   ],
@@ -336,11 +368,7 @@ class AboutPage extends StatelessWidget {
               color: color.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 24,
-            ),
+            child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -352,7 +380,9 @@ class AboutPage extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+                    color: isDark
+                        ? const Color(0xFFF1F5F9)
+                        : const Color(0xFF1E293B),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -375,21 +405,21 @@ class AboutPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-                        color: const Color(0xFF6366F1).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: const Color(0xFF6366F1).withOpacity(0.3),
-                          width: 1,
-                        ),
-                      ),
-                      child: Text(
-                        label,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF6366F1),
-                        ),
-                      ),
+        color: const Color(0xFF6366F1).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF6366F1).withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF6366F1),
+        ),
+      ),
     );
   }
 }

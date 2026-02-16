@@ -1,11 +1,11 @@
 {
-    "name": "health",
-    "short_name": "health",
+    "name": "HealthHub",
+    "short_name": "HealthHub",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "HealthHub wellness app.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -1,4 +1,4 @@
-# health
+# HealthHub
 
 A new Flutter project.
 
@@ -14,3 +14,13 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+## In-App Update Setup (Android)
+
+Set `GITHUB_REPO` in `.env` using `owner/repo` format. Example:
+
+```env
+GITHUB_REPO=your-github-username/your-repo-name
+```
+
+The app checks your latest GitHub release and downloads the `.apk` asset directly for in-app installation.

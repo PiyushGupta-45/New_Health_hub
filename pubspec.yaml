@@ -1,7 +1,7 @@
-name: fittrack_app
+name: healthhub_app
 description: "A new Flutter project."
 publish_to: 'none' 
-version: 1.0.0+1
+version: 1.0.7+7
 
 environment:
   sdk: ^3.9.2
@@ -26,6 +26,8 @@ dependencies:
   image: ^4.2.0
   google_mlkit_commons: ^0.7.1
   provider: ^6.1.1
+  package_info_plus: ^8.0.2
+  ota_update: ^7.1.0
 
 dev_dependencies:
   flutter_test:

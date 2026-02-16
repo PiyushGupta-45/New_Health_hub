@@ -7,7 +7,10 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -16,6 +19,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterFragmentActivity(), SensorEventListener {
     private val TAG = "MainActivity"
     private val CHANNEL = "com.example.health/step_counter"
+    private val UPDATE_CHANNEL = "com.example.health/app_update"
     private var sensorManager: SensorManager? = null
     private var stepCounterSensor: Sensor? = null
     private var methodChannel: MethodChannel? = null
@@ -127,6 +131,42 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                 }
             }
         }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UPDATE_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "canRequestPackageInstalls" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            result.success(packageManager.canRequestPackageInstalls())
+                        } else {
+                            result.success(true)
+                        }
+                    }
+                    "openInstallUnknownAppsSettings" -> {
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                val intent = Intent(
+                                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                    Uri.parse("package:$packageName")
+                                ).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                startActivity(intent)
+                            } else {
+                                val intent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                startActivity(intent)
+                            }
+                            result.success(true)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to open install unknown apps settings", e)
+                            result.error("SETTINGS_OPEN_FAILED", e.message, null)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
     }
 
     private fun canStartHealthForegroundService(): Boolean {

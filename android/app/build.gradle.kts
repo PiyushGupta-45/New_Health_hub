@@ -66,7 +66,7 @@ flutter {
 }
 
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     // Add TensorFlow Lite GPU runtime so the missing classes are available
     implementation("org.tensorflow:tensorflow-lite-gpu:2.9.0")
 }

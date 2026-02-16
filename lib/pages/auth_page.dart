@@ -177,18 +177,12 @@ class _AuthPageState extends State<AuthPage>
               ? const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF0F172A),
-                    Color(0xFF1E293B),
-                  ],
+                  colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
                 )
               : const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFF8FAFC),
-                    Color(0xFFF1F5F9),
-                  ],
+                  colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
                 ),
         ),
         child: SafeArea(
@@ -203,7 +197,9 @@ class _AuthPageState extends State<AuthPage>
                         icon: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                            color: isDark
+                                ? const Color(0xFF1E293B)
+                                : Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
@@ -215,7 +211,9 @@ class _AuthPageState extends State<AuthPage>
                           ),
                           child: Icon(
                             Icons.close_rounded,
-                            color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+                            color: isDark
+                                ? const Color(0xFFF1F5F9)
+                                : const Color(0xFF1E293B),
                             size: 20,
                           ),
                         ),
@@ -235,7 +233,9 @@ class _AuthPageState extends State<AuthPage>
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                            color: isDark
+                                ? const Color(0xFF1E293B)
+                                : Colors.white,
                             borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(
@@ -262,7 +262,9 @@ class _AuthPageState extends State<AuthPage>
                                   borderRadius: BorderRadius.circular(20),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFF6366F1).withOpacity(0.3),
+                                      color: const Color(
+                                        0xFF6366F1,
+                                      ).withOpacity(0.3),
                                       blurRadius: 20,
                                       offset: const Offset(0, 10),
                                     ),
@@ -276,11 +278,13 @@ class _AuthPageState extends State<AuthPage>
                               ),
                               const SizedBox(height: 24),
                               Text(
-                                'Welcome to FitTrack',
+                                'Welcome to HealthHub',
                                 style: TextStyle(
                                   fontSize: 32,
                                   fontWeight: FontWeight.w800,
-                                  color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+                                  color: isDark
+                                      ? const Color(0xFFF1F5F9)
+                                      : const Color(0xFF1E293B),
                                   letterSpacing: -0.5,
                                 ),
                               ),
@@ -289,7 +293,9 @@ class _AuthPageState extends State<AuthPage>
                                 'Sign in to continue or create a new account',
                                 style: TextStyle(
                                   fontSize: 16,
-                                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                                  color: isDark
+                                      ? Colors.grey.shade400
+                                      : Colors.grey.shade600,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -299,7 +305,9 @@ class _AuthPageState extends State<AuthPage>
                         const SizedBox(height: 32),
                         Container(
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                            color: isDark
+                                ? const Color(0xFF1E293B)
+                                : Colors.white,
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
@@ -335,10 +343,7 @@ class _AuthPageState extends State<AuthPage>
                           height: 500,
                           child: TabBarView(
                             controller: _tabController,
-                            children: [
-                              _buildSignInForm(),
-                              _buildSignUpForm(),
-                            ],
+                            children: [_buildSignInForm(), _buildSignUpForm()],
                           ),
                         ),
                       ],
@@ -361,157 +366,165 @@ class _AuthPageState extends State<AuthPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-          _buildTextField(
-            context: context,
-            controller: _signInEmailController,
-            label: 'Email',
-            hint: 'Enter your email',
-            icon: Icons.email_outlined,
-            keyboardType: TextInputType.emailAddress,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your email';
-              }
-              if (!value.contains('@')) {
-                return 'Please enter a valid email';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 20),
-          _buildTextField(
-            context: context,
-            controller: _signInPasswordController,
-            label: 'Password',
-            hint: 'Enter your password',
-            icon: Icons.lock_outlined,
-            obscureText: _obscureSignInPassword,
-            suffixIcon: IconButton(
-              icon: Icon(
-                _obscureSignInPassword
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-              ),
-              onPressed: () {
-                setState(() {
-                  _obscureSignInPassword = !_obscureSignInPassword;
-                });
+            _buildTextField(
+              context: context,
+              controller: _signInEmailController,
+              label: 'Email',
+              hint: 'Enter your email',
+              icon: Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter your email';
+                }
+                if (!value.contains('@')) {
+                  return 'Please enter a valid email';
+                }
+                return null;
               },
             ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your password';
-              }
-              if (value.length < 6) {
-                return 'Password must be at least 6 characters';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 32),
-          Container(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF6366F1).withOpacity(0.4),
-                  blurRadius: 15,
-                  offset: const Offset(0, 8),
+            const SizedBox(height: 20),
+            _buildTextField(
+              context: context,
+              controller: _signInPasswordController,
+              label: 'Password',
+              hint: 'Enter your password',
+              icon: Icons.lock_outlined,
+              obscureText: _obscureSignInPassword,
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscureSignInPassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
                 ),
-              ],
+                onPressed: () {
+                  setState(() {
+                    _obscureSignInPassword = !_obscureSignInPassword;
+                  });
+                },
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter your password';
+                }
+                if (value.length < 6) {
+                  return 'Password must be at least 6 characters';
+                }
+                return null;
+              },
             ),
-            child: ElevatedButton(
-              onPressed: widget.authController.isLoading ? null : _handleSignIn,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+            const SizedBox(height: 32),
+            Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                 ),
-                elevation: 0,
-              ),
-            child: widget.authController.isLoading
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : const Text(
-                    'Sign In',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6366F1).withOpacity(0.4),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
                   ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(child: Divider(color: Colors.grey.shade300)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'OR',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                ],
               ),
-              Expanded(child: Divider(color: Colors.grey.shade300)),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Builder(
-            builder: (context) {
-              final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-              return OutlinedButton.icon(
+              child: ElevatedButton(
                 onPressed: widget.authController.isLoading
                     ? null
-                    : _handleGoogleSignIn,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-                  side: BorderSide(
-                    color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
-                  ),
+                    : _handleSignIn,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
+                  elevation: 0,
                 ),
-                icon: Image.asset(
-                  'assets/google_logo.png',
-                  height: 20,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Icon(Icons.g_mobiledata, size: 24);
-                  },
-                ),
-                label: const Text(
-                  'Continue with Google',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                child: widget.authController.isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                    : const Text(
+                        'Sign In',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(child: Divider(color: Colors.grey.shade300)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'OR',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          TextButton.icon(
-            onPressed: widget.authController.isLoading ? null : _handleGuestSignIn,
-            icon: const Icon(Icons.person_outline_rounded),
-            label: const Text('Sign in as Guest'),
-          ),
-        ],
+                Expanded(child: Divider(color: Colors.grey.shade300)),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Builder(
+              builder: (context) {
+                final isDarkMode =
+                    Theme.of(context).brightness == Brightness.dark;
+                return OutlinedButton.icon(
+                  onPressed: widget.authController.isLoading
+                      ? null
+                      : _handleGoogleSignIn,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: isDarkMode
+                        ? const Color(0xFFF1F5F9)
+                        : const Color(0xFF1E293B),
+                    side: BorderSide(
+                      color: isDarkMode
+                          ? Colors.grey.shade700
+                          : Colors.grey.shade300,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  icon: Image.asset(
+                    'assets/google_logo.png',
+                    height: 20,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(Icons.g_mobiledata, size: 24);
+                    },
+                  ),
+                  label: const Text(
+                    'Continue with Google',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: widget.authController.isLoading
+                  ? null
+                  : _handleGuestSignIn,
+              icon: const Icon(Icons.person_outline_rounded),
+              label: const Text('Sign in as Guest'),
+            ),
+          ],
         ),
       ),
     );
@@ -525,199 +538,204 @@ class _AuthPageState extends State<AuthPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-          _buildTextField(
-            context: context,
-            controller: _signUpNameController,
-            label: 'Full Name',
-            hint: 'Enter your full name',
-            icon: Icons.person_outlined,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your name';
-              }
-              if (value.length < 2) {
-                return 'Name must be at least 2 characters';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 20),
-          _buildTextField(
-            context: context,
-            controller: _signUpEmailController,
-            label: 'Email',
-            hint: 'Enter your email',
-            icon: Icons.email_outlined,
-            keyboardType: TextInputType.emailAddress,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your email';
-              }
-              if (!value.contains('@')) {
-                return 'Please enter a valid email';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 20),
-          _buildTextField(
-            context: context,
-            controller: _signUpPasswordController,
-            label: 'Password',
-            hint: 'Create a password',
-            icon: Icons.lock_outlined,
-            obscureText: _obscureSignUpPassword,
-            suffixIcon: IconButton(
-              icon: Icon(
-                _obscureSignUpPassword
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-              ),
-              onPressed: () {
-                setState(() {
-                  _obscureSignUpPassword = !_obscureSignUpPassword;
-                });
+            _buildTextField(
+              context: context,
+              controller: _signUpNameController,
+              label: 'Full Name',
+              hint: 'Enter your full name',
+              icon: Icons.person_outlined,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter your name';
+                }
+                if (value.length < 2) {
+                  return 'Name must be at least 2 characters';
+                }
+                return null;
               },
             ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter a password';
-              }
-              if (value.length < 6) {
-                return 'Password must be at least 6 characters';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 20),
-          _buildTextField(
-            context: context,
-            controller: _signUpConfirmPasswordController,
-            label: 'Confirm Password',
-            hint: 'Confirm your password',
-            icon: Icons.lock_outlined,
-            obscureText: _obscureConfirmPassword,
-            suffixIcon: IconButton(
-              icon: Icon(
-                _obscureConfirmPassword
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-              ),
-              onPressed: () {
-                setState(() {
-                  _obscureConfirmPassword = !_obscureConfirmPassword;
-                });
+            const SizedBox(height: 20),
+            _buildTextField(
+              context: context,
+              controller: _signUpEmailController,
+              label: 'Email',
+              hint: 'Enter your email',
+              icon: Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter your email';
+                }
+                if (!value.contains('@')) {
+                  return 'Please enter a valid email';
+                }
+                return null;
               },
             ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please confirm your password';
-              }
-              if (value != _signUpPasswordController.text) {
-                return 'Passwords do not match';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 32),
-          Container(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF6366F1).withOpacity(0.4),
-                  blurRadius: 15,
-                  offset: const Offset(0, 8),
+            const SizedBox(height: 20),
+            _buildTextField(
+              context: context,
+              controller: _signUpPasswordController,
+              label: 'Password',
+              hint: 'Create a password',
+              icon: Icons.lock_outlined,
+              obscureText: _obscureSignUpPassword,
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscureSignUpPassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
                 ),
-              ],
+                onPressed: () {
+                  setState(() {
+                    _obscureSignUpPassword = !_obscureSignUpPassword;
+                  });
+                },
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter a password';
+                }
+                if (value.length < 6) {
+                  return 'Password must be at least 6 characters';
+                }
+                return null;
+              },
             ),
-            child: ElevatedButton(
-              onPressed:
-                  widget.authController.isLoading ? null : _handleSignUp,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+            const SizedBox(height: 20),
+            _buildTextField(
+              context: context,
+              controller: _signUpConfirmPasswordController,
+              label: 'Confirm Password',
+              hint: 'Confirm your password',
+              icon: Icons.lock_outlined,
+              obscureText: _obscureConfirmPassword,
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscureConfirmPassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
                 ),
-                elevation: 0,
+                onPressed: () {
+                  setState(() {
+                    _obscureConfirmPassword = !_obscureConfirmPassword;
+                  });
+                },
               ),
-            child: widget.authController.isLoading
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : const Text(
-                    'Sign Up',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please confirm your password';
+                }
+                if (value != _signUpPasswordController.text) {
+                  return 'Passwords do not match';
+                }
+                return null;
+              },
             ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(child: Divider(color: Colors.grey.shade300)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'OR',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
-                  ),
+            const SizedBox(height: 32),
+            Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                 ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6366F1).withOpacity(0.4),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
-              Expanded(child: Divider(color: Colors.grey.shade300)),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Builder(
-            builder: (context) {
-              final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-              return OutlinedButton.icon(
+              child: ElevatedButton(
                 onPressed: widget.authController.isLoading
                     ? null
-                    : _handleGoogleSignIn,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-                  side: BorderSide(
-                    color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
-                  ),
+                    : _handleSignUp,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
+                  elevation: 0,
                 ),
-                icon: Image.asset(
-                  'assets/google_logo.png',
-                  height: 20,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Icon(Icons.g_mobiledata, size: 24);
-                  },
-                ),
-                label: const Text(
-                  'Continue with Google',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                child: widget.authController.isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                    : const Text(
+                        'Sign Up',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(child: Divider(color: Colors.grey.shade300)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'OR',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-              );
-            },
-          ),
-        ],
+                Expanded(child: Divider(color: Colors.grey.shade300)),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Builder(
+              builder: (context) {
+                final isDarkMode =
+                    Theme.of(context).brightness == Brightness.dark;
+                return OutlinedButton.icon(
+                  onPressed: widget.authController.isLoading
+                      ? null
+                      : _handleGoogleSignIn,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: isDarkMode
+                        ? const Color(0xFFF1F5F9)
+                        : const Color(0xFF1E293B),
+                    side: BorderSide(
+                      color: isDarkMode
+                          ? Colors.grey.shade700
+                          : Colors.grey.shade300,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  icon: Image.asset(
+                    'assets/google_logo.png',
+                    height: 20,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(Icons.g_mobiledata, size: 24);
+                    },
+                  ),
+                  label: const Text(
+                    'Continue with Google',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -743,7 +761,9 @@ class _AuthPageState extends State<AuthPage>
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+            color: isDarkMode
+                ? const Color(0xFFF1F5F9)
+                : const Color(0xFF1E293B),
           ),
         ),
         const SizedBox(height: 8),
@@ -773,7 +793,9 @@ class _AuthPageState extends State<AuthPage>
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
-                color: isDarkMode ? const Color(0xFF818CF8) : const Color(0xFF6366F1),
+                color: isDarkMode
+                    ? const Color(0xFF818CF8)
+                    : const Color(0xFF6366F1),
                 width: 2,
               ),
             ),
@@ -795,4 +817,3 @@ class _AuthPageState extends State<AuthPage>
     );
   }
 }
-
