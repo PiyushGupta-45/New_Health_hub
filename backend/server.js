@@ -12,6 +12,8 @@ const ObjectId = mongoose.Types.ObjectId;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HF_MODEL = process.env.HF_MODEL || process.env.HUGGINGFACE_MODEL || 'Qwen/Qwen2.5-7B-Instruct';
+const HF_BASE_URL = (process.env.HF_BASE_URL || process.env.HUGGINGFACE_BASE_URL || 'https://router.huggingface.co/v1').replace(/\/$/, '');
 
 // Middleware
 app.use(cors());
@@ -310,6 +312,56 @@ const generateToken = (userId) => {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
 };
 
+const callHuggingFace = async ({ prompt, systemPrompt, temperature = 0.2, maxTokens = 700 }) => {
+  const apiKey = (process.env.HF_API_KEY || process.env.HUGGINGFACE_API_KEY || '').trim();
+  if (!apiKey) {
+    throw new Error('HF_API_KEY is not configured on server');
+  }
+
+  if (typeof fetch !== 'function') {
+    throw new Error('Global fetch is unavailable on this Node.js runtime');
+  }
+
+  const messages = [
+    ...(systemPrompt && String(systemPrompt).trim()
+      ? [{ role: 'system', content: String(systemPrompt).trim() }]
+      : []),
+    { role: 'user', content: String(prompt || '') }
+  ];
+
+  const response = await fetch(`${HF_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: HF_MODEL,
+      messages,
+      temperature,
+      max_tokens: maxTokens
+    })
+  });
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (_) {
+    data = null;
+  }
+
+  if (!response.ok) {
+    const details = data?.error?.message || data?.error || data?.message || `Hugging Face request failed (${response.status})`;
+    throw new Error(String(details));
+  }
+
+  const text = data?.choices?.[0]?.message?.content?.trim();
+  if (!text) {
+    throw new Error('No response text returned from Hugging Face');
+  }
+  return text;
+};
+
 // Helper function to get start of today in IST (UTC+5:30)
 // Returns a UTC Date object representing midnight IST converted to UTC
 const getStartOfTodayIST = () => {
@@ -595,6 +647,40 @@ const verifyToken = (req, res, next) => {
     });
   }
 };
+
+// Secure AI generation endpoint (keeps HF API key server-side)
+app.post('/api/ai/generate', verifyToken, async (req, res) => {
+  try {
+    const { prompt, systemPrompt, temperature, maxTokens } = req.body || {};
+
+    if (!prompt || !String(prompt).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'prompt is required'
+      });
+    }
+
+    const text = await callHuggingFace({
+      prompt: String(prompt),
+      systemPrompt: typeof systemPrompt === 'string' ? systemPrompt : '',
+      temperature: typeof temperature === 'number' ? temperature : 0.2,
+      maxTokens: typeof maxTokens === 'number' ? maxTokens : 700
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        text
+      }
+    });
+  } catch (error) {
+    console.error('AI generate error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || 'AI generation failed'
+    });
+  }
+});
 
 // Store daily steps endpoint
 app.post('/api/steps', verifyToken, async (req, res) => {
