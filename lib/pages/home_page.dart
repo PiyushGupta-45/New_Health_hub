@@ -23,6 +23,7 @@ import 'ai_workout_plan_view.dart';
 import 'auth_page.dart';
 import 'steps_history_view.dart';
 import 'account_page.dart';
+import 'progress_dashboard_view.dart';
 
 // Helper extensions for modifying color values slightly
 extension on Color {
@@ -1399,6 +1400,25 @@ class _HomePageState extends State<HomePage> {
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (context) => const PersonalizedGoalsView(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildModernActionCard(
+                      context: context,
+                      icon: Icons.insights_rounded,
+                      iconColor: const Color(0xFF0EA5E9),
+                      iconBgColor: const Color(0xFF0EA5E9).withOpacity(0.1),
+                      title: 'Progress Dashboard',
+                      subtitle: 'See your weekly workout and step trends',
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => ProgressDashboardView(
+                              controller: widget.controller,
+                              authController: widget.authController,
+                            ),
                           ),
                         );
                       },

@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>HealthHub uses your location during outdoor workouts to calculate distance.</string>
 </dict>
 </plist>

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/hugging_face_service.dart';
+import '../services/ai_diet_plan_storage_service.dart';
 import '../widgets/ai_result_renderer.dart';
 
 class AiDietView extends StatefulWidget {
@@ -16,15 +17,20 @@ class _AiDietViewState extends State<AiDietView> {
   final _mealsController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isInitializing = true;
   String? _error;
   String? _result;
+  AiDietPlan? _savedPlan;
 
   late final HuggingFaceService _aiService;
+  late final AiDietPlanStorageService _dietPlanStorage;
 
   @override
   void initState() {
     super.initState();
     _aiService = HuggingFaceService();
+    _dietPlanStorage = AiDietPlanStorageService();
+    _loadSavedPlan();
   }
 
   @override
@@ -101,7 +107,20 @@ Output format (follow exactly):
         maxTokens: 700,
       );
       if (!mounted) return;
-      setState(() => _result = text);
+      final plan = AiDietPlan(
+        goal: selectedGoal,
+        dietType: selectedDiet,
+        allergies: selectedAllergy,
+        mealsPerDay: selectedMeals,
+        planText: text,
+        createdAt: DateTime.now(),
+      );
+      await _dietPlanStorage.save(plan);
+      if (!mounted) return;
+      setState(() {
+        _result = text;
+        _savedPlan = plan;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -109,6 +128,38 @@ Output format (follow exactly):
       if (!mounted) return;
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadSavedPlan() async {
+    final plan = await _dietPlanStorage.load();
+    if (!mounted) return;
+    setState(() {
+      _savedPlan = plan;
+      _result = plan?.planText;
+      _isInitializing = false;
+    });
+  }
+
+  Future<void> _deleteSavedPlan() async {
+    await _dietPlanStorage.clear();
+    if (!mounted) return;
+    setState(() {
+      _savedPlan = null;
+      _result = null;
+      _error = null;
+      _goalController.clear();
+      _dietController.clear();
+      _allergyController.clear();
+      _mealsController.clear();
+    });
+  }
+
+  void _startNewPlan() {
+    setState(() {
+      _savedPlan = null;
+      _result = null;
+      _error = null;
+    });
   }
 
   @override
@@ -127,7 +178,9 @@ Output format (follow exactly):
         elevation: 0,
         foregroundColor: text,
       ),
-      body: SingleChildScrollView(
+      body: _isInitializing
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,7 +199,8 @@ Output format (follow exactly):
               style: TextStyle(fontSize: 14, color: sub, height: 1.4),
             ),
             const SizedBox(height: 20),
-            Container(
+            if (_savedPlan == null)
+              Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: card,
@@ -201,6 +255,40 @@ Output format (follow exactly):
                 ],
               ),
             ),
+            if (_savedPlan != null)
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: card,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _isLoading ? null : _startNewPlan,
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Create New'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isLoading ? null : _deleteSavedPlan,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        label: const Text('Delete'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.all(16),

@@ -10,6 +10,7 @@ import 'personalized_goals_view.dart';
 import 'workout_tracker_view.dart';
 import 'ai_diet_view.dart';
 import 'ai_workout_plan_view.dart';
+import 'progress_dashboard_view.dart';
 
 // --- Global Constants (for colors) ---
 const Color kPrimaryColor = Color(0xFF6366F1);
@@ -96,6 +97,16 @@ class FeaturesView extends StatelessWidget {
         subtitle: 'Log and analyze your workouts.',
         iconColor: const Color(0xFFFF4500),
         builder: (context) => WorkoutTrackerView(controller: controller),
+      ),
+      FeatureData(
+        icon: Icons.insights_rounded,
+        title: 'Progress Dashboard',
+        subtitle: 'View your weekly fitness trends.',
+        iconColor: const Color(0xFF0EA5E9),
+        builder: (context) => ProgressDashboardView(
+          controller: controller,
+          authController: authController,
+        ),
       ),
       FeatureData(
         icon: Icons.restaurant_menu,

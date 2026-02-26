@@ -186,6 +186,31 @@ class WeeklyWorkoutPlanService {
     }
   }
 
+  Future<WeeklyWorkoutPlan> saveLocalPlanOnly({
+    required String goal,
+    required String duration,
+    required String equipment,
+    required String intensity,
+    required String injury,
+    required String notes,
+    required String planText,
+  }) async {
+    final localPlan = WeeklyWorkoutPlan(
+      id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+      goal: goal,
+      duration: duration,
+      equipment: equipment,
+      intensity: intensity,
+      injury: injury,
+      notes: notes,
+      planText: planText,
+      approvedAt: DateTime.now(),
+      createdAt: DateTime.now(),
+    );
+    await _saveLocalPlan(localPlan);
+    return localPlan;
+  }
+
   Future<Map<String, dynamic>> getLatestApprovedPlan() async {
     try {
       final url = _baseUrl;
@@ -376,6 +401,16 @@ class WeeklyWorkoutPlanService {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<WeeklyWorkoutPlan?> loadLocalPlan() async {
+    return _loadLocalPlan();
+  }
+
+  Future<void> clearLocalPlans() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_latestPlanLocalKey);
+    await prefs.remove(_pendingPlanLocalKey);
   }
 
   dynamic _tryParseJson(String body) {

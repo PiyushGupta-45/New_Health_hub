@@ -213,8 +213,9 @@ class _ManualWorkoutsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final connectedGoals =
-        activeGoals.where((goal) => goal.connectToTracker).toList();
+    final connectedGoals = activeGoals
+        .where((goal) => goal.connectToTracker)
+        .toList();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListView(
@@ -258,10 +259,7 @@ class _ManualWorkoutsTab extends StatelessWidget {
 }
 
 class _WorkoutTypeCard extends StatelessWidget {
-  const _WorkoutTypeCard({
-    required this.template,
-    required this.onTap,
-  });
+  const _WorkoutTypeCard({required this.template, required this.onTap});
 
   final ManualWorkoutTemplate template;
   final VoidCallback onTap;
@@ -295,11 +293,7 @@ class _WorkoutTypeCard extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                template.icon,
-                color: Colors.white,
-                size: 32,
-              ),
+              child: Icon(template.icon, color: Colors.white, size: 32),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -317,17 +311,20 @@ class _WorkoutTypeCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     template.description,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 13,
-                    ),
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       _InfoChip(label: template.difficulty),
                       const SizedBox(width: 8),
-                      _InfoChip(label: '${template.met.toStringAsFixed(1)} MET'),
+                      _InfoChip(
+                        label: '${template.met.toStringAsFixed(1)} MET',
+                      ),
+                      if (template.tracksDistance) ...[
+                        const SizedBox(width: 8),
+                        const _InfoChip(label: 'GPS Distance'),
+                      ],
                     ],
                   ),
                 ],
@@ -356,10 +353,7 @@ class _InfoChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-        ),
+        style: const TextStyle(color: Colors.white, fontSize: 11),
       ),
     );
   }
@@ -377,10 +371,7 @@ class _EmptyGoalsCard extends StatelessWidget {
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 8,
-          ),
+          BoxShadow(color: Colors.grey.withValues(alpha: 0.1), blurRadius: 8),
         ],
       ),
       child: Column(
@@ -515,14 +506,13 @@ class _LogHistoryTab extends StatelessWidget {
     final manualEntries = manualLogs;
     final wearableEntries = snapshot?.workouts ?? const <WorkoutEntry>[];
     final combinedEntries = <_WorkoutEntryWithLog>[
-      ...manualEntries.map((log) => _WorkoutEntryWithLog(
-            entry: log.toWorkoutEntry(),
-            manualLog: log,
-          )),
-      ...wearableEntries.map((entry) => _WorkoutEntryWithLog(
-            entry: entry,
-            manualLog: null,
-          )),
+      ...manualEntries.map(
+        (log) =>
+            _WorkoutEntryWithLog(entry: log.toWorkoutEntry(), manualLog: log),
+      ),
+      ...wearableEntries.map(
+        (entry) => _WorkoutEntryWithLog(entry: entry, manualLog: null),
+      ),
     ]..sort((a, b) => b.entry.start.compareTo(a.entry.start));
 
     final hasManual = manualEntries.isNotEmpty;
@@ -542,7 +532,9 @@ class _LogHistoryTab extends StatelessWidget {
         description:
             'Sync with your Galaxy Watch to see workouts captured in Samsung Health.',
         actionLabel: 'Sync Now',
-        onActionPressed: controller.isSyncing ? null : () => controller.sync(force: true),
+        onActionPressed: controller.isSyncing
+            ? null
+            : () => controller.sync(force: true),
       );
     }
 
@@ -560,42 +552,41 @@ class _LogHistoryTab extends StatelessWidget {
     final children = <Widget>[];
 
     if (manualError != null) {
-      children.add(_ManualLogsBanner(
-        message: manualError!,
-        isError: true,
-      ));
+      children.add(_ManualLogsBanner(message: manualError!, isError: true));
     } else if (isManualLoading) {
-      children.add(const _ManualLogsBanner(
-        message: 'Refreshing manual workouts…',
-      ));
+      children.add(
+        const _ManualLogsBanner(message: 'Refreshing manual workouts…'),
+      );
     }
 
     for (final item in combinedEntries) {
-      children.add(_WorkoutLogTile(
-        entry: item.entry,
-        manualLog: item.manualLog,
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => WorkoutDetailsPage(
-                entry: item.entry,
-                manualLog: item.manualLog,
-                onDelete: item.manualLog != null
-                    ? () async {
-                        await onDeleteWorkout(item.manualLog!.id);
-                        if (context.mounted) {
-                          Navigator.of(context).pop();
+      children.add(
+        _WorkoutLogTile(
+          entry: item.entry,
+          manualLog: item.manualLog,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => WorkoutDetailsPage(
+                  entry: item.entry,
+                  manualLog: item.manualLog,
+                  onDelete: item.manualLog != null
+                      ? () async {
+                          await onDeleteWorkout(item.manualLog!.id);
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                          }
                         }
-                      }
-                    : null,
+                      : null,
+                ),
               ),
-            ),
-          );
-        },
-        onDelete: item.manualLog != null
-            ? () => onDeleteWorkout(item.manualLog!.id)
-            : null,
-      ));
+            );
+          },
+          onDelete: item.manualLog != null
+              ? () => onDeleteWorkout(item.manualLog!.id)
+              : null,
+        ),
+      );
     }
 
     if (children.isEmpty) {
@@ -624,10 +615,7 @@ class _LogHistoryTab extends StatelessWidget {
 }
 
 class _WorkoutEntryWithLog {
-  const _WorkoutEntryWithLog({
-    required this.entry,
-    this.manualLog,
-  });
+  const _WorkoutEntryWithLog({required this.entry, this.manualLog});
 
   final WorkoutEntry entry;
   final ManualWorkoutLog? manualLog;
@@ -701,14 +689,18 @@ class _WorkoutLogTile extends StatelessWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
-                        color: isDark ? const Color(0xFFF1F5F9) : Colors.black87,
+                        color: isDark
+                            ? const Color(0xFFF1F5F9)
+                            : Colors.black87,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       details.join('\n'),
                       style: TextStyle(
-                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
                         fontSize: 13,
                       ),
                     ),
@@ -743,7 +735,9 @@ class _WorkoutLogTile extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Workout?'),
-        content: const Text('This workout will be permanently deleted from your history.'),
+        content: const Text(
+          'This workout will be permanently deleted from your history.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -784,10 +778,7 @@ class _WorkoutLogTile extends StatelessWidget {
 }
 
 class _ManualLogsBanner extends StatelessWidget {
-  const _ManualLogsBanner({
-    required this.message,
-    this.isError = false,
-  });
+  const _ManualLogsBanner({required this.message, this.isError = false});
 
   final String message;
   final bool isError;
@@ -816,7 +807,9 @@ class _ManualLogsBanner extends StatelessWidget {
               message,
               style: TextStyle(
                 fontSize: 13,
-                color: isError ? const Color(0xFFDC2626) : const Color(0xFF475569),
+                color: isError
+                    ? const Color(0xFFDC2626)
+                    : const Color(0xFF475569),
               ),
             ),
           ),
@@ -826,7 +819,6 @@ class _ManualLogsBanner extends StatelessWidget {
   }
 }
 
-
 extension ManualWorkoutLogMapper on ManualWorkoutLog {
   WorkoutEntry toWorkoutEntry() {
     return WorkoutEntry(
@@ -834,7 +826,7 @@ extension ManualWorkoutLogMapper on ManualWorkoutLog {
       start: startTime,
       end: startTime.add(Duration(seconds: durationSeconds)),
       sourceName: 'Manual Log',
-      distanceKm: null,
+      distanceKm: distanceKm,
       energyKcal: calories,
       steps: null,
     );

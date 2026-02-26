@@ -6,7 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'workout_log_service.dart';
 
 class WorkoutStorageService {
-  static final WorkoutStorageService _instance = WorkoutStorageService._internal();
+  static final WorkoutStorageService _instance =
+      WorkoutStorageService._internal();
   factory WorkoutStorageService() => _instance;
   WorkoutStorageService._internal();
 
@@ -18,14 +19,15 @@ class WorkoutStorageService {
     required DateTime startTime,
     required int durationSeconds,
     required double calories,
+    double? distanceKm,
     double? met,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Load existing logs
       final existingLogs = await loadWorkoutLogs();
-      
+
       // Create new log with unique ID
       final newLog = ManualWorkoutLog(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -33,17 +35,18 @@ class WorkoutStorageService {
         startTime: startTime,
         durationSeconds: durationSeconds,
         calories: calories,
+        distanceKm: distanceKm,
         met: met,
         createdAt: DateTime.now(),
       );
-      
+
       // Add new log at the beginning (most recent first)
       final updatedLogs = [newLog, ...existingLogs];
-      
+
       // Save to storage
       final logsJson = updatedLogs.map((log) => _logToJson(log)).toList();
       await prefs.setString(_workoutLogsKey, json.encode(logsJson));
-      
+
       debugPrint('✅ Saved workout log: ${newLog.workoutType}');
       return newLog;
     } catch (e) {
@@ -57,16 +60,18 @@ class WorkoutStorageService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final logsJson = prefs.getString(_workoutLogsKey);
-      
+
       if (logsJson == null || logsJson.isEmpty) {
         return [];
       }
 
       final List<dynamic> decoded = json.decode(logsJson);
       final logs = decoded
-          .map((json) => ManualWorkoutLog.fromJson(json as Map<String, dynamic>))
+          .map(
+            (json) => ManualWorkoutLog.fromJson(json as Map<String, dynamic>),
+          )
           .toList();
-      
+
       // Sort by start time (most recent first) and limit
       logs.sort((a, b) => b.startTime.compareTo(a.startTime));
       return logs.take(limit).toList();
@@ -81,12 +86,12 @@ class WorkoutStorageService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final existingLogs = await loadWorkoutLogs();
-      
+
       final updatedLogs = existingLogs.where((log) => log.id != logId).toList();
-      
+
       final logsJson = updatedLogs.map((log) => _logToJson(log)).toList();
       await prefs.setString(_workoutLogsKey, json.encode(logsJson));
-      
+
       debugPrint('✅ Deleted workout log: $logId');
     } catch (e) {
       debugPrint('❌ Error deleting workout log: $e');
@@ -112,9 +117,9 @@ class WorkoutStorageService {
       'startTime': log.startTime.toIso8601String(),
       'durationSeconds': log.durationSeconds,
       'calories': log.calories,
+      'distanceKm': log.distanceKm,
       'met': log.met,
       'createdAt': log.createdAt?.toIso8601String(),
     };
   }
 }
-

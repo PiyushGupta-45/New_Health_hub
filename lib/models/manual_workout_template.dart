@@ -9,6 +9,7 @@ class ManualWorkoutTemplate {
     required this.gradientColors,
     required this.met,
     this.difficulty = 'Moderate',
+    this.tracksDistance = false,
   });
 
   final String id;
@@ -18,9 +19,11 @@ class ManualWorkoutTemplate {
   final List<Color> gradientColors;
   final double met;
   final String difficulty;
+  final bool tracksDistance;
 
-  Color get accentColor =>
-      gradientColors.isNotEmpty ? gradientColors.first : const Color(0xFF4C5BF1);
+  Color get accentColor => gradientColors.isNotEmpty
+      ? gradientColors.first
+      : const Color(0xFF4C5BF1);
 }
 
 const List<ManualWorkoutTemplate> defaultManualWorkouts = [
@@ -32,6 +35,7 @@ const List<ManualWorkoutTemplate> defaultManualWorkouts = [
     gradientColors: [Color(0xFFFF512F), Color(0xFFDD2476)],
     met: 9.8,
     difficulty: 'High',
+    tracksDistance: true,
   ),
   ManualWorkoutTemplate(
     id: 'walk',
@@ -41,6 +45,7 @@ const List<ManualWorkoutTemplate> defaultManualWorkouts = [
     gradientColors: [Color(0xFF56CCF2), Color(0xFF2F80ED)],
     met: 3.5,
     difficulty: 'Light',
+    tracksDistance: true,
   ),
   ManualWorkoutTemplate(
     id: 'cycle',
@@ -50,6 +55,7 @@ const List<ManualWorkoutTemplate> defaultManualWorkouts = [
     gradientColors: [Color(0xFF0BAB64), Color(0xFF3BB78F)],
     met: 7.5,
     difficulty: 'Medium',
+    tracksDistance: true,
   ),
   ManualWorkoutTemplate(
     id: 'yoga',

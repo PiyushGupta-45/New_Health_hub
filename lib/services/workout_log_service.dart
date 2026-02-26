@@ -9,6 +9,7 @@ class ManualWorkoutLog {
     required this.startTime,
     required this.durationSeconds,
     required this.calories,
+    this.distanceKm,
     this.met,
     this.createdAt,
   });
@@ -18,6 +19,7 @@ class ManualWorkoutLog {
   final DateTime startTime;
   final int durationSeconds;
   final double calories;
+  final double? distanceKm;
   final double? met;
   final DateTime? createdAt;
 
@@ -27,13 +29,18 @@ class ManualWorkoutLog {
     return ManualWorkoutLog(
       id: json['_id']?.toString() ?? '',
       workoutType: json['workoutType']?.toString() ?? 'Workout',
-      startTime: start != null ? DateTime.tryParse(start) ?? DateTime.now() : DateTime.now(),
+      startTime: start != null
+          ? DateTime.tryParse(start) ?? DateTime.now()
+          : DateTime.now(),
       durationSeconds: json['durationSeconds'] is num
           ? (json['durationSeconds'] as num).round()
           : 0,
       calories: json['calories'] is num
           ? (json['calories'] as num).toDouble()
           : 0,
+      distanceKm: json['distanceKm'] is num
+          ? (json['distanceKm'] as num).toDouble()
+          : null,
       met: json['met'] is num ? (json['met'] as num).toDouble() : null,
       createdAt: created != null ? DateTime.tryParse(created) : null,
     );
@@ -60,6 +67,7 @@ class WorkoutLogService {
     required DateTime startTime,
     required int durationSeconds,
     required double calories,
+    double? distanceKm,
     double? met,
   }) async {
     // Save to local storage instead of backend
@@ -69,6 +77,7 @@ class WorkoutLogService {
         startTime: startTime,
         durationSeconds: durationSeconds,
         calories: calories,
+        distanceKm: distanceKm,
         met: met,
       );
       return log;
@@ -82,4 +91,3 @@ class WorkoutLogService {
     await _storageService.deleteWorkoutLog(logId);
   }
 }
-

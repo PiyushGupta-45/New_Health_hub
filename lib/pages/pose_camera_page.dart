@@ -5,10 +5,17 @@ import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import 'package:google_mlkit_commons/google_mlkit_commons.dart' as mlkit;
 import 'package:permission_handler/permission_handler.dart';
 import '../models/exercise_type.dart';
+
+enum _PostureQuality {
+  correct,
+  incorrect,
+  neutral,
+}
 
 class PoseCameraPage
     extends
@@ -44,6 +51,10 @@ class _PoseCameraPageState
   Pose? _lastPose;
   Size? _imageSize; // size of camera image
   bool _isFrontCamera = false;
+  Timer? _beepTimer;
+  Timer? _burstStopTimer;
+  bool _wasIncorrect = false;
+  _PostureQuality _activeTone = _PostureQuality.neutral;
 
   @override
   void initState() {
@@ -59,6 +70,7 @@ class _PoseCameraPageState
     WidgetsBinding.instance.removeObserver(
       this,
     );
+    _stopBeeping();
     _cameraController?.stopImageStream();
     _cameraController?.dispose();
     _poseDetector?.close();
@@ -78,6 +90,7 @@ class _PoseCameraPageState
 
     if (state ==
         AppLifecycleState.inactive) {
+      _stopBeeping();
       controller.stopImageStream();
     } else if (state ==
         AppLifecycleState.resumed) {
@@ -293,6 +306,9 @@ class _PoseCameraPageState
         );
       } else {
         // No pose detected - update UI to show detection status
+        _setPostureTone(
+          _PostureQuality.neutral,
+        );
         if (mounted &&
             _lastPose ==
                 null) {
@@ -431,6 +447,124 @@ class _PoseCameraPageState
         );
         break;
     }
+
+    _setPostureTone(
+      _classifyPostureLabel(
+        _postureLabel,
+      ),
+    );
+  }
+
+  _PostureQuality _classifyPostureLabel(
+    String label,
+  ) {
+    final normalized = label
+        .toLowerCase()
+        .trim();
+
+    if (normalized.startsWith(
+          'good',
+        ) ||
+        normalized.contains(
+          'excellent',
+        ) ||
+        normalized.contains(
+          'perfect',
+        )) {
+      return _PostureQuality.correct;
+    }
+
+    if (normalized.contains(
+          'position yourself',
+        ) ||
+        normalized.contains(
+          'person not fully visible',
+        ) ||
+        normalized.contains(
+          'detecting',
+        ) ||
+        normalized.contains(
+          'permission denied',
+        ) ||
+        normalized.contains(
+          'no cameras found',
+        ) ||
+        normalized.startsWith(
+          'error',
+        )) {
+      return _PostureQuality.neutral;
+    }
+
+    return _PostureQuality.incorrect;
+  }
+
+  void _setPostureTone(
+    _PostureQuality quality,
+  ) {
+    switch (quality) {
+      case _PostureQuality.incorrect:
+        _wasIncorrect = true;
+        if (_activeTone !=
+            _PostureQuality.incorrect) {
+          _activeTone = _PostureQuality.incorrect;
+          _startBeeping(
+            interval: const Duration(
+              milliseconds: 800,
+            ),
+          );
+        }
+        break;
+      case _PostureQuality.correct:
+        if (_wasIncorrect) {
+          _wasIncorrect = false;
+          _activeTone = _PostureQuality.correct;
+          _startBeeping(
+            interval: const Duration(
+              milliseconds: 220,
+            ),
+            autoStopAfter: const Duration(
+              seconds: 3,
+            ),
+          );
+        }
+        break;
+      case _PostureQuality.neutral:
+        _activeTone = _PostureQuality.neutral;
+        _stopBeeping();
+        break;
+    }
+  }
+
+  void _startBeeping({
+    required Duration interval,
+    Duration? autoStopAfter,
+  }) {
+    _stopBeeping();
+    _playBeep();
+    _beepTimer = Timer.periodic(
+      interval,
+      (_) => _playBeep(),
+    );
+    if (autoStopAfter !=
+        null) {
+      _burstStopTimer = Timer(
+        autoStopAfter,
+        _stopBeeping,
+      );
+    }
+  }
+
+  void _playBeep() {
+    SystemSound.play(
+      SystemSoundType.alert,
+    );
+  }
+
+  void _stopBeeping() {
+    _beepTimer?.cancel();
+    _beepTimer = null;
+    _burstStopTimer?.cancel();
+    _burstStopTimer = null;
   }
 
   // Helper method to get common landmarks
