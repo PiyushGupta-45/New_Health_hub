@@ -72,8 +72,10 @@ class StepCounterService : Service(), SensorEventListener {
                 var dayStartCount = prefs.getInt(PREF_DAY_START_COUNT, 0)
 
                 if (previousDate == null || previousDate != today) {
-                    // Day rollover: anchor today's baseline to the last known cumulative count.
-                    dayStartCount = if (previousLast > 0) previousLast else newCount
+                    // Day rollover: if we did not sample exactly at midnight, previousLast can
+                    // be stale (hours/days old), which inflates today's steps massively.
+                    // Anchor to the first reading seen today.
+                    dayStartCount = newCount
                 } else if (dayStartCount <= 0) {
                     dayStartCount = newCount
                 }

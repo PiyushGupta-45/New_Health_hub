@@ -15,6 +15,7 @@ import android.util.Log
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 class MainActivity : FlutterFragmentActivity(), SensorEventListener {
     private val TAG = "MainActivity"
@@ -142,8 +143,8 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                             result.success(true)
                         }
                     }
-                    "openInstallUnknownAppsSettings" -> {
-                        try {
+                "openInstallUnknownAppsSettings" -> {
+                    try {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                 val intent = Intent(
                                     Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
@@ -159,14 +160,53 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                                 startActivity(intent)
                             }
                             result.success(true)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Failed to open install unknown apps settings", e)
-                            result.error("SETTINGS_OPEN_FAILED", e.message, null)
-                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to open install unknown apps settings", e)
+                        result.error("SETTINGS_OPEN_FAILED", e.message, null)
                     }
-                    else -> result.notImplemented()
                 }
+                "cleanupDownloadedApks" -> {
+                    try {
+                        val otaDir = File(filesDir, "ota_update")
+                        var deletedFiles = 0
+                        var freedBytes = 0L
+                        if (otaDir.exists() && otaDir.isDirectory) {
+                            otaDir.listFiles()?.forEach { file ->
+                                if (file.isFile && file.name.endsWith(".apk", ignoreCase = true)) {
+                                    val size = file.length()
+                                    if (file.delete()) {
+                                        deletedFiles += 1
+                                        freedBytes += size
+                                    }
+                                }
+                            }
+                        }
+
+                        // Also cleanup any legacy apk files in filesDir root.
+                        filesDir.listFiles()?.forEach { file ->
+                            if (file.isFile && file.name.endsWith(".apk", ignoreCase = true)) {
+                                val size = file.length()
+                                if (file.delete()) {
+                                    deletedFiles += 1
+                                    freedBytes += size
+                                }
+                            }
+                        }
+
+                        result.success(
+                            mapOf(
+                                "deletedFiles" to deletedFiles,
+                                "freedBytes" to freedBytes
+                            )
+                        )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to cleanup downloaded APKs", e)
+                        result.error("CLEANUP_FAILED", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
             }
+        }
     }
 
     private fun canStartHealthForegroundService(): Boolean {

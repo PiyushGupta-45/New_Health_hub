@@ -1,17 +1,13 @@
-// Steps history view page
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../services/steps_sync_service.dart';
+
 import '../controllers/auth_controller.dart';
+import '../services/steps_sync_service.dart';
 
 class StepsHistoryView extends StatefulWidget {
-  final AuthController authController;
+  const StepsHistoryView({super.key, required this.authController});
 
-  const StepsHistoryView({
-    super.key,
-    required this.authController,
-  });
+  final AuthController authController;
 
   @override
   State<StepsHistoryView> createState() => _StepsHistoryViewState();
@@ -19,7 +15,8 @@ class StepsHistoryView extends StatefulWidget {
 
 class _StepsHistoryViewState extends State<StepsHistoryView> {
   final StepsSyncService _stepsSyncService = StepsSyncService();
-  List<Map<String, dynamic>> _stepsHistory = [];
+
+  List<Map<String, dynamic>> _stepsHistory = const [];
   bool _isLoading = true;
   String? _errorMessage;
   int _totalSteps = 0;
@@ -28,7 +25,6 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
   @override
   void initState() {
     super.initState();
-    // Listen to auth changes
     widget.authController.addListener(_onAuthChanged);
     _checkAuthAndLoad();
   }
@@ -45,8 +41,8 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
     } else {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Please sign in to view your steps history';
-        _stepsHistory = [];
+        _errorMessage = 'Please sign in to view your daily step log.';
+        _stepsHistory = const [];
       });
     }
   }
@@ -57,7 +53,7 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
     } else {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Please sign in to view your steps history';
+        _errorMessage = 'Please sign in to view your daily step log.';
       });
     }
   }
@@ -70,33 +66,34 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
 
     try {
       final result = await _stepsSyncService.getStepsHistory(limit: 30);
-      
+
       if (result['success'] == true) {
         final history = (result['data'] as List)
             .map((item) => item as Map<String, dynamic>)
             .toList();
-        
-        // Calculate totals
-        int total = 0;
-        for (var entry in history) {
+
+        var total = 0;
+        for (final entry in history) {
           total += (entry['steps'] as int? ?? 0);
         }
-        
+
         setState(() {
           _stepsHistory = history;
           _totalSteps = total;
-          _averageSteps = history.isNotEmpty ? (total / history.length).round() : 0;
+          _averageSteps = history.isNotEmpty
+              ? (total / history.length).round()
+              : 0;
           _isLoading = false;
         });
       } else {
         setState(() {
-          _errorMessage = result['error'] ?? 'Failed to load steps history';
+          _errorMessage = result['error'] ?? 'Failed to load daily step log.';
           _isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Error loading steps history: ${e.toString()}';
+        _errorMessage = 'Error loading daily step log: ${e.toString()}';
         _isLoading = false;
       });
     }
@@ -108,13 +105,9 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
     final yesterday = today.subtract(const Duration(days: 1));
     final dateOnly = DateTime(date.year, date.month, date.day);
 
-    if (dateOnly == today) {
-      return 'Today';
-    } else if (dateOnly == yesterday) {
-      return 'Yesterday';
-    } else {
-      return DateFormat('MMM d, yyyy').format(date);
-    }
+    if (dateOnly == today) return 'Today';
+    if (dateOnly == yesterday) return 'Yesterday';
+    return DateFormat('MMM d, yyyy').format(date);
   }
 
   String _formatDayOfWeek(DateTime date) {
@@ -124,292 +117,267 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: isDark
+          ? const Color(0xFF020617)
+          : const Color(0xFFF1F5FF),
       appBar: AppBar(
-        title: Text(
-          'Steps History',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w800,
-            color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-            letterSpacing: -0.5,
-          ),
-        ),
+        title: const Text('Daily Step Log'),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(
-          color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-        ),
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: Colors.indigo,
-              ),
-            )
-          : _errorMessage != null
-              ? _errorMessage!.contains('sign in') || 
-                    _errorMessage!.contains('not authenticated') ||
-                    _errorMessage!.contains('Authentication failed')
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.login_rounded,
-                              size: 64,
-                              color: Colors.grey.shade300,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Sign In Required',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Please sign in to view your steps history',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 14,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 32),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                              },
-                              icon: const Icon(Icons.arrow_back),
-                              label: const Text('Go Back & Sign In'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.indigo.shade600,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  : Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 64,
-                            color: Colors.red.shade300,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _errorMessage!,
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 16,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 24),
-                          ElevatedButton.icon(
-                            onPressed: _loadStepsHistory,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Retry'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.indigo.shade600,
-                              foregroundColor: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-              : _stepsHistory.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.directions_walk_outlined,
-                            size: 80,
-                            color: Colors.grey.shade300,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No steps history yet',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Start walking to see your history!',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _loadStepsHistory,
-                      color: Colors.indigo.shade600,
-                      child: SingleChildScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // Statistics Cards
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildStatCard(
-                                    context: context,
-                                    title: 'Total Steps',
-                                    value: _formatNumber(_totalSteps),
-                                    icon: Icons.trending_up,
-                                    color: Colors.indigo,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _buildStatCard(
-                                    context: context,
-                                    title: 'Average',
-                                    value: _formatNumber(_averageSteps),
-                                    icon: Icons.analytics_outlined,
-                                    color: Colors.green,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                            
-                            // History List
-                            Text(
-                              'Recent Activity',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            ..._stepsHistory.map((entry) => _buildHistoryCard(entry)),
-                          ],
-                        ),
-                      ),
-                    ),
+          ? const Center(child: CircularProgressIndicator())
+          : _buildBody(context, isDark),
     );
   }
 
-  Widget _buildStatCard({
-    required BuildContext context,
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  Widget _buildBody(BuildContext context, bool isDark) {
+    final isAuthError =
+        (_errorMessage ?? '').toLowerCase().contains('sign in') ||
+        (_errorMessage ?? '').toLowerCase().contains('authenticated') ||
+        (_errorMessage ?? '').toLowerCase().contains('auth');
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isAuthError
+                    ? Icons.lock_outline_rounded
+                    : Icons.error_outline_rounded,
+                size: 62,
+                color: isAuthError
+                    ? Colors.blueGrey.shade300
+                    : Colors.red.shade300,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                isAuthError ? 'Sign In Required' : 'Unable to load log',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: isDark
+                      ? const Color(0xFFF8FAFC)
+                      : const Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: isAuthError
+                    ? () => Navigator.of(context).pop()
+                    : _loadStepsHistory,
+                icon: Icon(
+                  isAuthError
+                      ? Icons.arrow_back_rounded
+                      : Icons.refresh_rounded,
+                ),
+                label: Text(isAuthError ? 'Go Back' : 'Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_stepsHistory.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.directions_walk_rounded,
+                size: 76,
+                color: Colors.blueGrey.shade300,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No step entries yet',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: isDark
+                      ? const Color(0xFFF8FAFC)
+                      : const Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Walk a little and sync once. Your daily logs will appear here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadStepsHistory,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: _buildHeroCard(isDark),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: Text(
+                'Recent Days',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: isDark
+                      ? const Color(0xFFF8FAFC)
+                      : const Color(0xFF0F172A),
+                  letterSpacing: -0.4,
+                ),
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            sliver: SliverList.builder(
+              itemCount: _stepsHistory.length,
+              itemBuilder: (context, index) =>
+                  _buildHistoryCard(_stepsHistory[index], isDark),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroCard(bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1D4ED8), Color(0xFF2563EB), Color(0xFF3B82F6)],
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: const Color(0xFF1D4ED8).withValues(alpha: 0.35),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const Spacer(),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
+          const Text(
+            '30-Day Snapshot',
             style: TextStyle(
-              fontSize: 24,
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${NumberFormat.compact().format(_totalSteps)} steps',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 34,
               fontWeight: FontWeight.w800,
-              color: color,
+              letterSpacing: -0.8,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 12,
-              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
-            ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _summaryChip(
+                '${NumberFormat.decimalPattern().format(_averageSteps)} avg/day',
+              ),
+              _summaryChip('${_stepsHistory.length} logged days'),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHistoryCard(Map<String, dynamic> entry) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  Widget _summaryChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHistoryCard(Map<String, dynamic> entry, bool isDark) {
     DateTime date;
     if (entry['date'] is String) {
       date = DateTime.parse(entry['date']).toLocal();
     } else if (entry['date'] is Map) {
-      // Handle MongoDB date format
       final dateMap = entry['date'] as Map;
       date = DateTime.parse(dateMap['\$date'] as String).toLocal();
     } else {
       date = DateTime.now();
     }
+
     final steps = entry['steps'] as int? ?? 0;
-    final source = entry['source'] as String? ?? 'Phone Sensor';
-    
-    // Calculate progress (assuming 10,000 steps goal)
+    final source = (entry['source'] as String? ?? 'Phone Sensor').trim();
     const goal = 10000;
     final progress = (steps / goal).clamp(0.0, 1.0);
-    final percentage = (progress * 100).toStringAsFixed(0);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        color: isDark
+            ? const Color(0xFF0F172A).withValues(alpha: 0.9)
+            : Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isDark ? Colors.grey.shade700 : Colors.grey.shade100,
-          width: 1,
+          color: isDark ? const Color(0xFF263047) : const Color(0xFFE2E8F0),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.18)
+                : const Color(0xFF334155).withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -417,81 +385,94 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _formatDate(date),
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _formatDate(date),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? const Color(0xFFF8FAFC)
+                            : const Color(0xFF0F172A),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatDayOfWeek(date),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatDayOfWeek(date),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
-                  color: Colors.indigo.shade50,
-                  borderRadius: BorderRadius.circular(12),
+                  color:
+                      (progress >= 1.0 ? Colors.green : const Color(0xFF2563EB))
+                          .withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  '$percentage%',
+                  '${(progress * 100).toStringAsFixed(0)}%',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: Colors.indigo.shade700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                _formatNumber(steps),
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-                  letterSpacing: -1,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  'steps',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
+                    color: progress >= 1.0
+                        ? Colors.green.shade700
+                        : const Color(0xFF1D4ED8),
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
+          RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: NumberFormat.decimalPattern().format(steps),
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -1,
+                    color: isDark
+                        ? const Color(0xFFF8FAFC)
+                        : const Color(0xFF0F172A),
+                  ),
+                ),
+                TextSpan(
+                  text: '  steps',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: isDark
+                  ? const Color(0xFF1E293B)
+                  : const Color(0xFFE2E8F0),
               valueColor: AlwaysStoppedAnimation<Color>(
-                progress >= 1.0 ? Colors.green : Colors.indigo.shade600,
+                progress >= 1.0 ? Colors.green : const Color(0xFF2563EB),
               ),
               minHeight: 8,
             ),
@@ -500,16 +481,20 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
           Row(
             children: [
               Icon(
-                Icons.phone_android,
+                Icons.sensors_rounded,
                 size: 14,
-                color: Colors.grey.shade500,
+                color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
               ),
               const SizedBox(width: 6),
-              Text(
-                source,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey.shade500,
+              Expanded(
+                child: Text(
+                  source,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
+                  ),
                 ),
               ),
             ],
@@ -518,14 +503,4 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
       ),
     );
   }
-
-  String _formatNumber(int number) {
-    if (number >= 1000000) {
-      return '${(number / 1000000).toStringAsFixed(1)}M';
-    } else if (number >= 1000) {
-      return '${(number / 1000).toStringAsFixed(1)}k';
-    }
-    return number.toString();
-  }
 }
-

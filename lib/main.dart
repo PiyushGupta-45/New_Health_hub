@@ -51,9 +51,17 @@ class MyApp extends StatelessWidget {
             title: 'HealthHub',
             themeMode: themeService.themeMode,
             builder: (context, appChild) {
+              final media = MediaQuery.of(context);
+              final currentScale = media.textScaler.scale(1.0);
+              final clampedScale = currentScale.clamp(0.9, 1.15);
               return AnnotatedRegion<SystemUiOverlayStyle>(
                 value: overlayStyle,
-                child: appChild ?? const SizedBox.shrink(),
+                child: MediaQuery(
+                  data: media.copyWith(
+                    textScaler: TextScaler.linear(clampedScale),
+                  ),
+                  child: appChild ?? const SizedBox.shrink(),
+                ),
               );
             },
             theme: ThemeData(

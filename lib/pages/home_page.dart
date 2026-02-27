@@ -121,7 +121,9 @@ class _HomePageState extends State<HomePage> {
     if (_checkedBackgroundPrompt || !mounted) return;
     _checkedBackgroundPrompt = true;
 
-    if (!Theme.of(context).platform.toString().toLowerCase().contains('android')) {
+    if (!Theme.of(
+      context,
+    ).platform.toString().toLowerCase().contains('android')) {
       return;
     }
 
@@ -184,11 +186,10 @@ class _HomePageState extends State<HomePage> {
     final formatter = NumberFormat.compact(locale: 'en_US');
     return formatter.format(steps);
   }
-  
+
   String _formatNumber(int number) {
     return NumberFormat('#,##0').format(number);
   }
-
 
   double _calculateCaloriesFromSteps(int steps) {
     // Average: 0.04 calories per step
@@ -213,17 +214,47 @@ class _HomePageState extends State<HomePage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final rows = <MapEntry<String, String>>[
       MapEntry('UI todaySteps', '${widget.controller.todaySteps}'),
-      MapEntry('sensor cumulative (raw)', '${widget.controller.debugSensorCumulative ?? '-'}'),
-      MapEntry('sensor daily (synced)', '${widget.controller.debugReturnedTodaySteps ?? widget.controller.todaySteps}'),
-      MapEntry('native today', '${widget.controller.debugNativeTodaySteps ?? '-'}'),
-      MapEntry('computed today', '${widget.controller.debugComputedTodaySteps ?? '-'}'),
-      MapEntry('returned today', '${widget.controller.debugReturnedTodaySteps ?? '-'}'),
+      MapEntry(
+        'sensor cumulative (raw)',
+        '${widget.controller.debugSensorCumulative ?? '-'}',
+      ),
+      MapEntry(
+        'sensor daily (synced)',
+        '${widget.controller.debugReturnedTodaySteps ?? widget.controller.todaySteps}',
+      ),
+      MapEntry(
+        'native today',
+        '${widget.controller.debugNativeTodaySteps ?? '-'}',
+      ),
+      MapEntry(
+        'computed today',
+        '${widget.controller.debugComputedTodaySteps ?? '-'}',
+      ),
+      MapEntry(
+        'returned today',
+        '${widget.controller.debugReturnedTodaySteps ?? '-'}',
+      ),
       MapEntry('baseline', '${widget.controller.debugBaseline ?? '-'}'),
-      MapEntry('last synced steps', '${widget.controller.debugLastSyncedSteps ?? '-'}'),
-      MapEntry('sync attempt steps', '${widget.controller.debugLastBackendSyncAttemptSteps ?? '-'}'),
-      MapEntry('sync attempt at', _formatDebugDateTime(widget.controller.debugLastBackendSyncAttemptAt)),
-      MapEntry('sync success at', _formatDebugDateTime(widget.controller.debugLastBackendSyncSuccessAt)),
-      MapEntry('sync result', widget.controller.debugLastBackendSyncResult ?? '-'),
+      MapEntry(
+        'last synced steps',
+        '${widget.controller.debugLastSyncedSteps ?? '-'}',
+      ),
+      MapEntry(
+        'sync attempt steps',
+        '${widget.controller.debugLastBackendSyncAttemptSteps ?? '-'}',
+      ),
+      MapEntry(
+        'sync attempt at',
+        _formatDebugDateTime(widget.controller.debugLastBackendSyncAttemptAt),
+      ),
+      MapEntry(
+        'sync success at',
+        _formatDebugDateTime(widget.controller.debugLastBackendSyncSuccessAt),
+      ),
+      MapEntry(
+        'sync result',
+        widget.controller.debugLastBackendSyncResult ?? '-',
+      ),
     ];
 
     return Container(
@@ -255,7 +286,9 @@ class _HomePageState extends State<HomePage> {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+                      color: isDark
+                          ? const Color(0xFFF1F5F9)
+                          : const Color(0xFF1E293B),
                     ),
                   ),
                   const Spacer(),
@@ -284,7 +317,9 @@ class _HomePageState extends State<HomePage> {
                         entry.key,
                         style: TextStyle(
                           fontSize: 12,
-                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade700,
                         ),
                       ),
                     ),
@@ -294,7 +329,9 @@ class _HomePageState extends State<HomePage> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF111827),
+                          color: isDark
+                              ? const Color(0xFFE2E8F0)
+                              : const Color(0xFF111827),
                         ),
                       ),
                     ),
@@ -345,7 +382,9 @@ class _HomePageState extends State<HomePage> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFB923C),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
             icon: const Icon(Icons.settings, size: 18),
@@ -377,7 +416,9 @@ class _HomePageState extends State<HomePage> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFB923C),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
             icon: const Icon(Icons.refresh, size: 18),
@@ -396,10 +437,7 @@ class _HomePageState extends State<HomePage> {
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: textColor.withOpacity(0.1),
-          width: 1,
-        ),
+        border: Border.all(color: textColor.withOpacity(0.1), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -457,17 +495,15 @@ class _HomePageState extends State<HomePage> {
             if (isAuthenticated) {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => AccountPage(
-                    authController: widget.authController,
-                  ),
+                  builder: (context) =>
+                      AccountPage(authController: widget.authController),
                 ),
               );
             } else {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => AuthPage(
-                    authController: widget.authController,
-                  ),
+                  builder: (context) =>
+                      AuthPage(authController: widget.authController),
                 ),
               );
             }
@@ -481,21 +517,16 @@ class _HomePageState extends State<HomePage> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: isAuthenticated
-                    ? const [
-                        Color(0xFF2563EB),
-                        Color(0xFF3B82F6),
-                      ]
-                    : [
-                        Colors.grey.shade400,
-                        Colors.grey.shade600,
-                      ],
+                    ? const [Color(0xFF2563EB), Color(0xFF3B82F6)]
+                    : [Colors.grey.shade400, Colors.grey.shade600],
               ),
               boxShadow: [
                 BoxShadow(
-                  color: (isAuthenticated
+                  color:
+                      (isAuthenticated
                               ? const Color(0xFF2563EB)
                               : Colors.grey.shade300)
-                      .withOpacity(0.4),
+                          .withOpacity(0.4),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -525,7 +556,7 @@ class _HomePageState extends State<HomePage> {
 
   void _showUserMenu(BuildContext context) {
     // ... (Your existing _showUserMenu implementation remains here)
-     showModalBottomSheet(
+    showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -555,10 +586,7 @@ class _HomePageState extends State<HomePage> {
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF2563EB),
-                        Color(0xFF3B82F6),
-                      ],
+                      colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
                     ),
                   ),
                   child: Center(
@@ -600,7 +628,10 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 24),
             ListTile(
-              leading: const Icon(Icons.settings_rounded, color: Colors.blueGrey),
+              leading: const Icon(
+                Icons.settings_rounded,
+                color: Colors.blueGrey,
+              ),
               title: const Text(
                 'Account Settings',
                 style: TextStyle(
@@ -612,9 +643,8 @@ class _HomePageState extends State<HomePage> {
                 Navigator.pop(context);
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (context) => AccountPage(
-                      authController: widget.authController,
-                    ),
+                    builder: (context) =>
+                        AccountPage(authController: widget.authController),
                   ),
                 );
               },
@@ -680,11 +710,9 @@ class _HomePageState extends State<HomePage> {
         'start': const Color(0xFF22C55E),
         'end': const Color(0xFF16A34A),
         'onTap': () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const AiDietView(),
-            ),
-          );
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (context) => const AiDietView()));
         },
       },
       {
@@ -695,9 +723,7 @@ class _HomePageState extends State<HomePage> {
         'end': const Color(0xFF2563EB),
         'onTap': () {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const AiWorkoutPlanView(),
-            ),
+            MaterialPageRoute(builder: (context) => const AiWorkoutPlanView()),
           );
         },
       },
@@ -815,7 +841,9 @@ class _HomePageState extends State<HomePage> {
               width: isActive ? 24 : 7,
               decoration: BoxDecoration(
                 color: isActive
-                    ? (isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB))
+                    ? (isDark
+                          ? const Color(0xFF60A5FA)
+                          : const Color(0xFF2563EB))
                     : (isDark ? Colors.grey.shade700 : Colors.grey.shade300),
                 borderRadius: BorderRadius.circular(999),
               ),
@@ -944,7 +972,9 @@ class _HomePageState extends State<HomePage> {
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 420), // Max width for cleaner look on tablets/desktop
+            constraints: const BoxConstraints(
+              maxWidth: 420,
+            ), // Max width for cleaner look on tablets/desktop
             margin: const EdgeInsets.symmetric(horizontal: 20.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -964,7 +994,9 @@ class _HomePageState extends State<HomePage> {
                               style: TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.w800,
-                                color: Theme.of(context).brightness == Brightness.dark
+                                color:
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark
                                     ? const Color(0xFFF1F5F9)
                                     : const Color(0xFF1E293B),
                                 letterSpacing: -0.5,
@@ -976,7 +1008,9 @@ class _HomePageState extends State<HomePage> {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
-                                color: Theme.of(context).brightness == Brightness.dark
+                                color:
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark
                                     ? Colors.grey.shade400
                                     : const Color(0xFF64748B),
                               ),
@@ -1007,24 +1041,24 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                 ),
-                
+
                 // Status Banner
                 if (_buildStatusBanner() != null) _buildStatusBanner()!,
                 _buildStepDebugPanel(context),
-                
+
                 // --- Modern Progress Card with Gradient (compact) ---
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 16.0),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18.0,
+                    vertical: 16.0,
+                  ),
                   margin: const EdgeInsets.only(bottom: 20.0),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20.0),
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF1E40AF),
-                        Color(0xFF2563EB),
-                      ],
+                      colors: [Color(0xFF1E40AF), Color(0xFF2563EB)],
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -1071,7 +1105,7 @@ class _HomePageState extends State<HomePage> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      
+
                       // Progress Bar
                       Container(
                         height: 10,
@@ -1092,7 +1126,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      
+
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1122,13 +1156,15 @@ class _HomePageState extends State<HomePage> {
                                         style: TextStyle(
                                           fontSize: 16,
                                           fontWeight: FontWeight.w600,
-                                          color: Colors.white.withValues(alpha: 0.9),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.9,
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
-                                
+
                                 const SizedBox(height: 10),
 
                                 // Calories Burned Card
@@ -1141,7 +1177,9 @@ class _HomePageState extends State<HomePage> {
                                     color: Colors.white.withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(14),
                                     border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.28),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.28,
+                                      ),
                                       width: 1,
                                     ),
                                   ),
@@ -1155,14 +1193,17 @@ class _HomePageState extends State<HomePage> {
                                       ),
                                       const SizedBox(width: 8),
                                       Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             'CALORIES BURNED',
                                             style: TextStyle(
                                               fontSize: 10,
                                               fontWeight: FontWeight.w500,
-                                              color: Colors.white.withValues(alpha: 0.8),
+                                              color: Colors.white.withValues(
+                                                alpha: 0.8,
+                                              ),
                                               letterSpacing: 0.4,
                                             ),
                                           ),
@@ -1182,14 +1223,16 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                
+
                                 // Step Goal Info
                                 Row(
                                   children: [
                                     Icon(
                                       Icons.flag_rounded,
                                       size: 16,
-                                      color: Colors.white.withValues(alpha: 0.9),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.9,
+                                      ),
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
@@ -1197,7 +1240,9 @@ class _HomePageState extends State<HomePage> {
                                       style: TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
-                                        color: Colors.white.withValues(alpha: 0.9),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.9,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -1205,9 +1250,9 @@ class _HomePageState extends State<HomePage> {
                               ],
                             ),
                           ),
-                          
+
                           const SizedBox(width: 16),
-                          
+
                           // Sync Button Column
                           Column(
                             children: [
@@ -1217,7 +1262,9 @@ class _HomePageState extends State<HomePage> {
                                   borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.12),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.12,
+                                      ),
                                       blurRadius: 10,
                                       offset: const Offset(0, 6),
                                     ),
@@ -1244,9 +1291,10 @@ class _HomePageState extends State<HomePage> {
                                               height: 18,
                                               child: CircularProgressIndicator(
                                                 strokeWidth: 2.2,
-                                                valueColor: const AlwaysStoppedAnimation<Color>(
-                                                  Color(0xFF6366F1),
-                                                ),
+                                                valueColor:
+                                                    const AlwaysStoppedAnimation<
+                                                      Color
+                                                    >(Color(0xFF6366F1)),
                                               ),
                                             )
                                           else
@@ -1278,16 +1326,21 @@ class _HomePageState extends State<HomePage> {
                                 onPressed: widget.controller.isSyncing
                                     ? null
                                     : () async {
-                                        await widget.controller.resetStepBaseline();
+                                        await widget.controller
+                                            .resetStepBaseline();
                                       },
                                 style: TextButton.styleFrom(
-                                  foregroundColor: Colors.white.withValues(alpha: 0.85),
+                                  foregroundColor: Colors.white.withValues(
+                                    alpha: 0.85,
+                                  ),
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 12,
                                     vertical: 8,
                                   ),
-                                  minimumSize: Size.zero, // Remove default minimum size constraint
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap, // Shrink hit area
+                                  minimumSize: Size
+                                      .zero, // Remove default minimum size constraint
+                                  tapTargetSize: MaterialTapTargetSize
+                                      .shrinkWrap, // Shrink hit area
                                 ),
                                 child: const Text(
                                   'Reset',
@@ -1302,7 +1355,7 @@ class _HomePageState extends State<HomePage> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      
+
                       // View Details Button
                       SizedBox(
                         width: double.infinity,
@@ -1310,7 +1363,8 @@ class _HomePageState extends State<HomePage> {
                           onPressed: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (context) => StepsHistoryView(
+                                builder: (context) => ProgressDashboardView(
+                                  controller: widget.controller,
                                   authController: widget.authController,
                                 ),
                               ),
@@ -1329,7 +1383,7 @@ class _HomePageState extends State<HomePage> {
                           ),
                           icon: const Icon(Icons.show_chart_rounded, size: 18),
                           label: const Text(
-                            'View Step History & Details',
+                            'View Dashboard & Insights',
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 15,
@@ -1340,7 +1394,7 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                 ),
-                
+
                 // Quick Actions Section
                 Row(
                   children: [
@@ -1367,7 +1421,7 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                
+
                 Column(
                   children: [
                     _buildUspBanner(context),
@@ -1382,8 +1436,9 @@ class _HomePageState extends State<HomePage> {
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (context) =>
-                                WorkoutTrackerView(controller: widget.controller),
+                            builder: (context) => WorkoutTrackerView(
+                              controller: widget.controller,
+                            ),
                           ),
                         );
                       },
@@ -1400,25 +1455,6 @@ class _HomePageState extends State<HomePage> {
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (context) => const PersonalizedGoalsView(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    _buildModernActionCard(
-                      context: context,
-                      icon: Icons.insights_rounded,
-                      iconColor: const Color(0xFF0EA5E9),
-                      iconBgColor: const Color(0xFF0EA5E9).withOpacity(0.1),
-                      title: 'Progress Dashboard',
-                      subtitle: 'See your weekly workout and step trends',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => ProgressDashboardView(
-                              controller: widget.controller,
-                              authController: widget.authController,
-                            ),
                           ),
                         );
                       },
@@ -1452,7 +1488,8 @@ class _HomePageState extends State<HomePage> {
                             iconColor: Colors.grey.shade400,
                             iconBgColor: Colors.grey.shade100,
                             title: 'Sign In Required',
-                            subtitle: 'Sign in to access personalized data history',
+                            subtitle:
+                                'Sign in to access personalized data history',
                             onTap: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(

@@ -10,7 +10,6 @@ import 'personalized_goals_view.dart';
 import 'workout_tracker_view.dart';
 import 'ai_diet_view.dart';
 import 'ai_workout_plan_view.dart';
-import 'progress_dashboard_view.dart';
 
 // --- Global Constants (for colors) ---
 const Color kPrimaryColor = Color(0xFF6366F1);
@@ -71,13 +70,6 @@ class FeaturesView extends StatelessWidget {
   Widget build(BuildContext context) {
     final quickActions = [
       FeatureData(
-        icon: Icons.calculate,
-        title: 'Health Metrics',
-        subtitle: 'BMR, BMI, and body analysis.',
-        iconColor: const Color(0xFF8A2BE2),
-        builder: (context) => const HealthMetricsView(),
-      ),
-      FeatureData(
         icon: Icons.accessibility_new,
         title: 'Posture Analysis',
         subtitle: 'AI-powered posture correction.',
@@ -99,14 +91,11 @@ class FeaturesView extends StatelessWidget {
         builder: (context) => WorkoutTrackerView(controller: controller),
       ),
       FeatureData(
-        icon: Icons.insights_rounded,
-        title: 'Progress Dashboard',
-        subtitle: 'View your weekly fitness trends.',
-        iconColor: const Color(0xFF0EA5E9),
-        builder: (context) => ProgressDashboardView(
-          controller: controller,
-          authController: authController,
-        ),
+        icon: Icons.auto_awesome_rounded,
+        title: 'Workout AI',
+        subtitle: 'Create a daily workout plan.',
+        iconColor: const Color(0xFF3B82F6),
+        builder: (context) => const AiWorkoutPlanView(),
       ),
       FeatureData(
         icon: Icons.restaurant_menu,
@@ -116,11 +105,11 @@ class FeaturesView extends StatelessWidget {
         builder: (context) => const AiDietView(),
       ),
       FeatureData(
-        icon: Icons.auto_awesome_rounded,
-        title: 'Workout AI',
-        subtitle: 'Create a daily workout plan.',
-        iconColor: const Color(0xFF3B82F6),
-        builder: (context) => const AiWorkoutPlanView(),
+        icon: Icons.calculate,
+        title: 'Health Metrics',
+        subtitle: 'BMR, BMI, and body analysis.',
+        iconColor: const Color(0xFF8A2BE2),
+        builder: (context) => const HealthMetricsView(),
       ),
     ];
 
@@ -160,12 +149,13 @@ class FeaturesView extends StatelessWidget {
                 .map(
                   (data) => _ActionTile(
                     data: data,
-                    isLocked: authController.isGuest &&
+                    isLocked:
+                        authController.isGuest &&
                         data.title == 'Posture Analysis',
                   ),
                 )
                 .toList(),
-                    SizedBox(height: MediaQuery.of(context).padding.bottom + 130),
+            SizedBox(height: MediaQuery.of(context).padding.bottom + 130),
           ],
         ),
       ),
@@ -178,10 +168,7 @@ class _ActionTile extends StatelessWidget {
   final FeatureData data;
   final bool isLocked;
 
-  const _ActionTile({
-    required this.data,
-    this.isLocked = false,
-  });
+  const _ActionTile({required this.data, this.isLocked = false});
 
   @override
   Widget build(BuildContext context) {
@@ -211,82 +198,90 @@ class _ActionTile extends StatelessWidget {
                 color: isDark ? Colors.grey.shade700 : Colors.grey.shade100,
                 width: 1,
               ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              spreadRadius: 0,
-              blurRadius: 20,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Icon Container
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    data.iconColor.withOpacity(0.15),
-                    data.iconColor.withOpacity(0.25),
-                  ],
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  spreadRadius: 0,
+                  blurRadius: 20,
+                  offset: const Offset(0, 5),
                 ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: data.iconColor.withOpacity(0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Icon(data.icon, color: data.iconColor, size: 28),
+              ],
             ),
-            const SizedBox(width: 15),
-            // Text Content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    data.title,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-                      letterSpacing: -0.3,
+            child: Row(
+              children: [
+                // Icon Container
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        data.iconColor.withOpacity(0.15),
+                        data.iconColor.withOpacity(0.25),
+                      ],
                     ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: data.iconColor.withOpacity(0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    data.subtitle,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  child: Icon(data.icon, color: data.iconColor, size: 28),
+                ),
+                const SizedBox(width: 15),
+                // Text Content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        data.title,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: isDark
+                              ? const Color(0xFFF1F5F9)
+                              : const Color(0xFF1E293B),
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        data.subtitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    isLocked
+                        ? Icons.lock_outline_rounded
+                        : Icons.arrow_forward_ios_rounded,
+                    size: 16,
+                    color: isDark
+                        ? const Color(0xFF818CF8)
+                        : const Color(0xFF6366F1),
+                  ),
+                ),
+              ],
             ),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                isLocked ? Icons.lock_outline_rounded : Icons.arrow_forward_ios_rounded,
-                size: 16,
-                color: isDark ? const Color(0xFF818CF8) : const Color(0xFF6366F1),
-              ),
-            ),
-          ],
-        ),
-      );
+          );
         },
       ),
     );

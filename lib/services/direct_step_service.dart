@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Service that provides direct access to step counter sensor
 /// without requiring Health Connect or Samsung Health.
-/// 
+///
 /// Uses Android's hardware Step Counter sensor (TYPE_STEP_COUNTER)
 /// which provides cumulative steps since device boot.
 class DirectStepService {
@@ -15,15 +15,17 @@ class DirectStepService {
     _channel.setMethodCallHandler(_handleMethodCall);
   }
 
-  final MethodChannel _channel = const MethodChannel('com.example.health/step_counter');
-  
+  final MethodChannel _channel = const MethodChannel(
+    'com.example.health/step_counter',
+  );
+
   StreamController<int>? _stepStreamController;
   Stream<int>? _stepStream;
-  
+
   int? _lastStepCount;
   int? _baselineStepCount;
   DateTime? _baselineDate;
-  
+
   bool _isListening = false;
   bool _baselineLoaded = false;
   int? _lastNativeTodaySteps;
@@ -39,9 +41,11 @@ class DirectStepService {
     if (!Platform.isAndroid) {
       return false;
     }
-    
+
     try {
-      final result = await _channel.invokeMethod<bool>('isStepCounterAvailable');
+      final result = await _channel.invokeMethod<bool>(
+        'isStepCounterAvailable',
+      );
       return result ?? false;
     } catch (e) {
       return false;
@@ -54,7 +58,7 @@ class DirectStepService {
     if (!Platform.isAndroid) {
       return null;
     }
-    
+
     try {
       final result = await _channel.invokeMethod<int>('getCurrentStepCount');
       _lastKnownCurrentStepCount = result;
@@ -67,12 +71,12 @@ class DirectStepService {
   /// Loads the baseline from persistent storage.
   Future<void> _loadBaseline() async {
     if (_baselineLoaded) return;
-    
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedCount = prefs.getInt(_baselineCountKey);
       final savedDateStr = prefs.getString(_baselineDateKey);
-      
+
       if (savedCount != null && savedCount > 0 && savedDateStr != null) {
         try {
           _baselineDate = DateTime.parse(savedDateStr);
@@ -94,7 +98,10 @@ class DirectStepService {
       final prefs = await SharedPreferences.getInstance();
       if (_baselineStepCount != null && _baselineDate != null) {
         await prefs.setInt(_baselineCountKey, _baselineStepCount!);
-        await prefs.setString(_baselineDateKey, _baselineDate!.toIso8601String());
+        await prefs.setString(
+          _baselineDateKey,
+          _baselineDate!.toIso8601String(),
+        );
       }
     } catch (e) {
       // If saving fails, continue without persistence
@@ -103,7 +110,7 @@ class DirectStepService {
 
   /// Gets today's step count by calculating the difference
   /// from a stored baseline (steps at start of day).
-  /// 
+  ///
   /// If no baseline exists, it will be set automatically.
   Future<int> getTodaySteps() async {
     if (!Platform.isAndroid) {
@@ -116,10 +123,6 @@ class DirectStepService {
     try {
       nativeToday = await _channel.invokeMethod<int>('getTodayStepCount');
       _lastNativeTodaySteps = nativeToday;
-      if (nativeToday != null && nativeToday > 0) {
-        _lastReturnedTodaySteps = nativeToday;
-        return nativeToday;
-      }
     } catch (_) {
       // Fallback to baseline-based computation below.
     }
@@ -137,13 +140,13 @@ class DirectStepService {
 
     // Get current count - wait a bit for sensor to initialize if needed
     int? currentCount = await getCurrentStepCount();
-    
+
     // If we got 0 or null, wait a bit and try again (sensor might need time)
     if (currentCount == null || currentCount == 0) {
       await Future.delayed(const Duration(milliseconds: 300));
       currentCount = await getCurrentStepCount();
     }
-    
+
     if (currentCount == null || currentCount == 0) {
       // Sensor might not be ready yet, return 0 for now
       // If native provided a valid value (including 0), prefer it.
@@ -169,13 +172,13 @@ class DirectStepService {
       _baselineDate = today;
       _lastStepCount = currentCount;
       await _saveBaseline(); // Persist the baseline
-      // If native has already counted some steps for today, trust it.
-      if (nativeToday != null && nativeToday > 0) {
+      // Start at 0 from the current baseline unless native already has a known
+      // positive value for today (for example from background tracking).
+      if (nativeToday != null && nativeToday >= 0) {
         _lastComputedTodaySteps = 0;
-        _lastReturnedTodaySteps = nativeToday;
-        return nativeToday;
+        _lastReturnedTodaySteps = nativeToday > 0 ? nativeToday : 0;
+        return _lastReturnedTodaySteps!;
       }
-      // Otherwise start at 0 from the current baseline.
       _lastComputedTodaySteps = 0;
       _lastReturnedTodaySteps = 0;
       return 0;
@@ -185,14 +188,10 @@ class DirectStepService {
     if (_baselineStepCount != null && _baselineStepCount! > 0) {
       final todaySteps = currentCount - _baselineStepCount!;
       _lastStepCount = currentCount;
-      // Prefer the larger non-negative value so stale native 0 doesn't freeze updates.
       final computed = todaySteps > 0 ? todaySteps : 0;
       _lastComputedTodaySteps = computed;
-      if (nativeToday != null && nativeToday >= 0) {
-        final resolved = nativeToday > computed ? nativeToday : computed;
-        _lastReturnedTodaySteps = resolved;
-        return resolved;
-      }
+      // Primary source should be computed sensor delta from current baseline.
+      // Native value is kept only as fallback when computed path is unavailable.
       _lastReturnedTodaySteps = computed;
       return computed;
     }
@@ -295,7 +294,9 @@ class DirectStepService {
         _stepStreamController?.add(stepCount);
         break;
       default:
-        throw MissingPluginException('No implementation found for method ${call.method}');
+        throw MissingPluginException(
+          'No implementation found for method ${call.method}',
+        );
     }
   }
 
@@ -314,4 +315,3 @@ class StepCounterException implements Exception {
   @override
   String toString() => 'StepCounterException: $message';
 }
-

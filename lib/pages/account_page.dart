@@ -6,15 +6,13 @@ import 'package:provider/provider.dart';
 import '../controllers/auth_controller.dart';
 import '../services/auth_service.dart';
 import '../services/theme_service.dart';
+import 'about_page.dart';
 import 'auth_page.dart';
 
 class AccountPage extends StatefulWidget {
   final AuthController authController;
 
-  const AccountPage({
-    super.key,
-    required this.authController,
-  });
+  const AccountPage({super.key, required this.authController});
 
   @override
   State<AccountPage> createState() => _AccountPageState();
@@ -126,14 +124,14 @@ class _AccountPageState extends State<AccountPage> {
           _currentPasswordController.clear();
           _newPasswordController.clear();
           _confirmPasswordController.clear();
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Password changed successfully'),
               backgroundColor: Colors.green,
             ),
           );
-          
+
           // Close password change dialog
           Navigator.of(context).pop();
         }
@@ -152,7 +150,8 @@ class _AccountPageState extends State<AccountPage> {
   Future<void> _deactivateAccount() async {
     final confirmed = await _showConfirmDialog(
       title: 'Deactivate Account',
-      message: 'Are you sure you want to deactivate your account? '
+      message:
+          'Are you sure you want to deactivate your account? '
           'You can reactivate it later by signing in again.',
       confirmText: 'Deactivate',
       isDestructive: true,
@@ -170,11 +169,12 @@ class _AccountPageState extends State<AccountPage> {
           await widget.authController.signOut();
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
-              builder: (context) => AuthPage(authController: widget.authController),
+              builder: (context) =>
+                  AuthPage(authController: widget.authController),
             ),
             (route) => false,
           );
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Account deactivated successfully'),
@@ -197,7 +197,8 @@ class _AccountPageState extends State<AccountPage> {
   Future<void> _deleteAccount() async {
     final confirmed = await _showConfirmDialog(
       title: 'Delete Account',
-      message: '⚠️ WARNING: This action cannot be undone!\n\n'
+      message:
+          '⚠️ WARNING: This action cannot be undone!\n\n'
           'Deleting your account will permanently remove:\n'
           '• Your profile information\n'
           '• All your steps history\n'
@@ -213,7 +214,8 @@ class _AccountPageState extends State<AccountPage> {
     // Second confirmation
     final doubleConfirmed = await _showConfirmDialog(
       title: 'Final Confirmation',
-      message: 'This is your last chance. Your account and all data will be permanently deleted. '
+      message:
+          'This is your last chance. Your account and all data will be permanently deleted. '
           'Type "DELETE" to confirm.',
       confirmText: 'Delete',
       isDestructive: true,
@@ -233,11 +235,12 @@ class _AccountPageState extends State<AccountPage> {
           await widget.authController.signOut();
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
-              builder: (context) => AuthPage(authController: widget.authController),
+              builder: (context) =>
+                  AuthPage(authController: widget.authController),
             ),
             (route) => false,
           );
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Account deleted successfully'),
@@ -291,61 +294,60 @@ class _AccountPageState extends State<AccountPage> {
     bool isValid = !requiresTextInput;
 
     return await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(title),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(message),
-              if (requiresTextInput) ...[
-                const SizedBox(height: 16),
-                TextField(
-                  controller: textController,
-                  decoration: const InputDecoration(
-                    labelText: 'Type DELETE to confirm',
-                    border: OutlineInputBorder(),
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => StatefulBuilder(
+            builder: (context, setDialogState) => AlertDialog(
+              title: Text(title),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(message),
+                  if (requiresTextInput) ...[
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: textController,
+                      decoration: const InputDecoration(
+                        labelText: 'Type DELETE to confirm',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isValid =
+                              value.trim().toUpperCase() == confirmationText;
+                        });
+                      },
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isValid
+                      ? () => Navigator.of(context).pop(true)
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isDestructive ? Colors.red : Colors.indigo,
+                    foregroundColor: Colors.white,
                   ),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      isValid = value.trim().toUpperCase() == confirmationText;
-                    });
-                  },
+                  child: Text(confirmText),
                 ),
               ],
-            ],
+            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: isValid
-                  ? () => Navigator.of(context).pop(true)
-                  : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isDestructive ? Colors.red : Colors.indigo,
-                foregroundColor: Colors.white,
-              ),
-              child: Text(confirmText),
-            ),
-          ],
-        ),
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 
   void _showError(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
     }
   }
@@ -483,7 +485,9 @@ class _AccountPageState extends State<AccountPage> {
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+                            color: isDark
+                                ? const Color(0xFFF1F5F9)
+                                : const Color(0xFF1E293B),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -533,9 +537,7 @@ class _AccountPageState extends State<AccountPage> {
                   // Appearance Section
                   _buildSection(
                     title: 'Appearance',
-                    children: [
-                      _buildThemeToggleTile(),
-                    ],
+                    children: [_buildThemeToggleTile()],
                   ),
                   const SizedBox(height: 24),
 
@@ -577,7 +579,8 @@ class _AccountPageState extends State<AccountPage> {
                       _buildActionTile(
                         icon: Icons.delete_forever,
                         title: 'Delete Account',
-                        subtitle: 'Permanently delete your account and all data',
+                        subtitle:
+                            'Permanently delete your account and all data',
                         onTap: _deleteAccount,
                         iconColor: Colors.red,
                         isLoading: _isDeleting,
@@ -600,9 +603,31 @@ class _AccountPageState extends State<AccountPage> {
                         _buildInfoTile(
                           icon: Icons.account_circle,
                           title: 'Account Type',
-                          value: user['googleId'] != null ? 'Google Account' : 'Email Account',
+                          value: user['googleId'] != null
+                              ? 'Google Account'
+                              : 'Email Account',
                         ),
                       ],
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // About Section
+                  _buildSection(
+                    title: 'App',
+                    children: [
+                      _buildActionTile(
+                        icon: Icons.info_outline_rounded,
+                        title: 'About HealthHub',
+                        subtitle: 'Version, features, and app information',
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => const AboutPage(),
+                            ),
+                          );
+                        },
+                      ),
                     ],
                   ),
                   const SizedBox(height: 40),
@@ -699,7 +724,10 @@ class _AccountPageState extends State<AccountPage> {
         fillColor: enabled
             ? (isDark ? const Color(0xFF1E293B) : Colors.white)
             : (isDark ? const Color(0xFF0F172A) : Colors.grey.shade100),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
     );
   }
@@ -725,11 +753,7 @@ class _AccountPageState extends State<AccountPage> {
                 color: (iconColor ?? Colors.indigo).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(
-                icon,
-                color: iconColor ?? Colors.indigo,
-                size: 24,
-              ),
+              child: Icon(icon, color: iconColor ?? Colors.indigo, size: 24),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -766,10 +790,7 @@ class _AccountPageState extends State<AccountPage> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             else
-              Icon(
-                Icons.chevron_right,
-                color: Colors.grey.shade400,
-              ),
+              Icon(Icons.chevron_right, color: Colors.grey.shade400),
           ],
         ),
       ),
@@ -791,10 +812,7 @@ class _AccountPageState extends State<AccountPage> {
             children: [
               Text(
                 title,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
               ),
               const SizedBox(height: 4),
               Text(
@@ -829,15 +847,19 @@ class _AccountPageState extends State<AccountPage> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: (isDarkMode 
-                        ? const Color(0xFFFBBF24) 
-                        : const Color(0xFF2563EB)).withOpacity(0.1),
+                    color:
+                        (isDarkMode
+                                ? const Color(0xFFFBBF24)
+                                : const Color(0xFF2563EB))
+                            .withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
-                    isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                    color: isDarkMode 
-                        ? const Color(0xFFFBBF24) 
+                    isDarkMode
+                        ? Icons.light_mode_rounded
+                        : Icons.dark_mode_rounded,
+                    color: isDarkMode
+                        ? const Color(0xFFFBBF24)
                         : const Color(0xFF2563EB),
                     size: 24,
                   ),
@@ -845,30 +867,30 @@ class _AccountPageState extends State<AccountPage> {
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isDarkMode ? 'Light Mode' : 'Dark Mode',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? const Color(0xFFF1F5F9)
-                            : const Color(0xFF1E293B),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isDarkMode ? 'Light Mode' : 'Dark Mode',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? const Color(0xFFF1F5F9)
+                              : const Color(0xFF1E293B),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Switch to ${isDarkMode ? 'light' : 'dark'} theme',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isDark
-                            ? Colors.grey.shade400
-                            : Colors.grey.shade600,
+                      const SizedBox(height: 4),
+                      Text(
+                        'Switch to ${isDarkMode ? 'light' : 'dark'} theme',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade600,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
                 ),
                 Switch(
                   value: isDarkMode,
@@ -896,4 +918,3 @@ class _AccountPageState extends State<AccountPage> {
     }
   }
 }
-

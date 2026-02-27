@@ -311,20 +311,21 @@ class _WorkoutTypeCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     template.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                   const SizedBox(height: 8),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
                     children: [
                       _InfoChip(label: template.difficulty),
-                      const SizedBox(width: 8),
                       _InfoChip(
                         label: '${template.met.toStringAsFixed(1)} MET',
                       ),
-                      if (template.tracksDistance) ...[
-                        const SizedBox(width: 8),
+                      if (template.tracksDistance)
                         const _InfoChip(label: 'GPS Distance'),
-                      ],
                     ],
                   ),
                 ],
@@ -353,6 +354,8 @@ class _InfoChip extends StatelessWidget {
       ),
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: const TextStyle(color: Colors.white, fontSize: 11),
       ),
     );

@@ -5,11 +5,11 @@ import 'package:ota_update/ota_update.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'controllers/health_sync_controller.dart';
 import 'controllers/auth_controller.dart';
-import 'pages/about_page.dart';
 import 'pages/features_view.dart';
 import 'pages/home_page.dart';
 import 'pages/community_page.dart';
 import 'pages/auth_page.dart';
+import 'pages/progress_dashboard_view.dart';
 import 'widgets/health_chatbot_widget.dart';
 import 'services/app_update_service.dart';
 
@@ -75,6 +75,7 @@ class _MainScreenState extends State<MainScreen> {
             .isInstalledVersionAtLeast(pendingTag);
         if (alreadyInstalled) {
           await prefs.remove(_pendingUpdateTagKey);
+          await _appUpdateService.cleanupDownloadedApks();
           pendingTag = null;
           debugPrint(
             '[Update] Cleared pending tag because installed app already has it.',
@@ -219,6 +220,8 @@ class _MainScreenState extends State<MainScreen> {
                                       progress = 0;
                                     });
 
+                                    await _appUpdateService
+                                        .cleanupDownloadedApks();
                                     _updateSubscription?.cancel();
                                     _updateSubscription = _appUpdateService
                                         .startUpdate(
@@ -386,6 +389,7 @@ class _MainScreenState extends State<MainScreen> {
                             statusText = 'Opening installer...';
                           });
 
+                          await _appUpdateService.cleanupDownloadedApks();
                           _updateSubscription?.cancel();
                           _updateSubscription = _appUpdateService
                               .startUpdate(info.apkUrl, info.versionTag)
@@ -596,7 +600,10 @@ class _MainScreenState extends State<MainScreen> {
                   controller: _healthSyncController,
                   authController: _authController,
                 ),
-                const AboutPage(),
+                ProgressDashboardView(
+                  controller: _healthSyncController,
+                  authController: _authController,
+                ),
               ],
             ),
             // Floating Health Chatbot - positioned above About button
@@ -628,7 +635,7 @@ class _MainScreenState extends State<MainScreen> {
                   _buildNavItem(Icons.home_rounded, 'Home', 0),
                   _buildNavItem(Icons.people_rounded, 'Community', 1),
                   _buildNavItem(Icons.star_rounded, 'Features', 2),
-                  _buildNavItem(Icons.info_outline_rounded, 'About', 3),
+                  _buildNavItem(Icons.insights_rounded, 'Dashboard', 3),
                 ],
               ),
             ),

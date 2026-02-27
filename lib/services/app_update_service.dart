@@ -105,6 +105,19 @@ class AppUpdateService {
     return OtaUpdate().execute(apkUrl, destinationFilename: safeFileName);
   }
 
+  Future<void> cleanupDownloadedApks() async {
+    if (kIsWeb || !Platform.isAndroid) {
+      return;
+    }
+    try {
+      await _installerChannel.invokeMethod<Map<dynamic, dynamic>>(
+        'cleanupDownloadedApks',
+      );
+    } catch (_) {
+      // Best effort only.
+    }
+  }
+
   Future<bool> isInstalledVersionAtLeast(String versionTag) async {
     if (kIsWeb || !Platform.isAndroid) {
       return true;
