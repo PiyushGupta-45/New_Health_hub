@@ -6,6 +6,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import 'package:google_mlkit_commons/google_mlkit_commons.dart' as mlkit;
 import 'package:permission_handler/permission_handler.dart';
@@ -55,6 +56,10 @@ class _PoseCameraPageState
   Timer? _burstStopTimer;
   bool _wasIncorrect = false;
   _PostureQuality _activeTone = _PostureQuality.neutral;
+  final FlutterTts _tts = FlutterTts();
+  DateTime _lastVoiceAt = DateTime.fromMillisecondsSinceEpoch(0);
+  String _lastSpokenMessage = '';
+  String _cameraGuidance = 'Align your body in the center of the frame';
 
   @override
   void initState() {
@@ -62,6 +67,7 @@ class _PoseCameraPageState
     WidgetsBinding.instance.addObserver(
       this,
     );
+    _configureVoiceAssistant();
     _initialize();
   }
 
@@ -71,6 +77,7 @@ class _PoseCameraPageState
       this,
     );
     _stopBeeping();
+    _tts.stop();
     _cameraController?.stopImageStream();
     _cameraController?.dispose();
     _poseDetector?.close();
@@ -315,6 +322,7 @@ class _PoseCameraPageState
           setState(
             () {
               _postureLabel = "Position yourself in frame";
+              _cameraGuidance = "Center your full body in frame";
             },
           );
         }
@@ -394,6 +402,10 @@ class _PoseCameraPageState
   void _analyzePose(
     Pose pose,
   ) {
+    _updateCameraGuidance(
+      pose,
+    );
+
     // Route to exercise-specific analysis
     switch (widget.exerciseType) {
       case ExerciseType.generalPosture:
@@ -452,6 +464,9 @@ class _PoseCameraPageState
       _classifyPostureLabel(
         _postureLabel,
       ),
+    );
+    unawaited(
+      _speakFeedbackIfNeeded(),
     );
   }
 
@@ -565,6 +580,158 @@ class _PoseCameraPageState
     _beepTimer = null;
     _burstStopTimer?.cancel();
     _burstStopTimer = null;
+  }
+
+  Future<void> _configureVoiceAssistant() async {
+    try {
+      await _tts.setLanguage('en-US');
+      await _tts.setSpeechRate(0.47);
+      await _tts.setPitch(1.0);
+      await _tts.setVolume(1.0);
+      await _tts.awaitSpeakCompletion(false);
+    } catch (e) {
+      debugPrint('Voice assistant config failed: $e');
+    }
+  }
+
+  void _updateCameraGuidance(
+    Pose pose,
+  ) {
+    if (_imageSize == null) return;
+
+    final points = pose.landmarks.values.toList();
+    if (points.isEmpty) return;
+
+    final xs = points.map((p) => p.x);
+    final ys = points.map((p) => p.y);
+    final minX = xs.reduce(min);
+    final maxX = xs.reduce(max);
+    final minY = ys.reduce(min);
+    final maxY = ys.reduce(max);
+
+    final frameW = _imageSize!.width;
+    final frameH = _imageSize!.height;
+    final widthRatio = (maxX - minX) / frameW;
+    final heightRatio = (maxY - minY) / frameH;
+    final centerX = (minX + maxX) / 2;
+    final centerY = (minY + maxY) / 2;
+
+    String message = 'Camera framing looks good';
+
+    if (widthRatio < 0.18 || heightRatio < 0.28) {
+      message = 'Move closer to the camera';
+    } else if (widthRatio > 0.92 || heightRatio > 0.95) {
+      message = 'Move slightly away from the camera';
+    } else if (centerX < frameW * 0.35) {
+      message = 'Move slightly to your right';
+    } else if (centerX > frameW * 0.65) {
+      message = 'Move slightly to your left';
+    } else if (centerY < frameH * 0.30) {
+      message = 'Lower the camera or step down slightly';
+    } else if (centerY > frameH * 0.75) {
+      message = 'Raise the camera or step up slightly';
+    }
+
+    if (message != _cameraGuidance) {
+      if (mounted) {
+        setState(() {
+          _cameraGuidance = message;
+        });
+      } else {
+        _cameraGuidance = message;
+      }
+    }
+  }
+
+  String _buildVoicePrompt() {
+    if (_cameraGuidance != 'Camera framing looks good') {
+      return _cameraGuidance;
+    }
+
+    final normalized = _postureLabel.toLowerCase();
+    if (_activeTone == _PostureQuality.correct) {
+      return 'Good posture. Hold this form.';
+    }
+
+    if (normalized.contains('slouch')) {
+      return 'Straighten your upper back and lift your chest.';
+    }
+    if (normalized.contains('shoulder tilt') ||
+        normalized.contains('shoulders level')) {
+      return 'Keep both shoulders level and relaxed.';
+    }
+    if (normalized.contains('back straighter') ||
+        normalized.contains('back straight')) {
+      return 'Keep your spine neutral and avoid rounding your back.';
+    }
+    if (normalized.contains('knees aligned')) {
+      return 'Track your knees over your toes.';
+    }
+    if (normalized.contains('knee over ankle')) {
+      return 'Keep your front knee stacked over your ankle.';
+    }
+    if (normalized.contains('go deeper')) {
+      return 'Bend your knees more to reach proper depth.';
+    }
+    if (normalized.contains('go lower')) {
+      return 'Lower your chest a little more while staying controlled.';
+    }
+    if (normalized.contains('hips too high')) {
+      return 'Lower your hips to keep a straight body line.';
+    }
+    if (normalized.contains('hips sagging')) {
+      return 'Lift your hips slightly and brace your core.';
+    }
+    if (normalized.contains('torso upright')) {
+      return 'Keep your torso upright and chest open.';
+    }
+    if (normalized.contains('extend arms fully')) {
+      return 'Press up until your arms are fully extended.';
+    }
+    if (normalized.contains('pull higher')) {
+      return 'Pull higher so your chin clears the bar.';
+    }
+    if (normalized.contains('avoid kipping')) {
+      return 'Control the movement and avoid swinging.';
+    }
+    if (normalized.contains('lift hips higher')) {
+      return 'Drive through your heels and lift your hips higher.';
+    }
+    if (normalized.contains('body level') ||
+        normalized.contains('body aligned')) {
+      return 'Keep your body level from shoulders to hips.';
+    }
+
+    final cleanedLabel = _postureLabel
+        .replaceAll(RegExp(r'[^ -~]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return cleanedLabel.isEmpty
+        ? 'Adjust your posture and stay centered in frame.'
+        : cleanedLabel;
+  }
+
+  Future<void> _speakFeedbackIfNeeded() async {
+    final message = _buildVoicePrompt();
+    final now = DateTime.now();
+    final sinceLast = now.difference(_lastVoiceAt);
+
+    if (message == _lastSpokenMessage && sinceLast < const Duration(seconds: 5)) {
+      return;
+    }
+    if (sinceLast < const Duration(milliseconds: 1500)) {
+      return;
+    }
+
+    _lastVoiceAt = now;
+    _lastSpokenMessage = message;
+
+    try {
+      await _tts.stop();
+      await _tts.speak(message);
+    } catch (e) {
+      debugPrint('Voice assistant speech failed: $e');
+    }
   }
 
   // Helper method to get common landmarks
@@ -1760,6 +1927,16 @@ class _PoseCameraPageState
                                         color: Colors.amber,
                                         fontWeight: FontWeight.bold,
                                         fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(
+                                      height: 6,
+                                    ),
+                                    Text(
+                                      'Camera: $_cameraGuidance',
+                                      style: const TextStyle(
+                                        color: Colors.lightBlueAccent,
+                                        fontSize: 12,
                                       ),
                                     ),
                                   ],

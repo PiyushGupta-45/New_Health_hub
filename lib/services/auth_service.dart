@@ -12,7 +12,8 @@ class AuthService {
   factory AuthService() => _instance;
   AuthService._internal() {
     final configuredClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID']?.trim();
-    final hasClientId = configuredClientId != null && configuredClientId.isNotEmpty;
+    final hasClientId =
+        configuredClientId != null && configuredClientId.isNotEmpty;
     _googleSignIn = GoogleSignIn(
       scopes: ['email', 'profile'],
       serverClientId: hasClientId ? configuredClientId : null,
@@ -23,7 +24,9 @@ class AuthService {
           : configuredClientId;
       print('✅ GoogleSignIn configured with GOOGLE_WEB_CLIENT_ID: $masked');
     } else {
-      print('⚠️ GOOGLE_WEB_CLIENT_ID not set in .env. Using default GoogleSignIn config.');
+      print(
+        '⚠️ GOOGLE_WEB_CLIENT_ID not set in .env. Using default GoogleSignIn config.',
+      );
     }
   }
 
@@ -35,26 +38,26 @@ class AuthService {
       print('⚠️ API_BASE_URL is not set in .env file');
       return null;
     }
-    
+
     // Remove trailing slash if present
     String cleanUrl = url.trim();
     if (cleanUrl.endsWith('/')) {
       cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
     }
-    
+
     // Validate that it's a proper HTTP/HTTPS URL, not a MongoDB connection string
     if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
       throw Exception(
         'API_BASE_URL must be a valid HTTP/HTTPS URL (e.g., https://your-api.com). '
         'MongoDB connection strings should not be used here. '
-        'Set up a backend API server that connects to MongoDB Atlas.'
+        'Set up a backend API server that connects to MongoDB Atlas.',
       );
     }
-    
+
     print('✅ Using API_BASE_URL: $cleanUrl');
     return cleanUrl;
   }
-  
+
   String? get apiKey => dotenv.env['API_KEY'];
 
   // Get stored user data
@@ -70,16 +73,18 @@ class AuthService {
   // Store user data
   Future<void> storeUser(Map<String, dynamic> userData) async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     // Handle nested user object (from API response) or flat user object
     final user = userData['user'] ?? userData;
     final token = user['token'] ?? userData['token'] ?? '';
-    
+
     // Store the user object (not the entire response)
     await prefs.setString('user_data', json.encode(user));
     await prefs.setString('auth_token', token);
-    
-    print('✅ Stored auth token: ${token.isNotEmpty ? "Token saved" : "No token found"}');
+
+    print(
+      '✅ Stored auth token: ${token.isNotEmpty ? "Token saved" : "No token found"}',
+    );
   }
 
   // Clear stored user data
@@ -106,46 +111,45 @@ class AuthService {
       if (url == null || url.isEmpty) {
         return {
           'success': false,
-          'error': 'API_BASE_URL is not configured. Please set it in your .env file.'
+          'error':
+              'API_BASE_URL is not configured. Please set it in your .env file.',
         };
       }
 
       final endpoint = '$url/api/auth/signup';
       print('🌐 Making request to: $endpoint');
-      
+
       final response = await http.post(
         Uri.parse(endpoint),
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': apiKey ?? '',
         },
-        body: json.encode({
-          'name': name,
-          'email': email,
-          'password': password,
-        }),
+        body: json.encode({'name': name, 'email': email, 'password': password}),
       );
 
       print('📡 Response status: ${response.statusCode}');
       print('📡 Response body: ${response.body}');
-      
+
       // Check if response is JSON before parsing
       if (response.statusCode == 404) {
         return {
           'success': false,
-          'error': 'Backend API not found (404).\n\n'
+          'error':
+              'Backend API not found (404).\n\n'
               'URL tried: $endpoint\n\n'
               'Please verify:\n'
               '1. Your backend is running at: $url\n'
               '2. Test in browser: $url/api/health\n'
-              '3. Check your .env file has correct API_BASE_URL'
+              '3. Check your .env file has correct API_BASE_URL',
         };
       }
 
       if (response.statusCode >= 500) {
         return {
           'success': false,
-          'error': 'Backend server error (${response.statusCode}). Please check if your backend is running.'
+          'error':
+              'Backend server error (${response.statusCode}). Please check if your backend is running.',
         };
       }
 
@@ -156,7 +160,7 @@ class AuthService {
       } catch (e) {
         return {
           'success': false,
-          'error': 'Invalid response from server: ${response.body}'
+          'error': 'Invalid response from server: ${response.body}',
         };
       }
 
@@ -166,10 +170,7 @@ class AuthService {
         final user = data['user'] ?? data;
         return {'success': true, 'user': user};
       } else {
-        return {
-          'success': false,
-          'error': data['message'] ?? 'Sign up failed',
-        };
+        return {'success': false, 'error': data['message'] ?? 'Sign up failed'};
       }
     } catch (e) {
       return {'success': false, 'error': 'Network error: ${e.toString()}'};
@@ -186,45 +187,45 @@ class AuthService {
       if (url == null || url.isEmpty) {
         return {
           'success': false,
-          'error': 'API_BASE_URL is not configured. Please set it in your .env file.'
+          'error':
+              'API_BASE_URL is not configured. Please set it in your .env file.',
         };
       }
 
       final endpoint = '$url/api/auth/signin';
       print('🌐 Making request to: $endpoint');
-      
+
       final response = await http.post(
         Uri.parse(endpoint),
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': apiKey ?? '',
         },
-        body: json.encode({
-          'email': email,
-          'password': password,
-        }),
+        body: json.encode({'email': email, 'password': password}),
       );
 
       print('📡 Response status: ${response.statusCode}');
       print('📡 Response body: ${response.body}');
-      
+
       // Check if response is JSON before parsing
       if (response.statusCode == 404) {
         return {
           'success': false,
-          'error': 'Backend API not found (404).\n\n'
+          'error':
+              'Backend API not found (404).\n\n'
               'URL tried: $endpoint\n\n'
               'Please verify:\n'
               '1. Your backend is running at: $url\n'
               '2. Test in browser: $url/api/health\n'
-              '3. Check your .env file has correct API_BASE_URL'
+              '3. Check your .env file has correct API_BASE_URL',
         };
       }
 
       if (response.statusCode >= 500) {
         return {
           'success': false,
-          'error': 'Backend server error (${response.statusCode}). Please check if your backend is running.'
+          'error':
+              'Backend server error (${response.statusCode}). Please check if your backend is running.',
         };
       }
 
@@ -235,7 +236,7 @@ class AuthService {
       } catch (e) {
         return {
           'success': false,
-          'error': 'Invalid response from server: ${response.body}'
+          'error': 'Invalid response from server: ${response.body}',
         };
       }
 
@@ -245,10 +246,7 @@ class AuthService {
         final user = data['user'] ?? data;
         return {'success': true, 'user': user};
       } else {
-        return {
-          'success': false,
-          'error': data['message'] ?? 'Sign in failed',
-        };
+        return {'success': false, 'error': data['message'] ?? 'Sign in failed'};
       }
     } catch (e) {
       return {'success': false, 'error': 'Network error: ${e.toString()}'};
@@ -263,7 +261,8 @@ class AuthService {
       if (url == null || url.isEmpty) {
         return {
           'success': false,
-          'error': 'API_BASE_URL is not configured. Please set it in your .env file.'
+          'error':
+              'API_BASE_URL is not configured. Please set it in your .env file.',
         };
       }
 
@@ -277,11 +276,13 @@ class AuthService {
 
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
-      print('✅ Google auth tokens received (idToken: ${googleAuth.idToken != null}, accessToken: ${googleAuth.accessToken != null})');
+      print(
+        '✅ Google auth tokens received (idToken: ${googleAuth.idToken != null}, accessToken: ${googleAuth.accessToken != null})',
+      );
 
       final endpoint = '$url/api/auth/google';
       print('🌐 Making request to: $endpoint');
-      
+
       final response = await http.post(
         Uri.parse(endpoint),
         headers: {
@@ -299,24 +300,26 @@ class AuthService {
 
       print('📡 Response status: ${response.statusCode}');
       print('📡 Response body: ${response.body}');
-      
+
       // Check if response is JSON before parsing
       if (response.statusCode == 404) {
         return {
           'success': false,
-          'error': 'Backend API not found (404).\n\n'
+          'error':
+              'Backend API not found (404).\n\n'
               'URL tried: $endpoint\n\n'
               'Please verify:\n'
               '1. Your backend is running at: $url\n'
               '2. Test in browser: $url/api/health\n'
-              '3. Check your .env file has correct API_BASE_URL'
+              '3. Check your .env file has correct API_BASE_URL',
         };
       }
 
       if (response.statusCode >= 500) {
         return {
           'success': false,
-          'error': 'Backend server error (${response.statusCode}). Please check if your backend is running.'
+          'error':
+              'Backend server error (${response.statusCode}). Please check if your backend is running.',
         };
       }
 
@@ -327,7 +330,7 @@ class AuthService {
       } catch (e) {
         return {
           'success': false,
-          'error': 'Invalid response from server: ${response.body}'
+          'error': 'Invalid response from server: ${response.body}',
         };
       }
 
@@ -343,13 +346,19 @@ class AuthService {
         };
       }
     } on PlatformException catch (e) {
-      print('❌ Google sign in PlatformException: code=${e.code}, message=${e.message}, details=${e.details}');
+      print(
+        '❌ Google sign in PlatformException: code=${e.code}, message=${e.message}, details=${e.details}',
+      );
       return {
         'success': false,
-        'error': 'Google sign in failed (${e.code}): ${e.message ?? 'Unknown platform error'}'
+        'error':
+            'Google sign in failed (${e.code}): ${e.message ?? 'Unknown platform error'}',
       };
     } catch (e) {
-      return {'success': false, 'error': 'Google sign in error: ${e.toString()}'};
+      return {
+        'success': false,
+        'error': 'Google sign in error: ${e.toString()}',
+      };
     }
   }
 
@@ -366,25 +375,76 @@ class AuthService {
     return user != null && token != null && token.isNotEmpty;
   }
 
+  // Validate local session against backend.
+  // Returns latest profile on success, otherwise clears local auth.
+  Future<Map<String, dynamic>> validateSession() async {
+    try {
+      final user = await getStoredUser();
+      final token = await getAuthToken();
+      final url = baseUrl;
+
+      if (user == null ||
+          token == null ||
+          token.isEmpty ||
+          url == null ||
+          url.isEmpty) {
+        await clearUser();
+        return {'success': false, 'error': 'No active session'};
+      }
+
+      final response = await http.get(
+        Uri.parse('$url/api/user/profile'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+          'x-api-key': apiKey ?? '',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        if (data['success'] == true && data['user'] is Map<String, dynamic>) {
+          final mergedUser = {
+            ...(user),
+            ...(data['user'] as Map<String, dynamic>),
+            'token': token,
+          };
+          await storeUser(mergedUser);
+          return {'success': true, 'user': mergedUser};
+        }
+        return {'success': true, 'user': user};
+      }
+
+      if (response.statusCode == 401) {
+        await clearUser();
+        return {
+          'success': false,
+          'error': 'Session expired. Please sign in again.',
+        };
+      }
+
+      return {'success': true, 'user': user};
+    } catch (e) {
+      // Keep existing local session on transient network failures.
+      final user = await getStoredUser();
+      if (user != null) {
+        return {'success': true, 'user': user};
+      }
+      return {'success': false, 'error': 'Session validation failed'};
+    }
+  }
+
   // Update user profile
-  Future<Map<String, dynamic>> updateProfile({
-    required String name,
-  }) async {
+  Future<Map<String, dynamic>> updateProfile({required String name}) async {
     try {
       final url = baseUrl;
       if (url == null || url.isEmpty) {
-        return {
-          'success': false,
-          'error': 'API_BASE_URL is not configured'
-        };
+        return {'success': false, 'error': 'API_BASE_URL is not configured'};
       }
 
       final token = await getAuthToken();
       if (token == null || token.isEmpty) {
-        return {
-          'success': false,
-          'error': 'Not authenticated'
-        };
+        return {'success': false, 'error': 'Not authenticated'};
       }
 
       final endpoint = '$url/api/user/profile';
@@ -395,9 +455,7 @@ class AuthService {
           'Authorization': 'Bearer $token',
           'x-api-key': apiKey ?? '',
         },
-        body: json.encode({
-          'name': name,
-        }),
+        body: json.encode({'name': name}),
       );
 
       final data = json.decode(response.body);
@@ -408,11 +466,14 @@ class AuthService {
       } else {
         return {
           'success': false,
-          'error': data['message'] ?? 'Failed to update profile'
+          'error': data['message'] ?? 'Failed to update profile',
         };
       }
     } catch (e) {
-      return {'success': false, 'error': 'Error updating profile: ${e.toString()}'};
+      return {
+        'success': false,
+        'error': 'Error updating profile: ${e.toString()}',
+      };
     }
   }
 
@@ -424,18 +485,12 @@ class AuthService {
     try {
       final url = baseUrl;
       if (url == null || url.isEmpty) {
-        return {
-          'success': false,
-          'error': 'API_BASE_URL is not configured'
-        };
+        return {'success': false, 'error': 'API_BASE_URL is not configured'};
       }
 
       final token = await getAuthToken();
       if (token == null || token.isEmpty) {
-        return {
-          'success': false,
-          'error': 'Not authenticated'
-        };
+        return {'success': false, 'error': 'Not authenticated'};
       }
 
       final endpoint = '$url/api/user/change-password';
@@ -459,11 +514,14 @@ class AuthService {
       } else {
         return {
           'success': false,
-          'error': data['message'] ?? 'Failed to change password'
+          'error': data['message'] ?? 'Failed to change password',
         };
       }
     } catch (e) {
-      return {'success': false, 'error': 'Error changing password: ${e.toString()}'};
+      return {
+        'success': false,
+        'error': 'Error changing password: ${e.toString()}',
+      };
     }
   }
 
@@ -472,18 +530,12 @@ class AuthService {
     try {
       final url = baseUrl;
       if (url == null || url.isEmpty) {
-        return {
-          'success': false,
-          'error': 'API_BASE_URL is not configured'
-        };
+        return {'success': false, 'error': 'API_BASE_URL is not configured'};
       }
 
       final token = await getAuthToken();
       if (token == null || token.isEmpty) {
-        return {
-          'success': false,
-          'error': 'Not authenticated'
-        };
+        return {'success': false, 'error': 'Not authenticated'};
       }
 
       final endpoint = '$url/api/user/deactivate';
@@ -503,11 +555,14 @@ class AuthService {
       } else {
         return {
           'success': false,
-          'error': data['message'] ?? 'Failed to deactivate account'
+          'error': data['message'] ?? 'Failed to deactivate account',
         };
       }
     } catch (e) {
-      return {'success': false, 'error': 'Error deactivating account: ${e.toString()}'};
+      return {
+        'success': false,
+        'error': 'Error deactivating account: ${e.toString()}',
+      };
     }
   }
 
@@ -516,18 +571,12 @@ class AuthService {
     try {
       final url = baseUrl;
       if (url == null || url.isEmpty) {
-        return {
-          'success': false,
-          'error': 'API_BASE_URL is not configured'
-        };
+        return {'success': false, 'error': 'API_BASE_URL is not configured'};
       }
 
       final token = await getAuthToken();
       if (token == null || token.isEmpty) {
-        return {
-          'success': false,
-          'error': 'Not authenticated'
-        };
+        return {'success': false, 'error': 'Not authenticated'};
       }
 
       final endpoint = '$url/api/user/delete';
@@ -548,12 +597,14 @@ class AuthService {
       } else {
         return {
           'success': false,
-          'error': data['message'] ?? 'Failed to delete account'
+          'error': data['message'] ?? 'Failed to delete account',
         };
       }
     } catch (e) {
-      return {'success': false, 'error': 'Error deleting account: ${e.toString()}'};
+      return {
+        'success': false,
+        'error': 'Error deleting account: ${e.toString()}',
+      };
     }
   }
 }
-

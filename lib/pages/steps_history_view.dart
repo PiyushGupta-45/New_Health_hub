@@ -86,8 +86,16 @@ class _StepsHistoryViewState extends State<StepsHistoryView> {
           _isLoading = false;
         });
       } else {
+        final errorText = (result['error'] ?? 'Failed to load daily step log.')
+            .toString();
+        final normalizedError = errorText.toLowerCase();
+        if (normalizedError.contains('auth') ||
+            normalizedError.contains('token') ||
+            normalizedError.contains('sign in')) {
+          await widget.authController.refreshUser();
+        }
         setState(() {
-          _errorMessage = result['error'] ?? 'Failed to load daily step log.';
+          _errorMessage = errorText;
           _isLoading = false;
         });
       }

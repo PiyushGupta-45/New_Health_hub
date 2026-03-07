@@ -28,6 +28,12 @@ class StepsSyncService {
     return prefs.getString('auth_token');
   }
 
+  Future<void> _clearAuthCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('auth_token');
+    await prefs.remove('user_data');
+  }
+
   // Store daily steps to backend
   Future<Map<String, dynamic>> storeSteps({
     required int steps,
@@ -37,17 +43,14 @@ class StepsSyncService {
     try {
       final url = baseUrl;
       if (url == null || url.isEmpty) {
-        return {
-          'success': false,
-          'error': 'API_BASE_URL is not configured'
-        };
+        return {'success': false, 'error': 'API_BASE_URL is not configured'};
       }
 
       final token = await getAuthToken();
       if (token == null || token.isEmpty) {
         return {
           'success': false,
-          'error': 'User not authenticated. Please sign in.'
+          'error': 'User not authenticated. Please sign in.',
         };
       }
 
@@ -69,22 +72,20 @@ class StepsSyncService {
         final data = json.decode(response.body);
         return {'success': true, 'data': data['data']};
       } else if (response.statusCode == 401) {
+        await _clearAuthCache();
         return {
           'success': false,
-          'error': 'Authentication failed. Please sign in again.'
+          'error': 'Authentication failed. Please sign in again.',
         };
       } else {
         final data = json.decode(response.body);
         return {
           'success': false,
-          'error': data['message'] ?? 'Failed to store steps'
+          'error': data['message'] ?? 'Failed to store steps',
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}'
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 
@@ -97,23 +98,18 @@ class StepsSyncService {
     try {
       final url = baseUrl;
       if (url == null || url.isEmpty) {
-        return {
-          'success': false,
-          'error': 'API_BASE_URL is not configured'
-        };
+        return {'success': false, 'error': 'API_BASE_URL is not configured'};
       }
 
       final token = await getAuthToken();
       if (token == null || token.isEmpty) {
         return {
           'success': false,
-          'error': 'User not authenticated. Please sign in.'
+          'error': 'User not authenticated. Please sign in.',
         };
       }
 
-      final queryParams = <String, String>{
-        'limit': limit.toString(),
-      };
+      final queryParams = <String, String>{'limit': limit.toString()};
       if (startDate != null) {
         queryParams['startDate'] = startDate.toIso8601String();
       }
@@ -121,9 +117,9 @@ class StepsSyncService {
         queryParams['endDate'] = endDate.toIso8601String();
       }
 
-      final uri = Uri.parse('$url/api/steps/history').replace(
-        queryParameters: queryParams,
-      );
+      final uri = Uri.parse(
+        '$url/api/steps/history',
+      ).replace(queryParameters: queryParams);
 
       final response = await http.get(
         uri,
@@ -142,22 +138,20 @@ class StepsSyncService {
           'count': data['count'] ?? 0,
         };
       } else if (response.statusCode == 401) {
+        await _clearAuthCache();
         return {
           'success': false,
-          'error': 'Authentication failed. Please sign in again.'
+          'error': 'Authentication failed. Please sign in again.',
         };
       } else {
         final data = json.decode(response.body);
         return {
           'success': false,
-          'error': data['message'] ?? 'Failed to fetch steps history'
+          'error': data['message'] ?? 'Failed to fetch steps history',
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}'
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 
@@ -166,17 +160,14 @@ class StepsSyncService {
     try {
       final url = baseUrl;
       if (url == null || url.isEmpty) {
-        return {
-          'success': false,
-          'error': 'API_BASE_URL is not configured'
-        };
+        return {'success': false, 'error': 'API_BASE_URL is not configured'};
       }
 
       final token = await getAuthToken();
       if (token == null || token.isEmpty) {
         return {
           'success': false,
-          'error': 'User not authenticated. Please sign in.'
+          'error': 'User not authenticated. Please sign in.',
         };
       }
 
@@ -193,23 +184,20 @@ class StepsSyncService {
         final data = json.decode(response.body);
         return {'success': true, 'data': data['data']};
       } else if (response.statusCode == 401) {
+        await _clearAuthCache();
         return {
           'success': false,
-          'error': 'Authentication failed. Please sign in again.'
+          'error': 'Authentication failed. Please sign in again.',
         };
       } else {
         final data = json.decode(response.body);
         return {
           'success': false,
-          'error': data['message'] ?? 'Failed to fetch today\'s steps'
+          'error': data['message'] ?? 'Failed to fetch today\'s steps',
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}'
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 }
-

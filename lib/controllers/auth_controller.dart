@@ -17,8 +17,10 @@ class AuthController extends ChangeNotifier {
   bool get isAuthenticated => _isAuthenticated;
   bool get isGuest => _isGuest;
 
-  String? get userName => _currentUser?['name'] ?? _currentUser?['user']?['name'];
-  String? get userEmail => _currentUser?['email'] ?? _currentUser?['user']?['email'];
+  String? get userName =>
+      _currentUser?['name'] ?? _currentUser?['user']?['name'];
+  String? get userEmail =>
+      _currentUser?['email'] ?? _currentUser?['user']?['email'];
   String get userInitial {
     final name = userName;
     if (name != null && name.isNotEmpty) {
@@ -41,15 +43,19 @@ class AuthController extends ChangeNotifier {
     if (!firstLaunchHandled) {
       // First launch after install/reinstall: force auth entry.
       await _authService.clearUser();
+      await prefs.remove('step_baseline_count');
+      await prefs.remove('step_baseline_date');
       await prefs.setBool(_firstLaunchHandledKey, true);
       _currentUser = null;
       _isAuthenticated = false;
       _isGuest = false;
     } else {
-      // Normal launches: preserve signed-in state.
-      final isAuth = await _authService.isAuthenticated();
-      if (isAuth) {
-        _currentUser = await _authService.getStoredUser();
+      // Normal launches: validate token with backend before trusting local state.
+      final validation = await _authService.validateSession();
+      if (validation['success'] == true) {
+        _currentUser =
+            (validation['user'] as Map<String, dynamic>?) ??
+            await _authService.getStoredUser();
         _isAuthenticated = true;
         _isGuest = false;
       } else {
@@ -95,10 +101,7 @@ class AuthController extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    final result = await _authService.signIn(
-      email: email,
-      password: password,
-    );
+    final result = await _authService.signIn(email: email, password: password);
 
     if (result['success'] == true) {
       _currentUser = result['user'];
@@ -149,9 +152,11 @@ class AuthController extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    final isAuth = await _authService.isAuthenticated();
-    if (isAuth) {
-      _currentUser = await _authService.getStoredUser();
+    final validation = await _authService.validateSession();
+    if (validation['success'] == true) {
+      _currentUser =
+          (validation['user'] as Map<String, dynamic>?) ??
+          await _authService.getStoredUser();
       _isAuthenticated = true;
       _isGuest = false;
     } else {
@@ -175,4 +180,3 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 }
-

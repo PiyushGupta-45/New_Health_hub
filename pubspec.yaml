@@ -1,7 +1,7 @@
 name: healthhub_app
 description: "A new Flutter project."
 publish_to: 'none' 
-version: 1.0.8+8
+version: 1.0.9+9
 
 environment:
   sdk: ^3.9.2
@@ -29,6 +29,7 @@ dependencies:
   package_info_plus: ^8.0.2
   ota_update: ^7.1.0
   geolocator: ^13.0.2
+  flutter_tts: ^4.2.3
 
 dev_dependencies:
   flutter_test:
