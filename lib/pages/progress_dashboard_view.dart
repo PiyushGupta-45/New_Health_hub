@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/health_sync_controller.dart';
 import '../pages/personalized_goals_view.dart';
+import '../services/health_coach_service.dart';
 import '../services/goals_storage_service.dart';
+import '../services/posture_history_service.dart';
 import '../services/steps_sync_service.dart';
 import '../services/workout_log_service.dart';
 
@@ -26,12 +28,20 @@ class _ProgressDashboardViewState extends State<ProgressDashboardView> {
   final WorkoutLogService _workoutLogService = WorkoutLogService();
   final GoalsStorageService _goalsStorageService = GoalsStorageService();
   final StepsSyncService _stepsSyncService = StepsSyncService();
+  final PostureHistoryService _postureHistoryService = PostureHistoryService();
+  final HealthCoachService _healthCoachService = const HealthCoachService();
 
   bool _isLoading = true;
   String? _error;
   List<ManualWorkoutLog> _logs = const [];
   List<Goal> _goals = const [];
   List<Map<String, dynamic>> _stepsHistory = const [];
+  PostureSummary _postureSummary = const PostureSummary(
+    totalSessions: 0,
+    averageScore: 0,
+    latestFeedback: 'No posture sessions yet.',
+    bestExercise: 'None yet',
+  );
 
   @override
   void initState() {
@@ -48,14 +58,21 @@ class _ProgressDashboardViewState extends State<ProgressDashboardView> {
     try {
       final logsFuture = _workoutLogService.fetchLogs(limit: 300);
       final goalsFuture = _goalsStorageService.loadGoals();
+      final postureFuture = _postureHistoryService.loadSummary();
       final stepsFuture = widget.authController.isAuthenticated
           ? _stepsSyncService.getStepsHistory(limit: 30)
           : Future.value(<String, dynamic>{'success': false, 'data': const []});
 
-      final results = await Future.wait([logsFuture, goalsFuture, stepsFuture]);
+      final results = await Future.wait([
+        logsFuture,
+        goalsFuture,
+        stepsFuture,
+        postureFuture,
+      ]);
       final logs = results[0] as List<ManualWorkoutLog>;
       final goals = results[1] as List<Goal>;
       final stepsResult = results[2] as Map<String, dynamic>;
+      final postureSummary = results[3] as PostureSummary;
       final stepsData = stepsResult['data'] is List
           ? List<Map<String, dynamic>>.from(stepsResult['data'] as List)
           : <Map<String, dynamic>>[];
@@ -65,6 +82,7 @@ class _ProgressDashboardViewState extends State<ProgressDashboardView> {
         _logs = logs;
         _goals = goals;
         _stepsHistory = stepsData;
+        _postureSummary = postureSummary;
         _isLoading = false;
       });
     } catch (e) {
@@ -170,6 +188,13 @@ class _ProgressDashboardViewState extends State<ProgressDashboardView> {
     final weeklyWorkoutData = _workoutsByDay();
     final weeklyStepTotal = weeklyStepData.fold<int>(0, (a, b) => a + b);
     final weeklyStepAvg = (weeklyStepTotal / 7).round();
+    final coachBrief = _healthCoachService.buildBrief(
+      todaySteps: widget.controller.todaySteps,
+      weeklyWorkoutCount: weeklyWorkoutCount,
+      goals: _goals,
+      postureSummary: _postureSummary,
+      recentLogs: _logs,
+    );
 
     return Scaffold(
       backgroundColor: isDark
@@ -287,6 +312,12 @@ class _ProgressDashboardViewState extends State<ProgressDashboardView> {
                                     ),
                                   ],
                                 ),
+                              ),
+                              const SizedBox(height: 18),
+                              _CoachCard(
+                                isDark: isDark,
+                                brief: coachBrief,
+                                postureSummary: _postureSummary,
                               ),
                               const SizedBox(height: 18),
                               Text(
@@ -755,6 +786,109 @@ class _InsightStrip extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoachCard extends StatelessWidget {
+  const _CoachCard({
+    required this.isDark,
+    required this.brief,
+    required this.postureSummary,
+  });
+
+  final bool isDark;
+  final HealthCoachBrief brief;
+  final PostureSummary postureSummary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0F172A), Color(0xFF1D4ED8)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1D4ED8).withValues(alpha: 0.22),
+            blurRadius: 16,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'AI Health Coach',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            brief.headline,
+            style: TextStyle(
+              color: const Color(0xFFBFDBFE),
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            brief.message,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...brief.actions.map(
+            (action) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 14,
+                      color: Color(0xFFFDE68A),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      action,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.95),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Posture history: ${postureSummary.totalSessions} sessions • average ${postureSummary.averageScore.toStringAsFixed(0)}%',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.75),
+              fontSize: 11,
             ),
           ),
         ],

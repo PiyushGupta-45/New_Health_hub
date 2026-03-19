@@ -4,6 +4,7 @@ import 'dart:async';
 import '../services/challenge_service.dart';
 import '../services/auth_service.dart';
 import '../controllers/health_sync_controller.dart';
+import 'walking_missions_page.dart';
 
 class GamesAndChallengesPage extends StatefulWidget {
   final HealthSyncController? healthSyncController;
@@ -112,6 +113,20 @@ class _GamesAndChallengesPageState extends State<GamesAndChallengesPage> {
                 builder: (_) => StepChallengeGame(
                   healthSyncController: widget.healthSyncController,
                 ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildGameCard(
+            context,
+            title: 'Walking Missions',
+            description: 'Take on route goals with live distance tracking',
+            icon: Icons.route_rounded,
+            color: Colors.indigo,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const WalkingMissionsPage(),
               ),
             ),
           ),
@@ -1516,6 +1531,9 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
   bool _isLoading = false;
   Timer? _refreshTimer;
   String? _userId;
+  Map<String, int> _previousRanks = <String, int>{};
+  String? _liveUpdateMessage;
+  DateTime? _lastRefreshAt;
 
   @override
   void initState() {
@@ -1550,13 +1568,45 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
     setState(() => _isLoading = true);
     final result = await _challengeService.getChallengeDetails(widget.challengeId);
     if (mounted) {
+      final data = result['data'];
+      if (result['success'] == true && data is Map<String, dynamic>) {
+        _updateRankMovementBanner(data);
+      }
       setState(() {
         if (result['success'] == true) {
-          _challenge = result['data'];
+          _challenge = data;
+          _lastRefreshAt = DateTime.now();
         }
         _isLoading = false;
       });
     }
+  }
+
+  void _updateRankMovementBanner(Map<String, dynamic> challenge) {
+    final participants = List<Map<String, dynamic>>.from(
+      challenge['participants'] ?? <Map<String, dynamic>>[],
+    );
+    final nextRanks = <String, int>{};
+    String? nextMessage;
+    for (final participant in participants) {
+      final userId = participant['userId']?.toString();
+      final rank = participant['rank'];
+      if (userId == null || rank is! num) continue;
+      nextRanks[userId] = rank.toInt();
+    }
+
+    if (_userId != null && nextRanks.containsKey(_userId)) {
+      final current = nextRanks[_userId]!;
+      final previous = _previousRanks[_userId];
+      if (previous != null && current < previous) {
+        nextMessage = 'Live update: you moved from #$previous to #$current.';
+      } else if (current == 1 && previous != 1) {
+        nextMessage = 'Live update: you are leading this challenge now.';
+      }
+    }
+
+    _liveUpdateMessage = nextMessage;
+    _previousRanks = nextRanks;
   }
 
   Future<void> _updateMySteps() async {
@@ -1627,6 +1677,59 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.indigo.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.indigo.shade100),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Live Leaderboard',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.indigo,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _liveUpdateMessage ??
+                        'Auto-refreshing every 10 seconds so rank changes show up without manual reload.',
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      height: 1.4,
+                    ),
+                  ),
+                  if (_lastRefreshAt != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Last updated at ${_lastRefreshAt!.hour.toString().padLeft(2, '0')}:${_lastRefreshAt!.minute.toString().padLeft(2, '0')}:${_lastRefreshAt!.second.toString().padLeft(2, '0')}',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
             // Challenge Info
             Card(
               child: Padding(

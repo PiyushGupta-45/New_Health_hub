@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import '../models/exercise_type.dart';
+import '../services/posture_history_service.dart';
 import 'pose_camera_page.dart';
 
 class ExerciseSelectionPage
@@ -24,6 +25,26 @@ class _ExerciseSelectionPageState
         State<
           ExerciseSelectionPage
         > {
+  final PostureHistoryService _postureHistoryService = PostureHistoryService();
+  List<PostureSessionRecord> _recentSessions = const [];
+  PostureSummary? _summary;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    final sessions = await _postureHistoryService.loadSessions(limit: 4);
+    final summary = await _postureHistoryService.loadSummary();
+    if (!mounted) return;
+    setState(() {
+      _recentSessions = sessions;
+      _summary = summary;
+    });
+  }
+
   @override
   Widget build(
     BuildContext context,
@@ -90,8 +111,8 @@ class _ExerciseSelectionPageState
                     color:
                         const Color(
                           0xFF4C5BF1,
-                        ).withOpacity(
-                          0.3,
+                        ).withValues(
+                          alpha: 0.3,
                         ),
                     blurRadius: 15,
                     offset: const Offset(
@@ -126,8 +147,8 @@ class _ExerciseSelectionPageState
                   Text(
                     'Select an exercise to analyze your form and posture',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(
-                        0.9,
+                      color: Colors.white.withValues(
+                        alpha: 0.9,
                       ),
                       fontSize: 14,
                     ),
@@ -138,6 +159,15 @@ class _ExerciseSelectionPageState
             const SizedBox(
               height: 30,
             ),
+            if (_summary != null)
+              _PostureHistoryOverview(
+                summary: _summary!,
+                sessions: _recentSessions,
+              ),
+            if (_summary != null)
+              const SizedBox(
+                height: 24,
+              ),
 
             // Exercise Grid
             Text(
@@ -186,13 +216,118 @@ class _ExerciseSelectionPageState
                                   exerciseType: exercise,
                                 ),
                           ),
-                        );
+                        ).then((_) => _loadHistory());
                       },
                     );
                   },
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PostureHistoryOverview extends StatelessWidget {
+  const _PostureHistoryOverview({
+    required this.summary,
+    required this.sessions,
+  });
+
+  final PostureSummary summary;
+  final List<PostureSessionRecord> sessions;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Posture Progress',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            summary.totalSessions == 0
+                ? 'Complete a posture session to start building your form history.'
+                : 'Average score ${summary.averageScore.toStringAsFixed(0)}% • Best exercise: ${summary.bestExercise}',
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+            ),
+          ),
+          if (sessions.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            ...sessions.map(
+              (session) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF20B2AA).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        session.exerciseType.icon,
+                        color: const Color(0xFF20B2AA),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${session.exerciseType.name} • ${session.score.toStringAsFixed(0)}%',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: isDark
+                                  ? const Color(0xFFF1F5F9)
+                                  : const Color(0xFF1E293B),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            session.feedback,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -238,15 +373,15 @@ class _ExerciseCard
             color:
                 const Color(
                   0xFF20B2AA,
-                ).withOpacity(
-                  0.3,
+                ).withValues(
+                  alpha: 0.3,
                 ),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(
-                0.05,
+              color: Colors.black.withValues(
+                alpha: 0.05,
               ),
               blurRadius: 10,
               offset: const Offset(
@@ -271,8 +406,8 @@ class _ExerciseCard
                   color:
                       const Color(
                         0xFF20B2AA,
-                      ).withOpacity(
-                        0.1,
+                      ).withValues(
+                        alpha: 0.1,
                       ),
                   borderRadius: BorderRadius.circular(
                     12,

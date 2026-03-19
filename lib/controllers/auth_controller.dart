@@ -50,12 +50,10 @@ class AuthController extends ChangeNotifier {
       _isAuthenticated = false;
       _isGuest = false;
     } else {
-      // Normal launches: validate token with backend before trusting local state.
-      final validation = await _authService.validateSession();
-      if (validation['success'] == true) {
-        _currentUser =
-            (validation['user'] as Map<String, dynamic>?) ??
-            await _authService.getStoredUser();
+      // Startup should rely on local state so the app can open offline.
+      final isAuth = await _authService.isAuthenticated();
+      if (isAuth) {
+        _currentUser = await _authService.getStoredUser();
         _isAuthenticated = true;
         _isGuest = false;
       } else {
@@ -67,6 +65,11 @@ class AuthController extends ChangeNotifier {
 
     _isLoading = false;
     notifyListeners();
+
+    // Validate against backend after the app is already usable.
+    if (_isAuthenticated) {
+      _revalidateSessionInBackground();
+    }
   }
 
   Future<Map<String, dynamic>> signUp({
@@ -165,6 +168,29 @@ class AuthController extends ChangeNotifier {
       _isGuest = false;
     }
     notifyListeners();
+  }
+
+  Future<void> _revalidateSessionInBackground() async {
+    final validation = await _authService.validateSession();
+    if (validation['success'] == true) {
+      final validatedUser =
+          (validation['user'] as Map<String, dynamic>?) ??
+          await _authService.getStoredUser();
+      if (validatedUser != null) {
+        _currentUser = validatedUser;
+        _isAuthenticated = true;
+        _isGuest = false;
+        notifyListeners();
+      }
+      return;
+    }
+
+    if (validation['shouldSignOut'] == true) {
+      _currentUser = null;
+      _isAuthenticated = false;
+      _isGuest = false;
+      notifyListeners();
+    }
   }
 
   Future<void> signInAsGuest() async {

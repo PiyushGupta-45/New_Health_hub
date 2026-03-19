@@ -50,6 +50,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String },
   googleId: { type: String },
+  dailyStepGoal: { type: Number, default: 10000 },
   isActive: { type: Boolean, default: true },
   deactivatedAt: { type: Date },
   createdAt: { type: Date, default: Date.now }
@@ -469,6 +470,7 @@ app.post('/api/auth/signup', async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        dailyStepGoal: user.dailyStepGoal ?? 10000,
         token
       }
     });
@@ -536,6 +538,7 @@ app.post('/api/auth/signin', async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        dailyStepGoal: user.dailyStepGoal ?? 10000,
         token
       }
     });
@@ -606,6 +609,7 @@ app.post('/api/auth/google', async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        dailyStepGoal: user.dailyStepGoal ?? 10000,
         token
       }
     });
@@ -1498,6 +1502,7 @@ app.get('/api/user/profile', verifyToken, async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        dailyStepGoal: user.dailyStepGoal ?? 10000,
         createdAt: user.createdAt,
         googleId: user.googleId,
         isActive: user.isActive
@@ -1515,13 +1520,26 @@ app.get('/api/user/profile', verifyToken, async (req, res) => {
 // Update user profile
 app.put('/api/user/profile', verifyToken, async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, dailyStepGoal } = req.body;
+    const normalizedName = typeof name === 'string' ? name.trim() : '';
+    const hasNameUpdate = normalizedName.length > 0;
+    const hasStepGoalUpdate = dailyStepGoal !== undefined;
 
-    if (!name || !name.trim()) {
+    if (!hasNameUpdate && !hasStepGoalUpdate) {
       return res.status(400).json({
         success: false,
-        message: 'Name is required'
+        message: 'At least one profile field is required'
       });
+    }
+
+    if (hasStepGoalUpdate) {
+      const parsedStepGoal = Number(dailyStepGoal);
+      if (!Number.isFinite(parsedStepGoal) || parsedStepGoal < 1000 || parsedStepGoal > 100000) {
+        return res.status(400).json({
+          success: false,
+          message: 'Daily step goal must be between 1000 and 100000'
+        });
+      }
     }
 
     const user = await User.findById(req.userId);
@@ -1532,7 +1550,12 @@ app.put('/api/user/profile', verifyToken, async (req, res) => {
       });
     }
 
-    user.name = name.trim();
+    if (hasNameUpdate) {
+      user.name = normalizedName;
+    }
+    if (hasStepGoalUpdate) {
+      user.dailyStepGoal = Number(dailyStepGoal);
+    }
     await user.save();
 
     res.json({
@@ -1541,6 +1564,7 @@ app.put('/api/user/profile', verifyToken, async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        dailyStepGoal: user.dailyStepGoal ?? 10000,
         token: generateToken(user._id)
       }
     });

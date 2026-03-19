@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
 import android.hardware.Sensor
@@ -13,6 +14,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import android.util.Log
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -22,7 +24,9 @@ class StepCounterService : Service(), SensorEventListener {
     private val TAG = "StepCounterService"
     private var sensorManager: SensorManager? = null
     private var stepCounterSensor: Sensor? = null
+    private var stepDetectorSensor: Sensor? = null
     private var isRegistered = false
+    private var shouldRestartOnDestroy = true
 
     private val prefs by lazy {
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -32,11 +36,13 @@ class StepCounterService : Service(), SensorEventListener {
         super.onCreate()
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         stepCounterSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+        stepDetectorSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                shouldRestartOnDestroy = false
                 stopForeground(true)
                 stopSelf()
                 return START_NOT_STICKY
@@ -58,35 +64,52 @@ class StepCounterService : Service(), SensorEventListener {
     override fun onDestroy() {
         super.onDestroy()
         unregisterSensor()
+        if (shouldRestartOnDestroy) {
+            restartServiceNow()
+            scheduleServiceRestart()
+        }
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        restartServiceNow()
+        scheduleServiceRestart()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onSensorChanged(event: SensorEvent?) {
-        if (event?.sensor?.type == Sensor.TYPE_STEP_COUNTER) {
-            val newCount = event.values[0].toInt()
-            if (newCount > 0) {
-                val today = todayKey()
-                val previousDate = prefs.getString(PREF_DAY_START_DATE, null)
-                val previousLast = prefs.getInt(PREF_LAST_STEP_COUNT, 0)
-                var dayStartCount = prefs.getInt(PREF_DAY_START_COUNT, 0)
+        when (event?.sensor?.type) {
+            Sensor.TYPE_STEP_COUNTER -> {
+                val newCount = event.values[0].toInt()
+                if (newCount > 0) {
+                    val today = todayKey()
+                    val previousDate = prefs.getString(PREF_DAY_START_DATE, null)
+                    var dayStartCount = prefs.getInt(PREF_DAY_START_COUNT, 0)
 
-                if (previousDate == null || previousDate != today) {
-                    // Day rollover: if we did not sample exactly at midnight, previousLast can
-                    // be stale (hours/days old), which inflates today's steps massively.
-                    // Anchor to the first reading seen today.
-                    dayStartCount = newCount
-                } else if (dayStartCount <= 0) {
-                    dayStartCount = newCount
+                    if (previousDate == null || previousDate != today) {
+                        // Day rollover: anchor to the first reading seen today.
+                        dayStartCount = newCount
+                    } else if (dayStartCount <= 0) {
+                        dayStartCount = newCount
+                    }
+
+                    val todaySteps = (newCount - dayStartCount).coerceAtLeast(0)
+                    val storedTodaySteps =
+                        if (previousDate == today) prefs.getInt(PREF_TODAY_STEPS, 0).coerceAtLeast(0) else 0
+                    val resolvedTodaySteps = maxOf(todaySteps, storedTodaySteps)
+                    prefs.edit()
+                        .putInt(PREF_LAST_STEP_COUNT, newCount)
+                        .putString(PREF_DAY_START_DATE, today)
+                        .putInt(PREF_DAY_START_COUNT, dayStartCount)
+                        .putInt(PREF_TODAY_STEPS, resolvedTodaySteps)
+                        .apply()
                 }
-
-                val todaySteps = (newCount - dayStartCount).coerceAtLeast(0)
-                prefs.edit()
-                    .putInt(PREF_LAST_STEP_COUNT, newCount)
-                    .putString(PREF_DAY_START_DATE, today)
-                    .putInt(PREF_DAY_START_COUNT, dayStartCount)
-                    .putInt(PREF_TODAY_STEPS, todaySteps)
-                    .apply()
+            }
+            Sensor.TYPE_STEP_DETECTOR -> {
+                // Detector gives a per-step callback, which keeps background
+                // counting moving even when the cumulative counter is batched.
+                incrementTodaySteps(this)
             }
         }
     }
@@ -96,8 +119,21 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     private fun registerSensorIfNeeded() {
-        if (stepCounterSensor == null || isRegistered) return
-        sensorManager?.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL)
+        if ((stepCounterSensor == null && stepDetectorSensor == null) || isRegistered) return
+        if (stepCounterSensor != null) {
+            sensorManager?.registerListener(
+                this,
+                stepCounterSensor,
+                SensorManager.SENSOR_DELAY_NORMAL
+            )
+        }
+        if (stepDetectorSensor != null) {
+            sensorManager?.registerListener(
+                this,
+                stepDetectorSensor,
+                SensorManager.SENSOR_DELAY_UI
+            )
+        }
         isRegistered = true
     }
 
@@ -111,6 +147,60 @@ class StepCounterService : Service(), SensorEventListener {
         val channelId = ensureNotificationChannel()
         val notification = buildNotification(channelId)
         startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun scheduleServiceRestart() {
+        try {
+            val restartIntent = Intent(this, StepBootReceiver::class.java).apply {
+                action = ACTION_RESTART_SERVICE
+            }
+            val flags =
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        PendingIntent.FLAG_IMMUTABLE
+                    } else {
+                        0
+                    }
+            val pendingIntent = PendingIntent.getBroadcast(
+                this,
+                RESTART_REQUEST_CODE,
+                restartIntent,
+                flags
+            )
+
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val triggerAt = SystemClock.elapsedRealtime() + 750L
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    triggerAt,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setExact(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    triggerAt,
+                    pendingIntent
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to schedule restart after task removal: ${e.message}")
+        }
+    }
+
+    private fun restartServiceNow() {
+        try {
+            val restartIntent = Intent(applicationContext, StepCounterService::class.java).apply {
+                action = ACTION_START
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                applicationContext.startForegroundService(restartIntent)
+            } else {
+                applicationContext.startService(restartIntent)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Immediate restart after task removal failed: ${e.message}")
+        }
     }
 
     private fun buildNotification(channelId: String): Notification {
@@ -165,6 +255,7 @@ class StepCounterService : Service(), SensorEventListener {
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "step_counter_channel"
         private const val NOTIFICATION_ID = 10101
+        private const val RESTART_REQUEST_CODE = 10102
         private const val PREFS_NAME = "step_counter_prefs"
         private const val PREF_LAST_STEP_COUNT = "last_step_count"
         private const val PREF_DAY_START_DATE = "day_start_date"
@@ -173,6 +264,7 @@ class StepCounterService : Service(), SensorEventListener {
 
         const val ACTION_START = "com.example.health.action.START_STEP_SERVICE"
         const val ACTION_STOP = "com.example.health.action.STOP_STEP_SERVICE"
+        const val ACTION_RESTART_SERVICE = "com.example.health.action.RESTART_STEP_SERVICE"
 
         fun readLastStepCount(context: Context): Int {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -187,6 +279,25 @@ class StepCounterService : Service(), SensorEventListener {
                 return prefs.getInt(PREF_TODAY_STEPS, 0).coerceAtLeast(0)
             }
             return 0
+        }
+
+        fun incrementTodaySteps(context: Context): Int {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val today = todayKey()
+            val storedDate = prefs.getString(PREF_DAY_START_DATE, null)
+            val currentTodaySteps =
+                if (storedDate == today) {
+                    prefs.getInt(PREF_TODAY_STEPS, 0).coerceAtLeast(0)
+                } else {
+                    0
+                }
+
+            val nextTodaySteps = currentTodaySteps + 1
+            prefs.edit()
+                .putString(PREF_DAY_START_DATE, today)
+                .putInt(PREF_TODAY_STEPS, nextTodaySteps)
+                .apply()
+            return nextTodaySteps
         }
 
         private fun todayKey(): String {

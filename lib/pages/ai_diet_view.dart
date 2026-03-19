@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/hugging_face_service.dart';
 import '../services/ai_diet_plan_storage_service.dart';
 import '../widgets/ai_result_renderer.dart';
+import 'meal_tracker_page.dart';
 
 class AiDietView extends StatefulWidget {
   const AiDietView({super.key});
@@ -125,8 +126,9 @@ Output format (follow exactly):
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -177,6 +179,19 @@ Output format (follow exactly):
         backgroundColor: bg,
         elevation: 0,
         foregroundColor: text,
+        actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const MealTrackerPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.photo_camera_back_outlined),
+            tooltip: 'Meal Tracker',
+          ),
+        ],
       ),
       body: _isInitializing
           ? const Center(child: CircularProgressIndicator())
@@ -197,6 +212,51 @@ Output format (follow exactly):
             Text(
               'Tell us your goal, preferences, and schedule. We will use AI to build a realistic daily plan.',
               style: TextStyle(fontSize: 14, color: sub, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Meal Tracker + Photo Logging',
+                          style: TextStyle(
+                            color: text,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Log what you actually ate, attach a meal photo, and compare it with your AI diet plan.',
+                          style: TextStyle(color: sub, fontSize: 13, height: 1.4),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const MealTrackerPage(),
+                        ),
+                      );
+                    },
+                    child: const Text('Open'),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 20),
             if (_savedPlan == null)

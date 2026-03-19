@@ -36,6 +36,13 @@ class DirectStepService {
   static const String _baselineCountKey = 'step_baseline_count';
   static const String _baselineDateKey = 'step_baseline_date';
 
+  int _mergeTodaySteps({required int computedSteps, int? nativeTodaySteps}) {
+    if (nativeTodaySteps == null || nativeTodaySteps < 0) {
+      return computedSteps;
+    }
+    return nativeTodaySteps > computedSteps ? nativeTodaySteps : computedSteps;
+  }
+
   /// Checks if the step counter sensor is available on this device.
   Future<bool> isStepCounterAvailable() async {
     if (!Platform.isAndroid) {
@@ -65,6 +72,79 @@ class DirectStepService {
       return result;
     } catch (e) {
       return null;
+    }
+  }
+
+  Future<bool> isIgnoringBatteryOptimizations() async {
+    if (!Platform.isAndroid) {
+      return true;
+    }
+
+    try {
+      final result = await _channel.invokeMethod<bool>(
+        'isIgnoringBatteryOptimizations',
+      );
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> requestIgnoreBatteryOptimizations() async {
+    if (!Platform.isAndroid) {
+      return false;
+    }
+
+    try {
+      final result = await _channel.invokeMethod<bool>(
+        'requestIgnoreBatteryOptimizations',
+      );
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> openBatteryOptimizationSettings() async {
+    if (!Platform.isAndroid) {
+      return false;
+    }
+
+    try {
+      final result = await _channel.invokeMethod<bool>(
+        'openBatteryOptimizationSettings',
+      );
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> openAutoStartSettings() async {
+    if (!Platform.isAndroid) {
+      return false;
+    }
+
+    try {
+      final result = await _channel.invokeMethod<bool>('openAutoStartSettings');
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> ensureBackgroundTrackingStarted() async {
+    if (!Platform.isAndroid) {
+      return false;
+    }
+
+    try {
+      final result = await _channel.invokeMethod<bool>(
+        'ensureBackgroundTrackingStarted',
+      );
+      return result ?? false;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -176,7 +256,10 @@ class DirectStepService {
       // positive value for today (for example from background tracking).
       if (nativeToday != null && nativeToday >= 0) {
         _lastComputedTodaySteps = 0;
-        _lastReturnedTodaySteps = nativeToday > 0 ? nativeToday : 0;
+        _lastReturnedTodaySteps = _mergeTodaySteps(
+          computedSteps: 0,
+          nativeTodaySteps: nativeToday,
+        );
         return _lastReturnedTodaySteps!;
       }
       _lastComputedTodaySteps = 0;
@@ -190,10 +273,14 @@ class DirectStepService {
       _lastStepCount = currentCount;
       final computed = todaySteps > 0 ? todaySteps : 0;
       _lastComputedTodaySteps = computed;
-      // Primary source should be computed sensor delta from current baseline.
-      // Native value is kept only as fallback when computed path is unavailable.
-      _lastReturnedTodaySteps = computed;
-      return computed;
+      // Use the higher of the in-app computed value and the background service
+      // value so reopened apps reflect steps immediately.
+      final resolved = _mergeTodaySteps(
+        computedSteps: computed,
+        nativeTodaySteps: nativeToday,
+      );
+      _lastReturnedTodaySteps = resolved;
+      return resolved;
     }
 
     // Fallback: if baseline is null or 0, set it to current count
@@ -204,8 +291,11 @@ class DirectStepService {
     await _saveBaseline();
     if (nativeToday != null && nativeToday >= 0) {
       _lastComputedTodaySteps = 0;
-      _lastReturnedTodaySteps = nativeToday;
-      return nativeToday;
+      _lastReturnedTodaySteps = _mergeTodaySteps(
+        computedSteps: 0,
+        nativeTodaySteps: nativeToday,
+      );
+      return _lastReturnedTodaySteps!;
     }
     _lastComputedTodaySteps = 0;
     _lastReturnedTodaySteps = 0;

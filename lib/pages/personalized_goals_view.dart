@@ -9,23 +9,15 @@ import '../services/weekly_workout_plan_service.dart';
 import '../services/workout_log_service.dart';
 
 // --- Global Constants ---
-const Color
-kPrimaryColor = Color(
-  0xFF4C5BF1,
-);
-const Color
-kBackgroundColor = Color(
-  0xFFF7F8FC,
-);
-const Color
-kAccentColor = Color(
-  0xFFFFA500,
-); // Orange for Goals
+const Color kPrimaryColor = Color(0xFF4C5BF1);
+const Color kBackgroundColor = Color(0xFFF7F8FC);
+const Color kAccentColor = Color(0xFFFFA500); // Orange for Goals
 
 // --- GLOBAL Goal Model and Storage (Simplified) ---
 class Goal {
   final String goalId;
   final String name;
+  final String activityType;
   final String target;
   final String unit;
   final DateTime deadline;
@@ -35,6 +27,7 @@ class Goal {
   Goal({
     required this.goalId,
     required this.name,
+    required this.activityType,
     required this.target,
     required this.unit,
     required this.deadline,
@@ -44,16 +37,10 @@ class Goal {
 }
 
 // Global storage list. Data will NOT be saved between sessions.
-List<
-  Goal
->
-activeGoals = [];
+List<Goal> activeGoals = [];
 // --- END GLOBAL ---
 
-const List<
-  String
->
-_activityCategories = [
+const List<String> _activityCategories = [
   'Steps',
   'Water Intake',
   'Cardio Minutes',
@@ -66,18 +53,11 @@ _activityCategories = [
 // --- 1. PersonalizedGoalsView (The Home/List Screen) ---
 // ******************************************************
 
-class PersonalizedGoalsView
-    extends
-        StatefulWidget {
-  const PersonalizedGoalsView({
-    super.key,
-  });
+class PersonalizedGoalsView extends StatefulWidget {
+  const PersonalizedGoalsView({super.key});
 
   @override
-  State<
-    PersonalizedGoalsView
-  >
-  createState() => _PersonalizedGoalsViewState();
+  State<PersonalizedGoalsView> createState() => _PersonalizedGoalsViewState();
 }
 
 class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
@@ -121,7 +101,8 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
       _workoutDataError = null;
     });
     try {
-      final planResult = await _weeklyWorkoutPlanService.getLatestApprovedPlan();
+      final planResult = await _weeklyWorkoutPlanService
+          .getLatestApprovedPlan();
       final logs = await _workoutLogService.fetchLogs(limit: 100);
       if (!mounted) return;
       setState(() {
@@ -153,10 +134,15 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
 
     final List<_ScheduledWorkoutDay> days = [];
     _ScheduledWorkoutDay? current;
-    final dayRegex = RegExp(r'^-?\s*Day\s+(\d+)\s*:\s*(.+)$', caseSensitive: false);
+    final dayRegex = RegExp(
+      r'^-?\s*Day\s+(\d+)\s*:\s*(.+)$',
+      caseSensitive: false,
+    );
 
     for (final rawLine in lines) {
-      final line = rawLine.startsWith('- ') ? rawLine.substring(2).trim() : rawLine;
+      final line = rawLine.startsWith('- ')
+          ? rawLine.substring(2).trim()
+          : rawLine;
       final match = dayRegex.firstMatch(line);
       if (match != null) {
         if (current != null) {
@@ -180,64 +166,38 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     return days;
   }
 
-  DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
+  DateTime _dateOnly(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
 
   /// Load goals from local storage
-  Future<
-    void
-  >
-  _loadGoals() async {
+  Future<void> _loadGoals() async {
     final storage = GoalsStorageService();
     final savedGoals = await storage.loadGoals();
 
-    setState(
-      () {
-        activeGoals.clear();
-        activeGoals.addAll(
-          savedGoals,
-        );
-      },
-    );
+    setState(() {
+      activeGoals.clear();
+      activeGoals.addAll(savedGoals);
+    });
 
     await refreshGoalNotifications();
   }
 
   /// Save goals to local storage
-  Future<
-    void
-  >
-  _saveGoals() async {
+  Future<void> _saveGoals() async {
     final storage = GoalsStorageService();
-    await storage.saveGoals(
-      activeGoals,
-    );
+    await storage.saveGoals(activeGoals);
   }
 
   // NOTE: Persistence methods (_loadGoals, _saveGoals, _deleteGoal)
   // have been simplified below to only manage the in-memory list.
 
   // --- DELETE Goal Logic (simplified) ---
-  Future<
-    void
-  >
-  _deleteGoal(
-    String goalId,
-  ) async {
-    await cancelGoalNotification(
-      goalId,
-    );
+  Future<void> _deleteGoal(String goalId) async {
+    await cancelGoalNotification(goalId);
 
-    setState(
-      () {
-        activeGoals.removeWhere(
-          (
-            goal,
-          ) =>
-              goal.goalId ==
-              goalId,
-        );
-      },
-    );
+    setState(() {
+      activeGoals.removeWhere((goal) => goal.goalId == goalId);
+    });
 
     // Save to local storage
     await _saveGoals();
@@ -245,13 +205,7 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
 
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Goal deleted successfully.',
-        ),
-      ),
-    );
+    ).showSnackBar(const SnackBar(content: Text('Goal deleted successfully.')));
   }
 
   // Method to navigate to the form and refresh the list upon return
@@ -262,39 +216,31 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder:
-            (
-              context,
-            ) => GoalSetFormView(
-              goalToEdit: goalToEdit,
-            ),
+        builder: (context) => GoalSetFormView(goalToEdit: goalToEdit),
       ),
     );
     // Reload goals from storage and refresh the list
     // Only reschedule if goals actually changed (avoid unnecessary rescheduling)
     final storage = GoalsStorageService();
     final savedGoals = await storage.loadGoals();
-    
-    setState(
-      () {
-        activeGoals.clear();
-        activeGoals.addAll(savedGoals);
-      },
-    );
-    
+
+    setState(() {
+      activeGoals.clear();
+      activeGoals.addAll(savedGoals);
+    });
+
     await refreshGoalNotifications();
     await _loadWorkoutData();
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     final schedule = _approvedWeeklyPlan == null
         ? <_ScheduledWorkoutDay>[]
         : _extractWeeklySchedule(_approvedWeeklyPlan!);
     final now = _dateOnly(DateTime.now());
-    final planAnchor = _approvedWeeklyPlan?.approvedAt ??
+    final planAnchor =
+        _approvedWeeklyPlan?.approvedAt ??
         _approvedWeeklyPlan?.createdAt ??
         DateTime.now();
     final anchorDate = _dateOnly(planAnchor);
@@ -351,9 +297,7 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
               workoutDataError: _workoutDataError,
             ),
             const SizedBox(height: 18),
-            _CompletedWorkoutHistorySection(
-              logs: _completedLogs,
-            ),
+            _CompletedWorkoutHistorySection(logs: _completedLogs),
             const SizedBox(height: 18),
             Row(
               children: [
@@ -384,14 +328,14 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
                 child: const Text('Tap + to set your first goal!'),
               )
             else
-              ...activeGoals.map((goal) => _GoalCard(
-                    goal: goal,
-                    onEdit: () => _navigateToAddOrEditGoal(
-                      context,
-                      goalToEdit: goal,
-                    ),
-                    onDelete: () => _deleteGoal(goal.goalId),
-                  )),
+              ...activeGoals.map(
+                (goal) => _GoalCard(
+                  goal: goal,
+                  onEdit: () =>
+                      _navigateToAddOrEditGoal(context, goalToEdit: goal),
+                  onDelete: () => _deleteGoal(goal.goalId),
+                ),
+              ),
             SizedBox(height: MediaQuery.of(context).padding.bottom + 90),
           ],
         ),
@@ -400,15 +344,9 @@ class _PersonalizedGoalsViewState extends State<PersonalizedGoalsView> {
       // --- Floating Action Button (FAB) ---
       floatingActionButton: FloatingActionButton(
         heroTag: "add_goal",
-        onPressed: () => _navigateToAddOrEditGoal(
-          context,
-        ), // Create new goal
+        onPressed: () => _navigateToAddOrEditGoal(context), // Create new goal
         backgroundColor: kAccentColor,
-        child: const Icon(
-          Icons.add,
-          color: Colors.white,
-          size: 30,
-        ),
+        child: const Icon(Icons.add, color: Colors.white, size: 30),
       ),
     );
   }
@@ -498,7 +436,9 @@ class _WorkoutScheduleSection extends StatelessWidget {
           if (upcomingWorkouts.isEmpty)
             _emptyInfo(context, 'No upcoming items in the current weekly plan.')
           else
-            ...upcomingWorkouts.take(6).map(
+            ...upcomingWorkouts
+                .take(6)
+                .map(
                   (day) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: _dayCard(
@@ -512,10 +452,7 @@ class _WorkoutScheduleSection extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               workoutDataError!,
-              style: const TextStyle(
-                color: Colors.redAccent,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
             ),
           ],
         ],
@@ -573,11 +510,15 @@ class _WorkoutScheduleSection extends StatelessWidget {
               fontWeight: FontWeight.w800,
               color: isToday
                   ? (isDark ? Colors.white : const Color(0xFF1E3A8A))
-                  : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1F2937)),
+                  : (isDark
+                        ? const Color(0xFFE2E8F0)
+                        : const Color(0xFF1F2937)),
             ),
           ),
           if (day.details.isNotEmpty) const SizedBox(height: 6),
-          ...day.details.take(3).map(
+          ...day.details
+              .take(3)
+              .map(
                 (detail) => Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
@@ -586,9 +527,11 @@ class _WorkoutScheduleSection extends StatelessWidget {
                       fontSize: 12,
                       color: isToday
                           ? (isDark
-                              ? Colors.white.withValues(alpha: 0.95)
-                              : const Color(0xFF1E40AF))
-                          : (isDark ? Colors.grey.shade300 : Colors.grey.shade700),
+                                ? Colors.white.withValues(alpha: 0.95)
+                                : const Color(0xFF1E40AF))
+                          : (isDark
+                                ? Colors.grey.shade300
+                                : Colors.grey.shade700),
                     ),
                   ),
                 ),
@@ -600,9 +543,7 @@ class _WorkoutScheduleSection extends StatelessWidget {
 }
 
 class _CompletedWorkoutHistorySection extends StatelessWidget {
-  const _CompletedWorkoutHistorySection({
-    required this.logs,
-  });
+  const _CompletedWorkoutHistorySection({required this.logs});
 
   final List<ManualWorkoutLog> logs;
 
@@ -642,7 +583,9 @@ class _CompletedWorkoutHistorySection extends StatelessWidget {
               ),
             )
           else
-            ...recent.take(10).map(
+            ...recent
+                .take(10)
+                .map(
                   (log) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
@@ -676,9 +619,7 @@ class _CompletedWorkoutHistorySection extends StatelessWidget {
 }
 
 // Helper Widget to display individual goals in the list
-class _GoalCard
-    extends
-        StatelessWidget {
+class _GoalCard extends StatelessWidget {
   final Goal goal;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -690,103 +631,64 @@ class _GoalCard
   });
 
   // Modal to show Edit/Delete options
-  void _showActionModal(
-    BuildContext context,
-  ) {
+  void _showActionModal(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      builder:
-          (
-            BuildContext bc,
-          ) {
-            return SafeArea(
-              child: Wrap(
-                children:
-                    <
-                      Widget
-                    >[
-                      ListTile(
-                        leading: const Icon(
-                          Icons.edit,
-                          color: kPrimaryColor,
-                        ),
-                        title: const Text(
-                          'Edit Goal',
-                        ),
-                        onTap: () {
-                          Navigator.pop(
-                            bc,
-                          );
-                          onEdit();
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(
-                          Icons.delete,
-                          color: Colors.red,
-                        ),
-                        title: const Text(
-                          'Delete Goal',
-                        ),
-                        onTap: () {
-                          Navigator.pop(
-                            bc,
-                          );
-                          onDelete();
-                        },
-                      ),
-                    ],
+      builder: (BuildContext bc) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.edit, color: kPrimaryColor),
+                title: const Text('Edit Goal'),
+                onTap: () {
+                  Navigator.pop(bc);
+                  onEdit();
+                },
               ),
-            );
-          },
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Delete Goal'),
+                onTap: () {
+                  Navigator.pop(bc);
+                  onDelete();
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     // Date format: dd/mm/yyyy
-    String formattedDeadline = '${goal.deadline.day.toString().padLeft(2, '0')}/${goal.deadline.month.toString().padLeft(2, '0')}/${goal.deadline.year} at ${TimeOfDay.fromDateTime(goal.deadline).format(context)}';
+    String formattedDeadline =
+        '${goal.deadline.day.toString().padLeft(2, '0')}/${goal.deadline.month.toString().padLeft(2, '0')}/${goal.deadline.year} at ${TimeOfDay.fromDateTime(goal.deadline).format(context)}';
 
     return Card(
-      margin: const EdgeInsets.only(
-        bottom: 12,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(
-          15,
-        ),
-      ),
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       elevation: 3,
       child: ListTile(
-        contentPadding: const EdgeInsets.all(
-          15,
-        ),
+        contentPadding: const EdgeInsets.all(15),
         leading: Icon(
           Icons.flag,
-          color: goal.connectToTracker
-              ? kPrimaryColor
-              : kAccentColor,
+          color: goal.connectToTracker ? kPrimaryColor : kAccentColor,
           size: 40,
         ),
         title: Text(
           '${goal.name} (${goal.target} ${goal.unit})',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(
-              height: 5,
-            ),
+            const SizedBox(height: 5),
             Text(
               'Due: $formattedDeadline',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(color: Colors.grey.shade600),
             ),
             Text(
               goal.connectToTracker
@@ -805,9 +707,7 @@ class _GoalCard
           Icons.more_vert,
           size: 24,
         ), // Three dots for options
-        onTap: () => _showActionModal(
-          context,
-        ), // Open action modal on tap
+        onTap: () => _showActionModal(context), // Open action modal on tap
       ),
     );
   }
@@ -817,28 +717,16 @@ class _GoalCard
 // --- 2. GoalSetFormView (The Form Screen, now handles Edit) ---
 // ****************************************************
 
-class GoalSetFormView
-    extends
-        StatefulWidget {
+class GoalSetFormView extends StatefulWidget {
   final Goal? goalToEdit; // Optional: if provided, this is an edit operation
 
-  const GoalSetFormView({
-    super.key,
-    this.goalToEdit,
-  });
+  const GoalSetFormView({super.key, this.goalToEdit});
 
   @override
-  State<
-    GoalSetFormView
-  >
-  createState() => _GoalSetFormViewState();
+  State<GoalSetFormView> createState() => _GoalSetFormViewState();
 }
 
-class _GoalSetFormViewState
-    extends
-        State<
-          GoalSetFormView
-        > {
+class _GoalSetFormViewState extends State<GoalSetFormView> {
   // State variables declared late, initialized in initState
   late String? _selectedActivity;
   late TextEditingController _targetValueController;
@@ -851,79 +739,48 @@ class _GoalSetFormViewState
   late DateTime _goalDeadline;
 
   // Reference to the persistence methods on the parent state
-  _PersonalizedGoalsViewState? get _parentState => context
-      .findAncestorStateOfType<
-        _PersonalizedGoalsViewState
-      >();
+  _PersonalizedGoalsViewState? get _parentState =>
+      context.findAncestorStateOfType<_PersonalizedGoalsViewState>();
 
   @override
   void initState() {
     super.initState();
 
-    final isEditing =
-        widget.goalToEdit !=
-        null;
+    final isEditing = widget.goalToEdit != null;
     final goal = widget.goalToEdit;
 
     // --- Core Initialization ---
     final now = DateTime.now();
 
-    _currentGoalId = isEditing
-        ? goal!.goalId
-        : UniqueKey().toString();
+    _currentGoalId = isEditing ? goal!.goalId : UniqueKey().toString();
     _goalNameController = TextEditingController(
-      text: isEditing
-          ? goal!.name
-          : 'Daily Goal',
+      text: isEditing ? goal!.name : 'Daily Goal',
     );
     _targetValueController = TextEditingController(
-      text: isEditing
-          ? goal!.target
-          : '10',
+      text: isEditing ? goal!.target : '10',
     );
     _selectedActivity = isEditing
-        ? _getUnitFromValue(
-            goal!.unit,
-          )
+        ? goal!.activityType
         : _activityCategories.last;
 
     // Safely set Date and Time
     _selectedDate =
         isEditing &&
             goal!.deadline.isAfter(
-              now.subtract(
-                const Duration(
-                  days: 365,
-                ),
-              ),
+              now.subtract(const Duration(days: 365)),
             ) // Check if date is reasonable
         ? goal.deadline
-        : now.add(
-            const Duration(
-              days: 1,
-            ),
-          );
+        : now.add(const Duration(days: 1));
 
     _selectedTime =
         isEditing &&
             goal!.deadline.isAfter(
-              now.subtract(
-                const Duration(
-                  hours: 1,
-                ),
-              ),
+              now.subtract(const Duration(hours: 1)),
             ) // Check if time is reasonable
-        ? TimeOfDay.fromDateTime(
-            goal.deadline,
-          )
-        : const TimeOfDay(
-            hour: 20,
-            minute: 0,
-          );
+        ? TimeOfDay.fromDateTime(goal.deadline)
+        : const TimeOfDay(hour: 20, minute: 0);
 
-    _connectToTracker = isEditing
-        ? goal!.connectToTracker
-        : true;
+    _connectToTracker = isEditing ? goal!.connectToTracker : true;
 
     _updateDeadline();
   }
@@ -946,14 +803,9 @@ class _GoalSetFormViewState
   }
 
   // --- Helper to match unit back to activity name for dropdown ---
-  String? _getUnitFromValue(
-    String unit,
-  ) {
+  String? _getUnitFromValue(String unit) {
     for (String activity in _activityCategories) {
-      if (_getUnit(
-            activity,
-          ) ==
-          unit) {
+      if (_getUnit(activity) == unit) {
         return activity;
       }
     }
@@ -961,102 +813,59 @@ class _GoalSetFormViewState
   }
 
   // --- Date/Time Pickers (omitted for brevity, remains the same) ---
-  Future<
-    void
-  >
-  _selectDate(
-    BuildContext context,
-  ) async {
+  Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate:
-          _selectedDate.isBefore(
-            DateTime.now(),
-          )
-          ? DateTime.now().add(
-              const Duration(
-                days: 1,
-              ),
-            )
+      initialDate: _selectedDate.isBefore(DateTime.now())
+          ? DateTime.now().add(const Duration(days: 1))
           : _selectedDate,
       firstDate: DateTime.now(),
-      lastDate: DateTime(
-        2030,
-      ),
-      builder:
-          (
-            context,
-            child,
-          ) {
-            return Theme(
-              data: ThemeData.light().copyWith(
-                colorScheme: const ColorScheme.light(
-                  primary: kPrimaryColor,
-                ),
-                buttonTheme: const ButtonThemeData(
-                  textTheme: ButtonTextTheme.primary,
-                ),
-              ),
-              child: child!,
-            );
-          },
+      lastDate: DateTime(2030),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(primary: kPrimaryColor),
+            buttonTheme: const ButtonThemeData(
+              textTheme: ButtonTextTheme.primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
-    if (picked !=
-            null &&
-        picked !=
-            _selectedDate) {
-      setState(
-        () {
-          _selectedDate = picked;
-          _updateDeadline();
-        },
-      );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+        _updateDeadline();
+      });
     }
   }
 
-  Future<
-    void
-  >
-  _selectTime(
-    BuildContext context,
-  ) async {
+  Future<void> _selectTime(BuildContext context) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: _selectedTime,
-      builder:
-          (
-            context,
-            child,
-          ) {
-            return Theme(
-              data: ThemeData.light().copyWith(
-                colorScheme: const ColorScheme.light(
-                  primary: kPrimaryColor,
-                ),
-                buttonTheme: const ButtonThemeData(
-                  textTheme: ButtonTextTheme.primary,
-                ),
-              ),
-              child: child!,
-            );
-          },
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(primary: kPrimaryColor),
+            buttonTheme: const ButtonThemeData(
+              textTheme: ButtonTextTheme.primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
-    if (picked !=
-            null &&
-        picked !=
-            _selectedTime) {
-      setState(
-        () {
-          _selectedTime = picked;
-          _updateDeadline();
-        },
-      );
+    if (picked != null && picked != _selectedTime) {
+      setState(() {
+        _selectedTime = picked;
+        _updateDeadline();
+      });
     }
   }
 
-  String _getUnit(
-    String? activity,
-  ) {
+  String _getUnit(String? activity) {
     switch (activity) {
       case 'Steps':
         return 'steps';
@@ -1076,19 +885,12 @@ class _GoalSetFormViewState
   }
 
   // --- Goal Setting/Updating Logic ---
-  Future<
-    void
-  >
-  _setGoal() async {
+  Future<void> _setGoal() async {
     if (_goalNameController.text.isEmpty ||
         _targetValueController.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Please fill in the Goal Name and Target Value.',
-          ),
+          content: Text('Please fill in the Goal Name and Target Value.'),
         ),
       );
       return;
@@ -1096,17 +898,14 @@ class _GoalSetFormViewState
 
     _updateDeadline();
     final DateTime notificationTime = _goalDeadline.subtract(
-      const Duration(
-        hours: 1,
-      ),
+      const Duration(hours: 1),
     );
-    final String unit = _getUnit(
-      _selectedActivity,
-    );
+    final String unit = _getUnit(_selectedActivity);
 
     final newOrUpdatedGoal = Goal(
       goalId: _currentGoalId,
       name: _goalNameController.text,
+      activityType: _selectedActivity ?? 'Steps',
       target: _targetValueController.text,
       unit: unit,
       deadline: _goalDeadline,
@@ -1116,148 +915,32 @@ class _GoalSetFormViewState
 
     // Check if editing or creating
     final existingIndex = activeGoals.indexWhere(
-      (
-        g,
-      ) =>
-          g.goalId ==
-          _currentGoalId,
+      (g) => g.goalId == _currentGoalId,
     );
 
-    if (existingIndex >=
-        0) {
+    if (existingIndex >= 0) {
       activeGoals[existingIndex] = newOrUpdatedGoal;
     } else {
-      activeGoals.add(
-        newOrUpdatedGoal,
-      );
+      activeGoals.add(newOrUpdatedGoal);
     }
 
     // Save goals to local storage first
     final storage = GoalsStorageService();
-    await storage.saveGoals(
-      activeGoals,
-    );
-    print(
-      '💾 Goals saved to local storage',
-    );
+    await storage.saveGoals(activeGoals);
+    print('💾 Goals saved to local storage');
 
-    final notificationScheduled =
-        await _parentState?.scheduleGoalReminder(newOrUpdatedGoal) ?? false;
+    await _parentState?.scheduleGoalReminder(newOrUpdatedGoal);
 
-    // Show confirmation dialog
-    showDialog(
-      context: context,
-      builder:
-          (
-            context,
-          ) => AlertDialog(
-            title: Text(
-              widget.goalToEdit !=
-                      null
-                  ? 'Goal Updated!'
-                  : 'Goal Set Successfully!',
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Goal: ${newOrUpdatedGoal.name}\nTarget: ${newOrUpdatedGoal.target} ${unit}',
-                ),
-                const SizedBox(
-                  height: 10,
-                ),
-                Text(
-                  'Goal saved to local storage ✅',
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(
-                  height: 10,
-                ),
-                if (notificationScheduled)
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.notifications_active,
-                        color: Colors.green,
-                        size: 20,
-                      ),
-                      const SizedBox(
-                        width: 5,
-                      ),
-                      Text(
-                        'Reminder scheduled',
-                        style: TextStyle(
-                          color: Colors.green,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  )
-                else
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.notifications_off,
-                        color: Colors.orange,
-                        size: 20,
-                      ),
-                      const SizedBox(
-                        width: 5,
-                      ),
-                      Text(
-                        'Reminder not scheduled',
-                        style: TextStyle(
-                          color: Colors.orange,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-            actions:
-                <
-                  Widget
-                >[
-                  TextButton(
-                    child: const Text(
-                      'OK',
-                      style: TextStyle(
-                        color: kPrimaryColor,
-                      ),
-                    ),
-                    onPressed: () {
-                      // 1. Dismiss the confirmation dialog
-                      Navigator.of(
-                        context,
-                      ).pop();
-
-                      // 2. Pop the current form view to return to the Goals list
-                      Navigator.of(
-                        context,
-                      ).pop();
-                    },
-                  ),
-                ],
-          ),
-    );
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
-    final String actionText =
-        widget.goalToEdit !=
-            null
-        ? 'UPDATE'
-        : 'SET';
+  Widget build(BuildContext context) {
+    final String actionText = widget.goalToEdit != null ? 'UPDATE' : 'SET';
     // Date format: dd/mm/yyyy
-    String formattedDate = '${_selectedDate.day.toString().padLeft(2, '0')}/${_selectedDate.month.toString().padLeft(2, '0')}/${_selectedDate.year}';
+    String formattedDate =
+        '${_selectedDate.day.toString().padLeft(2, '0')}/${_selectedDate.month.toString().padLeft(2, '0')}/${_selectedDate.year}';
 
     return Scaffold(
       backgroundColor: kBackgroundColor,
@@ -1271,200 +954,137 @@ class _GoalSetFormViewState
         ),
         backgroundColor: kBackgroundColor,
         elevation: 0,
-        iconTheme: const IconThemeData(
-          color: Colors.black87,
-        ),
+        iconTheme: const IconThemeData(color: Colors.black87),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(
-          20.0,
-        ),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children:
-              <
-                Widget
-              >[
-                _buildGoalInputCard(
-                  title: 'Goal Name',
-                  child: TextField(
-                    controller: _goalNameController,
-                    decoration: const InputDecoration(
-                      hintText: 'e.g., Daily Step Goal',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    style: const TextStyle(
-                      fontSize: 18,
-                    ),
-                  ),
+          children: <Widget>[
+            _buildGoalInputCard(
+              title: 'Goal Name',
+              child: TextField(
+                controller: _goalNameController,
+                decoration: const InputDecoration(
+                  hintText: 'e.g., Daily Step Goal',
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
                 ),
-                const SizedBox(
-                  height: 20,
+                style: const TextStyle(fontSize: 18),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _buildGoalInputCard(
+              title: 'Activity Type',
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedActivity,
+                  isExpanded: true,
+                  icon: const Icon(Icons.arrow_drop_down, color: kPrimaryColor),
+                  style: const TextStyle(fontSize: 18, color: Colors.black87),
+                  items: _activityCategories.map<DropdownMenuItem<String>>((
+                    String value,
+                  ) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _selectedActivity = newValue;
+                    });
+                  },
                 ),
-                _buildGoalInputCard(
-                  title: 'Activity Type',
-                  child: DropdownButtonHideUnderline(
-                    child:
-                        DropdownButton<
-                          String
-                        >(
-                          value: _selectedActivity,
-                          isExpanded: true,
-                          icon: const Icon(
-                            Icons.arrow_drop_down,
-                            color: kPrimaryColor,
-                          ),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            color: Colors.black87,
-                          ),
-                          items:
-                              _activityCategories.map<
-                                DropdownMenuItem<
-                                  String
-                                >
-                              >(
-                                (
-                                  String value,
-                                ) {
-                                  return DropdownMenuItem<
-                                    String
-                                  >(
-                                    value: value,
-                                    child: Text(
-                                      value,
-                                    ),
-                                  );
-                                },
-                              ).toList(),
-                          onChanged:
-                              (
-                                String? newValue,
-                              ) {
-                                setState(
-                                  () {
-                                    _selectedActivity = newValue;
-                                  },
-                                );
-                              },
-                        ),
-                  ),
-                ),
-                const SizedBox(
-                  height: 20,
-                ),
-                _buildGoalInputCard(
-                  title: 'Target Value (${_getUnit(_selectedActivity)})',
-                  child: TextField(
-                    controller: _targetValueController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      hintText: 'Enter target value',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                      suffixText: _getUnit(
-                        _selectedActivity,
-                      ),
-                      suffixStyle: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 18,
-                      ),
-                    ),
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: kPrimaryColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(
-                  height: 30,
-                ),
-
-                // --- Deadline Selector (Date & Time) ---
-                const Text(
-                  'Goal Deadline & Reminder',
-                  style: TextStyle(
+              ),
+            ),
+            const SizedBox(height: 20),
+            _buildGoalInputCard(
+              title: 'Target Value (${_getUnit(_selectedActivity)})',
+              child: TextField(
+                controller: _targetValueController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  hintText: 'Enter target value',
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                  suffixText: _getUnit(_selectedActivity),
+                  suffixStyle: TextStyle(
+                    color: Colors.grey.shade600,
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
                   ),
                 ),
-                const SizedBox(
-                  height: 10,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: kPrimaryColor,
                 ),
-                Row(
-                  children: [
-                    _buildDateSelector(
-                      icon: Icons.calendar_today,
-                      label: 'Date',
-                      value: formattedDate,
-                      onTap: () => _selectDate(
-                        context,
-                      ),
-                    ),
-                    const SizedBox(
-                      width: 15,
-                    ),
-                    _buildDateSelector(
-                      icon: Icons.access_time,
-                      label: 'Time',
-                      value: _selectedTime.format(
-                        context,
-                      ),
-                      onTap: () => _selectTime(
-                        context,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(
-                  height: 10,
-                ),
-                _buildReminderInfo(),
-                const SizedBox(
-                  height: 30,
-                ),
+              ),
+            ),
+            const SizedBox(height: 30),
 
-                // --- Connect to Tracker Option ---
-                _buildConnectTrackerOption(),
-                const SizedBox(
-                  height: 40,
+            // --- Deadline Selector (Date & Time) ---
+            const Text(
+              'Goal Deadline & Reminder',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _buildDateSelector(
+                  icon: Icons.calendar_today,
+                  label: 'Date',
+                  value: formattedDate,
+                  onTap: () => _selectDate(context),
                 ),
-
-                // --- Set Goal Button ---
-                ElevatedButton.icon(
-                  onPressed: _setGoal,
-                  icon: Icon(
-                    widget.goalToEdit !=
-                            null
-                        ? Icons.save
-                        : Icons.check_circle_outline,
-                    color: Colors.white,
-                  ),
-                  label: Text(
-                    '${actionText} GOAL & NOTIFICATION',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kAccentColor,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 15,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(
-                        15,
-                      ),
-                    ),
-                    elevation: 5,
-                  ),
+                const SizedBox(width: 15),
+                _buildDateSelector(
+                  icon: Icons.access_time,
+                  label: 'Time',
+                  value: _selectedTime.format(context),
+                  onTap: () => _selectTime(context),
                 ),
               ],
+            ),
+            const SizedBox(height: 10),
+            _buildReminderInfo(),
+            const SizedBox(height: 30),
+
+            // --- Connect to Tracker Option ---
+            _buildConnectTrackerOption(),
+            const SizedBox(height: 40),
+
+            // --- Set Goal Button ---
+            ElevatedButton.icon(
+              onPressed: _setGoal,
+              icon: Icon(
+                widget.goalToEdit != null
+                    ? Icons.save
+                    : Icons.check_circle_outline,
+                color: Colors.white,
+              ),
+              label: Text(
+                '${actionText} GOAL & NOTIFICATION',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kAccentColor,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                elevation: 5,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1474,83 +1094,51 @@ class _GoalSetFormViewState
 
   Widget _buildConnectTrackerOption() {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 15,
-        vertical: 10,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(
-          15,
-        ),
+        borderRadius: BorderRadius.circular(15),
         border: Border.all(
-          color: _connectToTracker
-              ? kAccentColor
-              : Colors.grey.shade300,
+          color: _connectToTracker ? kAccentColor : Colors.grey.shade300,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(
-              0.1,
-            ),
+            color: Colors.grey.withOpacity(0.1),
             blurRadius: 5,
-            offset: const Offset(
-              0,
-              3,
-            ),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: SwitchListTile(
         title: const Text(
           'Connect to Workout Tracker',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: const Text(
           'Display this goal directly in your workout tracking screen.',
         ),
         value: _connectToTracker,
         activeColor: kAccentColor,
-        onChanged:
-            (
-              bool value,
-            ) {
-              setState(
-                () {
-                  _connectToTracker = value;
-                },
-              );
-            },
+        onChanged: (bool value) {
+          setState(() {
+            _connectToTracker = value;
+          });
+        },
       ),
     );
   }
 
-  Widget _buildGoalInputCard({
-    required String title,
-    required Widget child,
-  }) {
+  Widget _buildGoalInputCard({required String title, required Widget child}) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 15,
-        vertical: 10,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(
-          15,
-        ),
+        borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(
-              0.1,
-            ),
+            color: Colors.grey.withOpacity(0.1),
             blurRadius: 5,
-            offset: const Offset(
-              0,
-              3,
-            ),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -1565,9 +1153,7 @@ class _GoalSetFormViewState
               color: Colors.grey,
             ),
           ),
-          const SizedBox(
-            height: 5,
-          ),
+          const SizedBox(height: 5),
           child,
         ],
       ),
@@ -1584,37 +1170,22 @@ class _GoalSetFormViewState
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(
-            vertical: 15,
-            horizontal: 10,
-          ),
+          padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(
-              10,
-            ),
-            border: Border.all(
-              color: Colors.grey.shade300,
-            ),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.shade300),
           ),
           child: Row(
             children: [
-              Icon(
-                icon,
-                color: kPrimaryColor,
-              ),
-              const SizedBox(
-                width: 8,
-              ),
+              Icon(icon, color: kPrimaryColor),
+              const SizedBox(width: 8),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     label,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                   Text(
                     value,
@@ -1634,25 +1205,14 @@ class _GoalSetFormViewState
 
   Widget _buildReminderInfo() {
     return Padding(
-      padding: const EdgeInsets.only(
-        top: 8.0,
-      ),
+      padding: const EdgeInsets.only(top: 8.0),
       child: Row(
         children: [
-          const Icon(
-            Icons.notifications_active,
-            color: kAccentColor,
-            size: 20,
-          ),
-          const SizedBox(
-            width: 8,
-          ),
+          const Icon(Icons.notifications_active, color: kAccentColor, size: 20),
+          const SizedBox(width: 8),
           Text(
             'You will be notified 1 hour before the deadline.',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade700,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
           ),
         ],
       ),
@@ -1706,11 +1266,7 @@ class _GoalNotificationController {
 
     DateTime reminderTime = goal.reminderTime;
     if (reminderTime.isBefore(now)) {
-      reminderTime = now.add(
-        const Duration(
-          minutes: 1,
-        ),
-      );
+      reminderTime = now.add(const Duration(minutes: 1));
     }
 
     final notificationId = NotificationService.stableIdFromKey(
@@ -1721,7 +1277,8 @@ class _GoalNotificationController {
     final scheduled = await _notificationService.scheduleNotification(
       id: notificationId,
       title: 'Goal Reminder: ${goal.name}',
-      body: 'You have 1 hour left to complete your goal: ${goal.target} ${goal.unit}',
+      body:
+          'You have 1 hour left to complete your goal: ${goal.target} ${goal.unit}',
       scheduledDate: reminderTime,
       payload: goal.goalId,
     );

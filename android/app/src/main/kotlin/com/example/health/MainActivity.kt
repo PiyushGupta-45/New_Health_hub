@@ -2,6 +2,7 @@ package com.example.health
 
 import android.Manifest
 import android.content.Intent
+import android.content.ComponentName
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -10,6 +11,7 @@ import android.hardware.SensorManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -23,43 +25,56 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
     private val UPDATE_CHANNEL = "com.example.health/app_update"
     private var sensorManager: SensorManager? = null
     private var stepCounterSensor: Sensor? = null
+    private var stepDetectorSensor: Sensor? = null
     private var methodChannel: MethodChannel? = null
     private var isListening = false
     private var lastStepCount = 0
+    private var lastDetectorTodaySteps = 0
     private var isSensorRegistered = false
     private var didStartService = false
+
+    private fun startStepCounterServiceIfPossible(): Boolean {
+        if (!canStartHealthForegroundService()) {
+            Log.i(TAG, "Skipping StepCounterService startup until ACTIVITY_RECOGNITION permission is granted.")
+            return false
+        }
+
+        return try {
+            val intent = Intent(this, StepCounterService::class.java).apply {
+                action = StepCounterService.ACTION_START
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+            didStartService = true
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to start StepCounterService: ${e.message}")
+            false
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         stepCounterSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+        stepDetectorSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
 
         // Start background step service (foreground service) so steps keep counting.
         if (!didStartService) {
-            if (canStartHealthForegroundService()) {
-                try {
-                    val intent = Intent(this, StepCounterService::class.java).apply {
-                        action = StepCounterService.ACTION_START
-                    }
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        startForegroundService(intent)
-                    } else {
-                        startService(intent)
-                    }
-                    didStartService = true
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to start StepCounterService on startup: ${e.message}")
-                }
-            } else {
-                Log.i(TAG, "Skipping StepCounterService startup until ACTIVITY_RECOGNITION permission is granted.")
-            }
+            startStepCounterServiceIfPossible()
         }
 
         // Keep the sensor registered so lastStepCount stays fresh.
         // Streaming to Flutter is still controlled by isListening.
         if (stepCounterSensor != null && !isSensorRegistered) {
             sensorManager?.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL)
+            if (stepDetectorSensor != null) {
+                sensorManager?.registerListener(this, stepDetectorSensor, SensorManager.SENSOR_DELAY_UI)
+            }
             isSensorRegistered = true
         }
         
@@ -104,19 +119,15 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                             isSensorRegistered = false
                         }
                         sensorManager?.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL)
+                        if (stepDetectorSensor != null) {
+                            sensorManager?.registerListener(this, stepDetectorSensor, SensorManager.SENSOR_DELAY_UI)
+                        }
                         isSensorRegistered = true
+                        lastDetectorTodaySteps = StepCounterService.readTodaySteps(this)
 
                         // Start background service only after permission is available.
-                        if (!didStartService && canStartHealthForegroundService()) {
-                            val intent = Intent(this, StepCounterService::class.java).apply {
-                                action = StepCounterService.ACTION_START
-                            }
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                startForegroundService(intent)
-                            } else {
-                                startService(intent)
-                            }
-                            didStartService = true
+                        if (!didStartService) {
+                            startStepCounterServiceIfPossible()
                         }
                         result.success(null)
                     }
@@ -126,6 +137,40 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                         isListening = false
                     }
                     result.success(null)
+                }
+                "isIgnoringBatteryOptimizations" -> {
+                    val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+                    result.success(powerManager.isIgnoringBatteryOptimizations(packageName))
+                }
+                "requestIgnoreBatteryOptimizations" -> {
+                    try {
+                        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+                        if (powerManager.isIgnoringBatteryOptimizations(packageName)) {
+                            result.success(true)
+                        } else {
+                            openPreferredBatteryPermissionUi()
+                            result.success(true)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to request ignore battery optimizations", e)
+                        result.error("BATTERY_OPT_REQUEST_FAILED", e.message, null)
+                    }
+                }
+                "openBatteryOptimizationSettings" -> {
+                    try {
+                        openBatteryOptimizationSettings()
+                        result.success(true)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to open battery optimization settings", e)
+                        result.error("BATTERY_SETTINGS_FAILED", e.message, null)
+                    }
+                }
+                "openAutoStartSettings" -> {
+                    val opened = openAutoStartSettings()
+                    result.success(opened)
+                }
+                "ensureBackgroundTrackingStarted" -> {
+                    result.success(startStepCounterServiceIfPossible())
                 }
                 else -> {
                     result.notImplemented()
@@ -216,12 +261,138 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
         return checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED
     }
 
+    private fun openBatteryOptimizationSettings() {
+        val intents = listOf(
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:$packageName")
+            }
+        )
+
+        for (intent in intents) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                return
+            }
+        }
+        throw IllegalStateException("No battery optimization settings screen available")
+    }
+
+    private fun openPreferredBatteryPermissionUi() {
+        if (openXiaomiBatteryDetails()) {
+            return
+        }
+
+        val intent = Intent(
+            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            Uri.parse("package:$packageName")
+        ).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        if (intent.resolveActivity(packageManager) != null) {
+            startActivity(intent)
+            return
+        }
+
+        openBatteryOptimizationSettings()
+    }
+
+    private fun openXiaomiBatteryDetails(): Boolean {
+        val appLabel = applicationInfo.loadLabel(packageManager).toString()
+        val intents = listOf(
+            Intent().apply {
+                component = ComponentName(
+                    "com.miui.powerkeeper",
+                    "com.miui.powerkeeper.ui.HiddenAppsConfigActivity"
+                )
+                putExtra("package_name", packageName)
+                putExtra("package_label", appLabel)
+                putExtra("packageName", packageName)
+            },
+            Intent("miui.intent.action.POWER_HIDE_MODE_APP_CONFIG").apply {
+                setPackage("com.miui.powerkeeper")
+                putExtra("package_name", packageName)
+                putExtra("package_label", appLabel)
+                putExtra("packageName", packageName)
+            }
+        )
+
+        for (intent in intents) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun openAutoStartSettings(): Boolean {
+        val intents = listOf(
+            Intent().apply {
+                component = ComponentName(
+                    "com.miui.securitycenter",
+                    "com.miui.permcenter.autostart.AutoStartManagementActivity"
+                )
+            },
+            Intent().apply {
+                component = ComponentName(
+                    "com.coloros.safecenter",
+                    "com.coloros.safecenter.permission.startup.StartupAppListActivity"
+                )
+            },
+            Intent().apply {
+                component = ComponentName(
+                    "com.oppo.safe",
+                    "com.oppo.safe.permission.startup.StartupAppListActivity"
+                )
+            },
+            Intent().apply {
+                component = ComponentName(
+                    "com.vivo.permissionmanager",
+                    "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"
+                )
+            },
+            Intent().apply {
+                component = ComponentName(
+                    "com.huawei.systemmanager",
+                    "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"
+                )
+            },
+            Intent().apply {
+                component = ComponentName(
+                    "com.samsung.android.lool",
+                    "com.samsung.android.sm.ui.battery.BatteryActivity"
+                )
+            }
+        )
+
+        for (intent in intents) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                return true
+            }
+        }
+        return false
+    }
+
     override fun onSensorChanged(event: SensorEvent?) {
-        if (event?.sensor?.type == Sensor.TYPE_STEP_COUNTER) {
-            val newCount = event.values[0].toInt()
-            if (newCount > 0) {
-                lastStepCount = newCount
+        when (event?.sensor?.type) {
+            Sensor.TYPE_STEP_COUNTER -> {
+                val newCount = event.values[0].toInt()
+                if (newCount > 0) {
+                    lastStepCount = newCount
+                    if (isListening) {
+                        methodChannel?.invokeMethod("onStepCountUpdate", lastStepCount)
+                    }
+                }
+            }
+            Sensor.TYPE_STEP_DETECTOR -> {
                 if (isListening) {
+                    lastDetectorTodaySteps = StepCounterService.incrementTodaySteps(this)
                     methodChannel?.invokeMethod("onStepCountUpdate", lastStepCount)
                 }
             }
@@ -232,7 +403,13 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
         // Not needed for step counter
     }
 
+    override fun onStop() {
+        super.onStop()
+        startStepCounterServiceIfPossible()
+    }
+
     override fun onDestroy() {
+        startStepCounterServiceIfPossible()
         super.onDestroy()
         if (isSensorRegistered) {
             sensorManager?.unregisterListener(this)

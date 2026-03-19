@@ -1,9 +1,8 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../services/adaptive_workout_service.dart';
 import '../services/hugging_face_service.dart';
+import '../services/workout_plan_schedule_service.dart';
 import '../services/weekly_workout_plan_service.dart';
 import '../widgets/ai_result_renderer.dart';
 
@@ -21,29 +20,34 @@ class _AiWorkoutPlanViewState extends State<AiWorkoutPlanView> {
   final _intensityController = TextEditingController();
   final _injuryController = TextEditingController();
   final _changeRequestController = TextEditingController();
+  final _adaptiveReasonController = TextEditingController();
 
   bool _isLoading = false;
   bool _isInitializing = true;
   bool _isApproving = false;
   bool _isApplyingChanges = false;
+  bool _isAdapting = false;
   bool _showChangeBox = false;
+  bool _showAdaptiveBox = false;
   String? _error;
   String? _result;
   String _lastRefinementNote = '';
   WeeklyWorkoutPlan? _savedPlan;
-  Map<String, Map<String, bool>> _checklistStatus = {};
-  List<String> _dayOrder = [];
+  WorkoutPlanSchedule? _schedule;
   int _selectedDayIndex = 0;
 
   late final HuggingFaceService _aiService;
   late final WeeklyWorkoutPlanService _planService;
-  static const String _checklistKey = 'workout_ai_plan_checklist_v1';
+  late final WorkoutPlanScheduleService _scheduleService;
+  late final AdaptiveWorkoutService _adaptiveWorkoutService;
 
   @override
   void initState() {
     super.initState();
     _aiService = HuggingFaceService();
     _planService = WeeklyWorkoutPlanService();
+    _scheduleService = WorkoutPlanScheduleService();
+    _adaptiveWorkoutService = const AdaptiveWorkoutService();
     _loadSavedPlan();
   }
 
@@ -55,6 +59,7 @@ class _AiWorkoutPlanViewState extends State<AiWorkoutPlanView> {
     _intensityController.dispose();
     _injuryController.dispose();
     _changeRequestController.dispose();
+    _adaptiveReasonController.dispose();
     super.dispose();
   }
 
@@ -145,269 +150,90 @@ Output format (follow exactly):
         notes: refinement?.trim() ?? _lastRefinementNote,
         planText: text,
       );
+      final schedule = await _scheduleService.loadForPlan(localPlan);
       if (!mounted) return;
       setState(() {
         _result = text;
         _savedPlan = localPlan;
+        _schedule = schedule;
         _showChangeBox = false;
-        final parsedChecklist = _buildChecklistFromPlan(localPlan.planText);
-        _checklistStatus = parsedChecklist;
-        _dayOrder = parsedChecklist.keys.toList();
-        _selectedDayIndex = _resolveTodayDayIndex(
-          plan: localPlan,
-          dayOrder: _dayOrder,
-        );
+        _selectedDayIndex = schedule?.currentDayIndex ?? 0;
         if (refinement != null && refinement.trim().isNotEmpty) {
           _lastRefinementNote = refinement.trim();
         }
       });
-      await _saveChecklist();
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _isApplyingChanges = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isApplyingChanges = false;
+        });
+      }
     }
   }
 
   Future<void> _loadSavedPlan() async {
-    final plan = await _planService.loadLocalPlan();
-    Map<String, Map<String, bool>> checklist = {};
-    List<String> dayOrder = [];
-    if (plan != null) {
-      checklist = _buildChecklistFromPlan(plan.planText);
-      dayOrder = checklist.keys.toList();
-      final savedChecklist = await _loadChecklistState();
-      if (savedChecklist.isNotEmpty && dayOrder.isNotEmpty) {
-        final savedStatus = savedChecklist['status'];
-        if (savedStatus is Map<String, dynamic>) {
-          final merged = <String, Map<String, bool>>{};
-          for (final day in dayOrder) {
-            final currentDay = checklist[day] ?? <String, bool>{};
-            final savedDayRaw = savedStatus[day];
-            if (savedDayRaw is Map<String, dynamic>) {
-              merged[day] = {
-                for (final workout in currentDay.keys)
-                  workout: savedDayRaw[workout] == true ||
-                      savedDayRaw[workout] == 'true',
-              };
-            } else {
-              merged[day] = currentDay;
-            }
-          }
-          checklist = merged;
-        }
-      }
-      _selectedDayIndex = _resolveTodayDayIndex(plan: plan, dayOrder: dayOrder);
-      if (savedChecklist.isEmpty) {
-        final legacy = await _loadChecklist();
-        if (legacy.isNotEmpty) {
-          final firstDay = dayOrder.isNotEmpty ? dayOrder.first : null;
-          if (firstDay != null) {
-            final firstWorkouts = checklist[firstDay] ?? <String, bool>{};
-            checklist[firstDay] = {
-              for (final workout in firstWorkouts.keys)
-                workout: legacy[workout] ?? false,
-            };
-          }
-        }
-      }
-    }
+    final planResult = await _planService.getLatestApprovedPlan();
+    final plan = planResult['success'] == true
+        ? planResult['data'] as WeeklyWorkoutPlan?
+        : await _planService.loadLocalPlan();
+    final schedule = await _scheduleService.loadForPlan(plan);
 
     if (!mounted) return;
     setState(() {
       _savedPlan = plan;
       _result = plan?.planText;
-      _checklistStatus = checklist;
-      _dayOrder = dayOrder;
+      _schedule = schedule;
+      _selectedDayIndex = schedule?.currentDayIndex ?? 0;
       _isInitializing = false;
     });
   }
 
-  Map<String, Map<String, bool>> _buildChecklistFromPlan(String planText) {
-    final lines = planText
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
-    final dayHeaderPattern = RegExp(r'^-?\s*(day\s*\d+)\s*:?\s*(.*)$', caseSensitive: false);
-    final dayToRawItems = <String, List<String>>{};
-    String? currentDay;
-
-    for (final line in lines) {
-      final lower = line.toLowerCase();
-      if (lower.startsWith('## notes')) {
-        currentDay = null;
-        continue;
-      }
-
-      final normalized = line.replaceFirst(RegExp(r'^-\s*'), '');
-      final dayMatch = dayHeaderPattern.firstMatch(normalized);
-      if (dayMatch != null) {
-        final dayLabel = dayMatch.group(1)!.trim();
-        final dayRemainder = (dayMatch.group(2) ?? '').trim();
-        currentDay = dayLabel[0].toUpperCase() + dayLabel.substring(1).toLowerCase();
-        dayToRawItems.putIfAbsent(currentDay, () => <String>[]);
-        if (dayRemainder.isNotEmpty) {
-          dayToRawItems[currentDay]!.add(dayRemainder);
-        }
-        continue;
-      }
-
-      if (currentDay == null) continue;
-      if (lower.startsWith('## ')) continue;
-      if (lower.startsWith('inputs echo')) continue;
-      if (lower.startsWith('plan')) continue;
-
-      final bulletMatch = RegExp(r'^[-*]\s+(.+)$').firstMatch(line);
-      if (bulletMatch != null) {
-        dayToRawItems[currentDay]!.add(bulletMatch.group(1)!.trim());
-        continue;
-      }
-
-      final numberedMatch = RegExp(r'^\d+\.\s+(.+)$').firstMatch(line);
-      if (numberedMatch != null) {
-        dayToRawItems[currentDay]!.add(numberedMatch.group(1)!.trim());
-        continue;
-      }
-    }
-
-    if (dayToRawItems.isEmpty) {
-      return {for (int i = 1; i <= 7; i++) 'Day $i': {'Workout': false}};
-    }
-
-    final checklist = <String, Map<String, bool>>{};
-    for (final entry in dayToRawItems.entries) {
-      final items = _splitWorkoutItems(entry.value);
-      checklist[entry.key] = {
-        for (final item in items) item: false,
-      };
-    }
-    return checklist;
-  }
-
-  List<String> _splitWorkoutItems(List<String> rawItems) {
-    if (rawItems.isEmpty) return <String>['Workout'];
-
-    final expanded = <String>[];
-    for (final raw in rawItems) {
-      var normalized = raw
-          .replaceAll(';', ', ')
-          .replaceAll('+', ', ')
-          .replaceAll('|', ', ')
-          .replaceAll(' / ', ', ')
-          .replaceAll(RegExp(r'\s+and\s+', caseSensitive: false), ', ');
-
-      normalized = normalized.replaceAll(RegExp(r',+'), ',');
-      final parts = normalized
-          .split(',')
-          .map((item) => item.trim())
-          .where((item) => item.isNotEmpty);
-      expanded.addAll(parts);
-    }
-
-    final deduped = <String>[];
-    final seen = <String>{};
-    for (final item in expanded) {
-      final normalizedKey = item.toLowerCase();
-      if (seen.add(normalizedKey)) {
-        deduped.add(item);
-      }
-    }
-
-    if (deduped.isEmpty) return <String>['Workout'];
-    return deduped;
-  }
-
-  Future<Map<String, bool>> _loadChecklist() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_checklistKey);
-    if (raw == null || raw.isEmpty) return {};
-    try {
-      final decoded = json.decode(raw);
-      if (decoded is Map<String, dynamic>) {
-        if (decoded.containsKey('status')) {
-          return {};
-        }
-        return {
-          for (final entry in decoded.entries)
-            entry.key: entry.value == true || entry.value == 'true',
-        };
-      }
-    } catch (_) {
-      return {};
-    }
-    return {};
-  }
-
-  Future<void> _saveChecklist() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _checklistKey,
-      json.encode({
-        'status': _checklistStatus,
-      }),
-    );
-  }
-
-  Future<Map<String, dynamic>> _loadChecklistState() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_checklistKey);
-    if (raw == null || raw.isEmpty) return {};
-    try {
-      final decoded = json.decode(raw);
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
-    } catch (_) {
-      return {};
-    }
-    return {};
-  }
-
   Future<void> _toggleChecklist(String dayKey, String workoutKey, bool value) async {
+    final plan = _savedPlan;
+    if (plan == null) return;
+    await _scheduleService.toggleTask(
+      plan: plan,
+      dayLabel: dayKey,
+      taskTitle: workoutKey,
+      value: value,
+    );
+    final updated = await _scheduleService.loadForPlan(plan);
+    if (!mounted) return;
     setState(() {
-      final dayMap = _checklistStatus[dayKey];
-      if (dayMap == null) return;
-      dayMap[workoutKey] = value;
+      _schedule = updated;
     });
-    await _saveChecklist();
   }
 
   bool _isDayComplete(String dayKey) {
-    final workouts = _checklistStatus[dayKey];
-    if (workouts == null || workouts.isEmpty) return false;
-    return workouts.values.every((isDone) => isDone);
+    final schedule = _schedule;
+    if (schedule == null) return false;
+    WorkoutPlanDay? day;
+    for (final item in schedule.days) {
+      if (item.label == dayKey) {
+        day = item;
+        break;
+      }
+    }
+    return day?.isComplete ?? false;
   }
 
   Future<void> _toggleDayChecklist(String dayKey, bool value) async {
+    final plan = _savedPlan;
+    if (plan == null) return;
+    await _scheduleService.toggleDay(
+      plan: plan,
+      dayLabel: dayKey,
+      value: value,
+    );
+    final updated = await _scheduleService.loadForPlan(plan);
+    if (!mounted) return;
     setState(() {
-      final workouts = _checklistStatus[dayKey];
-      if (workouts == null) return;
-      for (final key in workouts.keys.toList()) {
-        workouts[key] = value;
-      }
+      _schedule = updated;
     });
-    await _saveChecklist();
-  }
-
-  int _resolveTodayDayIndex({
-    required WeeklyWorkoutPlan? plan,
-    required List<String> dayOrder,
-  }) {
-    if (dayOrder.isEmpty) return 0;
-    final anchor = plan?.approvedAt ?? plan?.createdAt ?? DateTime.now();
-    final anchorDate = DateTime(anchor.year, anchor.month, anchor.day);
-    final now = DateTime.now();
-    final todayDate = DateTime(now.year, now.month, now.day);
-    final dayDiff = todayDate.difference(anchorDate).inDays;
-    if (dayDiff <= 0) return 0;
-    if (dayDiff >= dayOrder.length) return dayOrder.length - 1;
-    return dayDiff;
   }
 
   String _dayCheckboxLabel(String dayKey) {
@@ -439,15 +265,13 @@ Output format (follow exactly):
 
   Future<void> _deleteSavedPlan() async {
     await _planService.clearLocalPlans();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_checklistKey);
+    await _scheduleService.clear();
     if (!mounted) return;
     setState(() {
       _savedPlan = null;
       _result = null;
       _error = null;
-      _checklistStatus = {};
-      _dayOrder = [];
+      _schedule = null;
       _selectedDayIndex = 0;
       _goalController.clear();
       _durationController.clear();
@@ -460,15 +284,13 @@ Output format (follow exactly):
   }
 
   Future<void> _startNewPlan() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_checklistKey);
+    await _scheduleService.clear();
     if (!mounted) return;
     setState(() {
       _savedPlan = null;
       _result = null;
       _error = null;
-      _checklistStatus = {};
-      _dayOrder = [];
+      _schedule = null;
       _selectedDayIndex = 0;
       _showChangeBox = false;
     });
@@ -540,6 +362,43 @@ Output format (follow exactly):
     final changeText = _changeRequestController.text.trim();
     if (changeText.isEmpty) return;
     await _generatePlan(refinement: changeText);
+  }
+
+  Future<void> _runAdaptiveRegeneration() async {
+    final plan = _savedPlan;
+    final schedule = _schedule;
+    if (plan == null || schedule == null) return;
+
+    setState(() {
+      _isAdapting = true;
+      _error = null;
+    });
+
+    final refinement = _adaptiveWorkoutService.buildAdaptiveRefinement(
+      plan: plan,
+      schedule: schedule,
+      userReason: _adaptiveReasonController.text,
+    );
+
+    try {
+      await _generatePlan(refinement: refinement);
+      if (!mounted) return;
+      setState(() {
+        _showAdaptiveBox = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Adaptive workout plan generated for the updated week.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAdapting = false;
+        });
+      }
+    }
   }
 
   Widget _buildPostGenerationActions(BuildContext context) {
@@ -658,12 +517,126 @@ Output format (follow exactly):
     );
   }
 
+  Widget _buildAdaptivePlanSection() {
+    final schedule = _schedule;
+    if (schedule == null) return const SizedBox.shrink();
+
+    final hasBacklog = schedule.backlogDays.isNotEmpty;
+    final helper = hasBacklog
+        ? 'Missed workouts were found. Regenerate the week so the remaining days are more realistic.'
+        : 'Use this when your energy, soreness, or schedule changes and you want the plan to adapt.';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFDBEAFE),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Adaptive Workout Plan',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: Color(0xFF1D4ED8),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                helper,
+                style: const TextStyle(
+                  color: Color(0xFF1E3A8A),
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              if (hasBacklog) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Backlog detected: ${schedule.backlogDays.map((day) => day.label).join(', ')}',
+                  style: const TextStyle(
+                    color: Color(0xFF1E3A8A),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _isAdapting || _isLoading || _isApplyingChanges
+                    ? null
+                    : () {
+                        setState(() {
+                          _showAdaptiveBox = !_showAdaptiveBox;
+                        });
+                      },
+                icon: const Icon(Icons.auto_fix_high_rounded),
+                label: Text(
+                  _showAdaptiveBox ? 'Hide Adaptive Options' : 'Adapt This Week',
+                ),
+              ),
+              if (_showAdaptiveBox) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _adaptiveReasonController,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: hasBacklog
+                        ? 'Example: I missed 2 strength days and want a lighter catch-up week.'
+                        : 'Example: lower body is sore, shift intensity toward mobility and upper body.',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isAdapting || _isLoading || _isApplyingChanges
+                        ? null
+                        : _runAdaptiveRegeneration,
+                    icon: _isAdapting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.refresh_rounded),
+                    label: Text(
+                      _isAdapting ? 'Adapting Plan...' : 'Regenerate Smarter Week',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildChecklistSection() {
-    if (_checklistStatus.isEmpty || _dayOrder.isEmpty) {
+    final schedule = _schedule;
+    if (schedule == null || schedule.days.isEmpty) {
       return const SizedBox.shrink();
     }
-    final dayKey = _dayOrder[_selectedDayIndex];
-    final workouts = _checklistStatus[dayKey] ?? <String, bool>{};
+    final safeIndex = _selectedDayIndex.clamp(0, schedule.days.length - 1);
+    final day = schedule.days[safeIndex];
+    final dayKey = day.label;
     final dayComplete = _isDayComplete(dayKey);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -680,21 +653,35 @@ Output format (follow exactly):
         CheckboxListTile(
           contentPadding: EdgeInsets.zero,
           value: dayComplete,
-          onChanged: (value) => _toggleDayChecklist(dayKey, value ?? false),
+          onChanged: (value) {
+            _toggleDayChecklist(dayKey, value ?? false);
+          },
           title: Text(
             _dayCheckboxLabel(dayKey),
             style: TextStyle(fontWeight: FontWeight.w600),
           ),
           controlAffinity: ListTileControlAffinity.leading,
         ),
+        if (schedule.backlogDays.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            '${schedule.backlogDays.length} earlier day(s) moved to backlog in Workout Tracker until completed.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.orange.shade700,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
-        ...workouts.entries.map(
-          (entry) => CheckboxListTile(
+        ...day.tasks.map(
+          (task) => CheckboxListTile(
             contentPadding: EdgeInsets.zero,
-            value: entry.value,
-            onChanged: (value) =>
-                _toggleChecklist(dayKey, entry.key, value ?? false),
-            title: Text(entry.key),
+            value: task.isDone,
+            onChanged: (value) {
+              _toggleChecklist(dayKey, task.title, value ?? false);
+            },
+            title: Text(task.title),
             controlAffinity: ListTileControlAffinity.leading,
           ),
         ),
@@ -842,7 +829,10 @@ Output format (follow exactly):
                               const SizedBox(height: 12),
                               if (_savedPlan == null)
                                 _buildPostGenerationActions(context),
-                              if (_savedPlan != null) _buildChecklistSection(),
+                              if (_savedPlan != null) ...[
+                                _buildChecklistSection(),
+                                _buildAdaptivePlanSection(),
+                              ],
                             ],
                           )),
             ),

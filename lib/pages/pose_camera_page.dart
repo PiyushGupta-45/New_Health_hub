@@ -11,6 +11,7 @@ import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import 'package:google_mlkit_commons/google_mlkit_commons.dart' as mlkit;
 import 'package:permission_handler/permission_handler.dart';
 import '../models/exercise_type.dart';
+import '../services/posture_history_service.dart';
 
 enum _PostureQuality {
   correct,
@@ -55,11 +56,16 @@ class _PoseCameraPageState
   Timer? _beepTimer;
   Timer? _burstStopTimer;
   bool _wasIncorrect = false;
+  bool _sessionSaved = false;
   _PostureQuality _activeTone = _PostureQuality.neutral;
   final FlutterTts _tts = FlutterTts();
   DateTime _lastVoiceAt = DateTime.fromMillisecondsSinceEpoch(0);
   String _lastSpokenMessage = '';
   String _cameraGuidance = 'Align your body in the center of the frame';
+  int _correctFrames = 0;
+  int _incorrectFrames = 0;
+  int _neutralFrames = 0;
+  final PostureHistoryService _postureHistoryService = PostureHistoryService();
 
   @override
   void initState() {
@@ -78,6 +84,7 @@ class _PoseCameraPageState
     );
     _stopBeeping();
     _tts.stop();
+    unawaited(_persistSessionIfNeeded());
     _cameraController?.stopImageStream();
     _cameraController?.dispose();
     _poseDetector?.close();
@@ -460,14 +467,53 @@ class _PoseCameraPageState
         break;
     }
 
-    _setPostureTone(
-      _classifyPostureLabel(
-        _postureLabel,
-      ),
-    );
+    final quality = _classifyPostureLabel(_postureLabel);
+    _setPostureTone(quality);
+    switch (quality) {
+      case _PostureQuality.correct:
+        _correctFrames++;
+        break;
+      case _PostureQuality.incorrect:
+        _incorrectFrames++;
+        break;
+      case _PostureQuality.neutral:
+        _neutralFrames++;
+        break;
+    }
     unawaited(
       _speakFeedbackIfNeeded(),
     );
+  }
+
+  Future<void> _persistSessionIfNeeded() async {
+    if (_sessionSaved) return;
+    final totalFrames = _correctFrames + _incorrectFrames + _neutralFrames;
+    if (totalFrames < 10) return;
+
+    _sessionSaved = true;
+    final score = (_correctFrames / totalFrames) * 100;
+    final feedback = _sanitizeFeedback(_postureLabel);
+
+    await _postureHistoryService.saveSession(
+      PostureSessionRecord(
+        id: '${widget.exerciseType.name}_${DateTime.now().millisecondsSinceEpoch}',
+        exerciseType: widget.exerciseType,
+        score: score,
+        correctFrames: _correctFrames,
+        incorrectFrames: _incorrectFrames,
+        neutralFrames: _neutralFrames,
+        feedback: feedback,
+        recordedAt: DateTime.now(),
+      ),
+    );
+  }
+
+  String _sanitizeFeedback(String label) {
+    return label
+        .replaceAll(RegExp(r'[^ -~]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim()
+        .replaceAll('Good ', 'Good ');
   }
 
   _PostureQuality _classifyPostureLabel(

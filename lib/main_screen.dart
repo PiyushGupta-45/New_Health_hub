@@ -10,29 +10,7 @@ import 'pages/home_page.dart';
 import 'pages/community_page.dart';
 import 'pages/auth_page.dart';
 import 'pages/progress_dashboard_view.dart';
-import 'widgets/health_chatbot_widget.dart';
 import 'services/app_update_service.dart';
-
-// Chatbot Dialog Wrapper
-class HealthChatbotDialog extends StatelessWidget {
-  const HealthChatbotDialog({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(16),
-      child: Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const HealthChatbotWidget(),
-      ),
-    );
-  }
-}
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -41,7 +19,7 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   static const String _pendingUpdateTagKey = 'pending_update_tag';
   int _selectedIndex = 0;
   final PageController _pageController = PageController();
@@ -56,10 +34,27 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _authController.addListener(_onAuthChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForUpdates();
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state == AppLifecycleState.resumed) {
+      Future<void>(() async {
+        try {
+          await _healthSyncController.sync(force: true);
+          unawaited(_healthSyncController.hydrateFromBackend(force: true));
+        } catch (_) {
+          // Keep resume path best-effort so the app stays responsive.
+        }
+      });
+    }
   }
 
   Future<void> _checkForUpdates() async {
@@ -574,40 +569,32 @@ class _MainScreenState extends State<MainScreen> {
       },
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-
-        body: Stack(
+        body: PageView(
+          controller: _pageController,
+          physics: const NeverScrollableScrollPhysics(),
+          onPageChanged: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
           children: [
-            // Page content
-            PageView(
-              controller: _pageController,
-              physics: const NeverScrollableScrollPhysics(),
-              onPageChanged: (index) {
-                setState(() {
-                  _selectedIndex = index;
-                });
-              },
-              children: [
-                HomePage(
-                  controller: _healthSyncController,
-                  authController: _authController,
-                ),
-                CommunityPage(
-                  key: _communityPageKey,
-                  authController: _authController,
-                  healthSyncController: _healthSyncController,
-                ),
-                FeaturesView(
-                  controller: _healthSyncController,
-                  authController: _authController,
-                ),
-                ProgressDashboardView(
-                  controller: _healthSyncController,
-                  authController: _authController,
-                ),
-              ],
+            HomePage(
+              controller: _healthSyncController,
+              authController: _authController,
             ),
-            // Floating Health Chatbot - positioned above About button
-            const HealthChatbotWidget(),
+            CommunityPage(
+              key: _communityPageKey,
+              authController: _authController,
+              healthSyncController: _healthSyncController,
+            ),
+            FeaturesView(
+              controller: _healthSyncController,
+              authController: _authController,
+            ),
+            ProgressDashboardView(
+              controller: _healthSyncController,
+              authController: _authController,
+            ),
           ],
         ),
 
@@ -647,6 +634,7 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _updateSubscription?.cancel();
     _authController.removeListener(_onAuthChanged);
     _pageController.dispose();

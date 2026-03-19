@@ -212,9 +212,19 @@ class WeeklyWorkoutPlanService {
   }
 
   Future<Map<String, dynamic>> getLatestApprovedPlan() async {
+    final localPlan = await _loadLocalPlan();
+    final pendingPlan = await _loadPendingLocalPlan();
+    final freshestLocalPlan = _pickNewerPlan(localPlan, pendingPlan);
     try {
       final url = _baseUrl;
       if (url == null) {
+        if (freshestLocalPlan != null) {
+          return {
+            'success': true,
+            'data': freshestLocalPlan,
+            'localOnly': true,
+          };
+        }
         return {
           'success': false,
           'error': 'API_BASE_URL is not configured',
@@ -223,6 +233,13 @@ class WeeklyWorkoutPlanService {
 
       final token = await _getAuthToken();
       if (token == null || token.isEmpty) {
+        if (freshestLocalPlan != null) {
+          return {
+            'success': true,
+            'data': freshestLocalPlan,
+            'localOnly': true,
+          };
+        }
         return {
           'success': false,
           'error': 'User not authenticated. Please sign in.',
@@ -251,20 +268,23 @@ class WeeklyWorkoutPlanService {
           };
         }
         final raw = data['data'];
+        final backendPlan =
+            raw is Map<String, dynamic> ? WeeklyWorkoutPlan.fromJson(raw) : null;
+        final chosenPlan = _pickNewestPlan([
+          backendPlan,
+          freshestLocalPlan,
+        ]);
         return {
           'success': true,
-          'data': raw is Map<String, dynamic>
-              ? WeeklyWorkoutPlan.fromJson(raw)
-              : null,
-          'localOnly': false,
+          'data': chosenPlan,
+          'localOnly': chosenPlan != null && chosenPlan != backendPlan,
         };
       }
 
-      final localPlan = await _loadLocalPlan();
-      if (localPlan != null) {
+      if (freshestLocalPlan != null) {
         return {
           'success': true,
-          'data': localPlan,
+          'data': freshestLocalPlan,
           'localOnly': true,
         };
       }
@@ -280,11 +300,10 @@ class WeeklyWorkoutPlanService {
         ),
       };
     } catch (e) {
-      final localPlan = await _loadLocalPlan();
-      if (localPlan != null) {
+      if (freshestLocalPlan != null) {
         return {
           'success': true,
-          'data': localPlan,
+          'data': freshestLocalPlan,
           'localOnly': true,
         };
       }
@@ -449,5 +468,34 @@ class WeeklyWorkoutPlanService {
     }
 
     return '$fallback (status $statusCode)';
+  }
+
+  WeeklyWorkoutPlan? _pickNewerPlan(
+    WeeklyWorkoutPlan? first,
+    WeeklyWorkoutPlan? second,
+  ) {
+    return _pickNewestPlan([first, second]);
+  }
+
+  WeeklyWorkoutPlan? _pickNewestPlan(List<WeeklyWorkoutPlan?> candidates) {
+    WeeklyWorkoutPlan? newest;
+    DateTime? newestAt;
+
+    for (final candidate in candidates) {
+      if (candidate == null) continue;
+      final candidateAt = candidate.approvedAt ?? candidate.createdAt;
+      if (newest == null) {
+        newest = candidate;
+        newestAt = candidateAt;
+        continue;
+      }
+      if (candidateAt != null &&
+          (newestAt == null || candidateAt.isAfter(newestAt))) {
+        newest = candidate;
+        newestAt = candidateAt;
+      }
+    }
+
+    return newest;
   }
 }

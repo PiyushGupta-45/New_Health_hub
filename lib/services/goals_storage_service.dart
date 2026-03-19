@@ -1,7 +1,10 @@
 // goals_storage_service.dart
 
 import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../pages/personalized_goals_view.dart';
 
 class GoalsStorageService {
@@ -11,44 +14,47 @@ class GoalsStorageService {
 
   static const String _goalsKey = 'saved_goals';
 
-  /// Save goals to local storage
   Future<void> saveGoals(List<Goal> goals) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final goalsJson = goals.map((goal) => _goalToJson(goal)).toList();
+      final goalsJson = goals.map(_goalToJson).toList();
       await prefs.setString(_goalsKey, json.encode(goalsJson));
-      print('✅ Saved ${goals.length} goals to local storage');
+      debugPrint('Saved ${goals.length} goals to local storage');
     } catch (e) {
-      print('❌ Error saving goals: $e');
+      debugPrint('Error saving goals: $e');
     }
   }
 
-  /// Load goals from local storage
   Future<List<Goal>> loadGoals() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final goalsJson = prefs.getString(_goalsKey);
-      
+
       if (goalsJson == null || goalsJson.isEmpty) {
-        print('📋 No saved goals found');
+        debugPrint('No saved goals found');
         return [];
       }
 
-      final List<dynamic> decoded = json.decode(goalsJson);
-      final goals = decoded.map((json) => _goalFromJson(json)).toList();
-      print('✅ Loaded ${goals.length} goals from local storage');
+      final decoded = json.decode(goalsJson);
+      if (decoded is! List) return [];
+
+      final goals = decoded
+          .where((item) => item is Map)
+          .map((item) => _goalFromJson(Map<String, dynamic>.from(item as Map)))
+          .toList();
+      debugPrint('Loaded ${goals.length} goals from local storage');
       return goals;
     } catch (e) {
-      print('❌ Error loading goals: $e');
+      debugPrint('Error loading goals: $e');
       return [];
     }
   }
 
-  /// Convert Goal to JSON
   Map<String, dynamic> _goalToJson(Goal goal) {
     return {
       'goalId': goal.goalId,
       'name': goal.name,
+      'activityType': goal.activityType,
       'target': goal.target,
       'unit': goal.unit,
       'deadline': goal.deadline.toIso8601String(),
@@ -57,28 +63,45 @@ class GoalsStorageService {
     };
   }
 
-  /// Convert JSON to Goal
   Goal _goalFromJson(Map<String, dynamic> json) {
     return Goal(
-      goalId: json['goalId'] as String,
-      name: json['name'] as String,
-      target: json['target'] as String,
-      unit: json['unit'] as String,
-      deadline: DateTime.parse(json['deadline'] as String),
-      reminderTime: DateTime.parse(json['reminderTime'] as String),
-      connectToTracker: json['connectToTracker'] as bool? ?? false,
+      goalId: json['goalId']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Goal',
+      activityType: _inferActivityType(json),
+      target: json['target']?.toString() ?? '0',
+      unit: json['unit']?.toString() ?? '',
+      deadline: DateTime.tryParse(json['deadline']?.toString() ?? '') ??
+          DateTime.now(),
+      reminderTime:
+          DateTime.tryParse(json['reminderTime']?.toString() ?? '') ??
+              DateTime.now(),
+      connectToTracker: json['connectToTracker'] == true,
     );
   }
 
-  /// Clear all saved goals
   Future<void> clearGoals() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_goalsKey);
-      print('🗑️ Cleared all saved goals');
+      debugPrint('Cleared all saved goals');
     } catch (e) {
-      print('❌ Error clearing goals: $e');
+      debugPrint('Error clearing goals: $e');
     }
   }
-}
 
+  String _inferActivityType(Map<String, dynamic> json) {
+    final explicit = json['activityType']?.toString();
+    if (explicit != null && explicit.isNotEmpty) return explicit;
+
+    final unit = json['unit']?.toString().toLowerCase() ?? '';
+    if (unit == 'steps') return 'Steps';
+    if (unit == 'minutes') return 'Cardio Minutes';
+    if (unit == 'calories') return 'Calorie Burn';
+    if (unit == 'km') return 'Distance (km)';
+    if (unit == 'ml') return 'Water Intake';
+
+    final name = json['name']?.toString().toLowerCase() ?? '';
+    if (name.contains('weight')) return 'Weight Loss';
+    return 'Steps';
+  }
+}

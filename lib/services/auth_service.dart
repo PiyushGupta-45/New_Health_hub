@@ -389,17 +389,23 @@ class AuthService {
           url == null ||
           url.isEmpty) {
         await clearUser();
-        return {'success': false, 'error': 'No active session'};
+        return {
+          'success': false,
+          'error': 'No active session',
+          'shouldSignOut': true,
+        };
       }
 
-      final response = await http.get(
-        Uri.parse('$url/api/user/profile'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-          'x-api-key': apiKey ?? '',
-        },
-      );
+      final response = await http
+          .get(
+            Uri.parse('$url/api/user/profile'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+              'x-api-key': apiKey ?? '',
+            },
+          )
+          .timeout(const Duration(seconds: 2));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
@@ -420,22 +426,30 @@ class AuthService {
         return {
           'success': false,
           'error': 'Session expired. Please sign in again.',
+          'shouldSignOut': true,
         };
       }
 
-      return {'success': true, 'user': user};
+      return {'success': true, 'user': user, 'shouldSignOut': false};
     } catch (e) {
-      // Keep existing local session on transient network failures.
+      // Keep existing local session on transient network failures or offline startup.
       final user = await getStoredUser();
       if (user != null) {
-        return {'success': true, 'user': user};
+        return {'success': true, 'user': user, 'shouldSignOut': false};
       }
-      return {'success': false, 'error': 'Session validation failed'};
+      return {
+        'success': false,
+        'error': 'Session validation failed',
+        'shouldSignOut': false,
+      };
     }
   }
 
   // Update user profile
-  Future<Map<String, dynamic>> updateProfile({required String name}) async {
+  Future<Map<String, dynamic>> updateProfile({
+    String? name,
+    int? dailyStepGoal,
+  }) async {
     try {
       final url = baseUrl;
       if (url == null || url.isEmpty) {
@@ -447,6 +461,20 @@ class AuthService {
         return {'success': false, 'error': 'Not authenticated'};
       }
 
+      final hasNameUpdate = name != null && name.trim().isNotEmpty;
+      final hasStepGoalUpdate = dailyStepGoal != null;
+      if (!hasNameUpdate && !hasStepGoalUpdate) {
+        return {'success': false, 'error': 'No profile changes provided'};
+      }
+
+      final payload = <String, dynamic>{};
+      if (hasNameUpdate) {
+        payload['name'] = name!.trim();
+      }
+      if (hasStepGoalUpdate) {
+        payload['dailyStepGoal'] = dailyStepGoal;
+      }
+
       final endpoint = '$url/api/user/profile';
       final response = await http.put(
         Uri.parse(endpoint),
@@ -455,7 +483,7 @@ class AuthService {
           'Authorization': 'Bearer $token',
           'x-api-key': apiKey ?? '',
         },
-        body: json.encode({'name': name}),
+        body: json.encode(payload),
       );
 
       final data = json.decode(response.body);

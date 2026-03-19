@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -81,6 +82,11 @@ class HealthSyncController extends ChangeNotifier {
     }
 
     return resolved;
+  }
+
+  int _preserveHigherDisplayedSteps(int candidateSteps) {
+    final currentDisplayed = _snapshot?.todaySteps ?? 0;
+    return max(candidateSteps, currentDisplayed);
   }
 
   Future<int> _resolveSensorStepsForBackend(int fallbackSteps) async {
@@ -242,6 +248,14 @@ class HealthSyncController extends ChangeNotifier {
           return;
         }
 
+        var notificationStatus = await Permission.notification.status;
+        if (!notificationStatus.isGranted &&
+            !notificationStatus.isPermanentlyDenied) {
+          notificationStatus = await Permission.notification.request();
+        }
+
+        await _directStepService.ensureBackgroundTrackingStarted();
+
         // Warm up baseline so stream updates can be interpreted immediately.
         try {
           await _directStepService.getTodaySteps();
@@ -394,9 +408,12 @@ class HealthSyncController extends ChangeNotifier {
         final now = DateTime.now();
         final referenceDate = dataDate ?? now;
         final rangeStart = referenceDate.subtract(const Duration(days: 7));
+        final currentDisplayed = _snapshot?.todaySteps ?? 0;
 
         // Align sensor baseline with server data first
-        await _alignSensorBaselineWithServer(steps);
+        if (steps >= currentDisplayed) {
+          await _alignSensorBaselineWithServer(steps);
+        }
 
         // After aligning baseline, get steps from sensor (not server) for display
         if (Platform.isAndroid) {
@@ -420,9 +437,11 @@ class HealthSyncController extends ChangeNotifier {
               if (sensorSteps >= 0) {
                 _displayBaselineSteps = steps > 0 ? steps : 0;
                 _displayBaselineCumulative = currentCount;
-                final displaySteps = _resolveDisplaySteps(
-                  sensorTodaySteps: sensorSteps,
-                  cumulativeSteps: currentCount,
+                final displaySteps = _preserveHigherDisplayedSteps(
+                  _resolveDisplaySteps(
+                    sensorTodaySteps: sensorSteps,
+                    cumulativeSteps: currentCount,
+                  ),
                 );
                 final primarySource = 'Phone Sensor';
 
@@ -456,16 +475,17 @@ class HealthSyncController extends ChangeNotifier {
             }
             // Fallback to server steps if sensor fails
             if (steps >= 0) {
-              _displayBaselineSteps = steps;
+              final displaySteps = _preserveHigherDisplayedSteps(steps);
+              _displayBaselineSteps = max(steps, currentDisplayed);
               _displayBaselineCumulative = null;
               _snapshot = HealthSyncSnapshot(
-                todaySteps: steps,
+                todaySteps: displaySteps,
                 workouts: _snapshot?.workouts ?? const [],
                 rangeStart: rangeStart,
                 rangeEnd: referenceDate,
                 locationPermissionGranted:
                     _snapshot?.locationPermissionGranted ?? false,
-                stepsBySource: {'Cloud Sync': steps},
+                stepsBySource: {'Cloud Sync': displaySteps},
                 primaryStepsSource: source,
               );
               _status = HealthSyncStatus.ready;
@@ -476,16 +496,17 @@ class HealthSyncController extends ChangeNotifier {
         } else {
           // Non-Android: use server steps as fallback
           if (steps >= 0) {
-            _displayBaselineSteps = steps;
+            final displaySteps = _preserveHigherDisplayedSteps(steps);
+            _displayBaselineSteps = max(steps, currentDisplayed);
             _displayBaselineCumulative = null;
             _snapshot = HealthSyncSnapshot(
-              todaySteps: steps,
+              todaySteps: displaySteps,
               workouts: _snapshot?.workouts ?? const [],
               rangeStart: rangeStart,
               rangeEnd: referenceDate,
               locationPermissionGranted:
                   _snapshot?.locationPermissionGranted ?? false,
-              stepsBySource: {'Cloud Sync': steps},
+              stepsBySource: {'Cloud Sync': displaySteps},
               primaryStepsSource: source,
             );
             _status = HealthSyncStatus.ready;

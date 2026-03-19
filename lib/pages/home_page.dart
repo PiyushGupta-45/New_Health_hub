@@ -11,19 +11,26 @@ import 'package:shared_preferences/shared_preferences.dart';
 // Replace with your actual import paths if needed.
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/services.dart';
 import '../controllers/health_sync_controller.dart';
 import '../controllers/auth_controller.dart';
+import '../services/auth_service.dart';
 import '../services/theme_service.dart';
 import '../widgets/theme_toggle_button.dart';
 import 'workout_tracker_view.dart';
-import 'personalized_goals_view.dart';
 import 'posture_analysis_view.dart';
 import 'ai_diet_view.dart';
 import 'ai_workout_plan_view.dart';
 import 'auth_page.dart';
+import 'habit_tracker_page.dart';
+import 'meal_tracker_page.dart';
+import 'recovery_checkin_page.dart';
+import 'streaks_rewards_page.dart';
 import 'steps_history_view.dart';
+import 'walking_missions_page.dart';
 import 'account_page.dart';
 import 'progress_dashboard_view.dart';
+import '../services/direct_step_service.dart';
 
 // Helper extensions for modifying color values slightly
 extension on Color {
@@ -49,8 +56,107 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _StepGoalEditorDialog extends StatefulWidget {
+  const _StepGoalEditorDialog({
+    required this.initialGoal,
+    required this.defaultGoal,
+  });
+
+  final int initialGoal;
+  final int defaultGoal;
+
+  @override
+  State<_StepGoalEditorDialog> createState() => _StepGoalEditorDialogState();
+}
+
+class _StepGoalEditorDialogState extends State<_StepGoalEditorDialog> {
+  late final TextEditingController _controller;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialGoal.toString());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit(int value) {
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Set daily step goal'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Choose the target shown on your home progress card.'),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _controller,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              labelText: 'Steps',
+              hintText: '10000',
+              suffixText: 'steps',
+              errorText: _errorText,
+            ),
+            autofocus: true,
+            onChanged: (_) {
+              if (_errorText != null) {
+                setState(() {
+                  _errorText = null;
+                });
+              }
+            },
+            onSubmitted: (_) {
+              final value = int.tryParse(_controller.text.trim());
+              if (value != null && value >= 1000 && value <= 100000) {
+                _submit(value);
+              }
+            },
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => _submit(widget.defaultGoal),
+          child: const Text('Reset'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final value = int.tryParse(_controller.text.trim());
+            if (value == null || value < 1000 || value > 100000) {
+              setState(() {
+                _errorText = 'Enter a step goal between 1,000 and 100,000.';
+              });
+              return;
+            }
+            _submit(value);
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   static const int _defaultStepGoal = 10000;
+  static const String _homeStepGoalKey = 'home_step_goal';
   static const int _uspBannerCount = 3;
   bool _requestedInitialSync = false;
   bool _checkedBackgroundPrompt = false;
@@ -58,13 +164,18 @@ class _HomePageState extends State<HomePage> {
   final PageController _uspBannerController = PageController();
   Timer? _uspBannerTimer;
   int _uspBannerIndex = 0;
+  int _currentStepGoal = _defaultStepGoal;
   static const String _backgroundPromptKey = 'background_tracking_prompt_shown';
+  final DirectStepService _directStepService = DirectStepService();
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     widget.controller.addListener(_handleControllerChanged);
     _startUspBannerAutoplay();
+    unawaited(_loadStepGoal());
   }
 
   @override
@@ -82,17 +193,29 @@ class _HomePageState extends State<HomePage> {
     if (!_requestedInitialSync) {
       _requestedInitialSync = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        // Clear any old cached data and force a fresh sync
-        widget.controller.clearCache();
-        widget.controller.hydrateFromBackend();
-        widget.controller.sync(force: true);
-        _maybeShowBackgroundTrackingPrompt();
+        unawaited(_performInitialStepLoad());
       });
     }
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_loadStepGoal());
+    }
+  }
+
+  Future<void> _performInitialStepLoad() async {
+    widget.controller.clearCache();
+    await widget.controller.sync(force: true);
+    await _maybeShowBackgroundTrackingPrompt();
+    unawaited(widget.controller.hydrateFromBackend());
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _uspBannerTimer?.cancel();
     _uspBannerController.dispose();
     widget.controller.removeListener(_handleControllerChanged);
@@ -117,6 +240,71 @@ class _HomePageState extends State<HomePage> {
     setState(() {});
   }
 
+  Future<void> _loadStepGoal() async {
+    final profileGoal = _readStepGoalFromProfile();
+    if (profileGoal != null) {
+      if (!mounted || profileGoal == _currentStepGoal) return;
+      setState(() {
+        _currentStepGoal = profileGoal;
+      });
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final resolvedGoal = prefs.getInt(_homeStepGoalKey) ?? _defaultStepGoal;
+    if (!mounted || resolvedGoal == _currentStepGoal) return;
+    setState(() {
+      _currentStepGoal = resolvedGoal;
+    });
+  }
+
+  Future<void> _saveStepGoal(int goal) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_homeStepGoalKey, goal);
+
+    if (widget.authController.isAuthenticated &&
+        !widget.authController.isGuest) {
+      final result = await _authService.updateProfile(dailyStepGoal: goal);
+      if (result['success'] == true) {
+        await widget.authController.refreshUser();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result['error']?.toString() ??
+                  'Saved locally, but failed to sync step goal to your account.',
+            ),
+          ),
+        );
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _currentStepGoal = goal;
+    });
+  }
+
+  int? _readStepGoalFromProfile() {
+    final rawValue = widget.authController.currentUser?['dailyStepGoal'];
+    if (rawValue is int) return rawValue;
+    if (rawValue is num) return rawValue.toInt();
+    if (rawValue is String) return int.tryParse(rawValue);
+    return null;
+  }
+
+  Future<void> _showStepGoalEditor() async {
+    final savedGoal = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => _StepGoalEditorDialog(
+        initialGoal: _currentStepGoal,
+        defaultGoal: _defaultStepGoal,
+      ),
+    );
+
+    if (savedGoal == null || savedGoal == _currentStepGoal) return;
+    await _saveStepGoal(savedGoal);
+  }
+
   Future<void> _maybeShowBackgroundTrackingPrompt() async {
     if (_checkedBackgroundPrompt || !mounted) return;
     _checkedBackgroundPrompt = true;
@@ -133,33 +321,13 @@ class _HomePageState extends State<HomePage> {
 
     await prefs.setBool(_backgroundPromptKey, true);
 
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Keep Step Tracking Active'),
-          content: const Text(
-            'To keep counting steps in the background (especially on Xiaomi/MIUI), '
-            'please allow background activity and disable battery optimization for this app. '
-            'You will only see this once.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Not Now'),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await openAppSettings();
-              },
-              child: const Text('Open App Settings'),
-            ),
-          ],
-        );
-      },
-    );
+    final isIgnoringBatteryOptimizations = await _directStepService
+        .isIgnoringBatteryOptimizations();
+    if (isIgnoringBatteryOptimizations || !mounted) {
+      return;
+    }
+
+    await _directStepService.requestIgnoreBatteryOptimizations();
   }
 
   void _onSyncPressed() async {
@@ -944,7 +1112,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final steps = widget.controller.todaySteps;
-    final progress = (steps / _defaultStepGoal).clamp(0.0, 1.0);
+    final progress = (steps / _currentStepGoal).clamp(0.0, 1.0);
     final percentage = (progress * 100).clamp(0, 100).toStringAsFixed(0);
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1225,27 +1393,48 @@ class _HomePageState extends State<HomePage> {
                                 const SizedBox(height: 8),
 
                                 // Step Goal Info
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.flag_rounded,
-                                      size: 16,
-                                      color: Colors.white.withValues(
-                                        alpha: 0.9,
+                                Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: _showStepGoalEditor,
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 4,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.flag_rounded,
+                                            size: 16,
+                                            color: Colors.white.withValues(
+                                              alpha: 0.9,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Goal: ${_formatNumber(_currentStepGoal)} steps',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white.withValues(
+                                                alpha: 0.9,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Icon(
+                                            Icons.edit_rounded,
+                                            size: 15,
+                                            color: Colors.white.withValues(
+                                              alpha: 0.82,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Goal: ${_formatNumber(_defaultStepGoal)} steps',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white.withValues(
-                                          alpha: 0.9,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
                               ],
                             ),
@@ -1449,12 +1638,99 @@ class _HomePageState extends State<HomePage> {
                       icon: Icons.flag_rounded,
                       iconColor: const Color(0xFFFF4500), // Orange-Red
                       iconBgColor: const Color(0xFFFF4500).withOpacity(0.1),
-                      title: 'Set Personalized Goals',
-                      subtitle: 'Customize your health targets',
+                      title: 'Workout & Goals',
+                      subtitle: 'Manage workouts and tracked goals together',
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (context) => const PersonalizedGoalsView(),
+                            builder: (context) => WorkoutTrackerView(
+                              controller: widget.controller,
+                              initialTab: 2,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildModernActionCard(
+                      context: context,
+                      icon: Icons.water_drop_rounded,
+                      iconColor: const Color(0xFF0EA5E9),
+                      iconBgColor: const Color(0xFF0EA5E9).withOpacity(0.1),
+                      title: 'Habit Tracker',
+                      subtitle: 'Log water, sleep, mood, and daily wellness',
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const HabitTrackerPage(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildModernActionCard(
+                      context: context,
+                      icon: Icons.spa_rounded,
+                      iconColor: const Color(0xFF16A34A),
+                      iconBgColor: const Color(0xFF16A34A).withOpacity(0.1),
+                      title: 'Recovery Check-In',
+                      subtitle: 'Score readiness before your workout',
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const RecoveryCheckInPage(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildModernActionCard(
+                      context: context,
+                      icon: Icons.workspace_premium_rounded,
+                      iconColor: const Color(0xFFF59E0B),
+                      iconBgColor: const Color(0xFFF59E0B).withOpacity(0.1),
+                      title: 'Streaks & Rewards',
+                      subtitle: 'See your XP, streaks, and earned badges',
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => StreaksRewardsPage(
+                              controller: widget.controller,
+                              authController: widget.authController,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildModernActionCard(
+                      context: context,
+                      icon: Icons.photo_camera_back_rounded,
+                      iconColor: const Color(0xFF15803D),
+                      iconBgColor: const Color(0xFF15803D).withOpacity(0.1),
+                      title: 'Meal Tracker',
+                      subtitle: 'Log meals, calories, and meal photos',
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const MealTrackerPage(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildModernActionCard(
+                      context: context,
+                      icon: Icons.route_rounded,
+                      iconColor: const Color(0xFF2563EB),
+                      iconBgColor: const Color(0xFF2563EB).withOpacity(0.1),
+                      title: 'Walking Missions',
+                      subtitle:
+                          'Start a route goal with live distance tracking',
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const WalkingMissionsPage(),
                           ),
                         );
                       },
