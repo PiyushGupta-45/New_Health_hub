@@ -36,201 +36,640 @@ class _GamesAndChallengesPageState extends State<GamesAndChallengesPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark
+        ? const Color(0xFF071120)
+        : const Color(0xFFF4F7FC);
+    final surfaceColor = isDark ? const Color(0xFF111C31) : Colors.white;
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: backgroundColor,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+        child: Stack(
           children: [
-          Text(
-            'Games & Challenges',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 24),
-          // Challenges Section
-          if (_isAuthenticated) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Challenges',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isDark
+                        ? const [
+                            Color(0xFF050D1A),
+                            Color(0xFF0B1730),
+                            Color(0xFF111C31),
+                          ]
+                        : const [
+                            Color(0xFFF7FAFF),
+                            Color(0xFFF1F6FF),
+                            Color(0xFFFBFCFE),
+                          ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: () => Navigator.push(
+              ),
+            ),
+            Positioned(
+              top: -30,
+              right: -42,
+              child: _buildGlowBlob(
+                size: 170,
+                color: const Color(0xFF4F7CFF).withOpacity(isDark ? 0.22 : 0.16),
+              ),
+            ),
+            Positioned(
+              top: 210,
+              left: -32,
+              child: _buildGlowBlob(
+                size: 130,
+                color: const Color(0xFF23C4C8).withOpacity(isDark ? 0.16 : 0.10),
+              ),
+            ),
+            SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeroCard(
+                    isDark: isDark,
+                    surfaceColor: surfaceColor,
+                  ),
+                  const SizedBox(height: 20),
+                  _buildSectionHeader(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => ChallengesListPage(
-                        healthSyncController: widget.healthSyncController,
-                      ),
-                    ),
+                    title: 'Challenges',
+                    subtitle: _isAuthenticated
+                        ? 'Create a competition or browse the active step races.'
+                        : 'Sign in to launch and join competitive challenges.',
+                    action: _isAuthenticated
+                        ? TextButton.icon(
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ChallengesListPage(
+                                  healthSyncController: widget.healthSyncController,
+                                ),
+                              ),
+                            ),
+                            icon: const Icon(Icons.emoji_events_outlined, size: 18),
+                            label: const Text('View All'),
+                          )
+                        : null,
                   ),
-                  icon: const Icon(Icons.emoji_events),
-                  label: const Text('View All'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: () => _showCreateChallengeDialog(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Create Challenge'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo.shade600,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                  const SizedBox(height: 12),
+                  _buildChallengePanel(
+                    context,
+                    isDark: isDark,
+                    surfaceColor: surfaceColor,
+                  ),
+                  const SizedBox(height: 22),
+                  _buildSectionHeader(
+                    context,
+                    title: 'Mini Games',
+                    subtitle: 'Compact activities for movement, focus, and fun.',
+                  ),
+                  const SizedBox(height: 14),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth;
+                      final crossAxisCount = width > 620 ? 3 : 2;
+                      final totalSpacing =
+                          crossAxisCount > 1 ? (crossAxisCount - 1) * 14.0 : 0.0;
+                      final tileWidth = (width - totalSpacing) / crossAxisCount;
+                      final tileHeight = width > 620
+                          ? 210.0
+                          : width < 380
+                          ? 250.0
+                          : 228.0;
+                      final aspectRatio = tileWidth / tileHeight;
+                      return GridView.count(
+                        crossAxisCount: crossAxisCount,
+                        childAspectRatio: aspectRatio,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                          _buildGameTile(
+                            context,
+                            title: 'Step Challenge',
+                            description: 'Watch your daily step goal fill up in real time.',
+                            icon: Icons.directions_walk_rounded,
+                            color: const Color(0xFF3B82F6),
+                            tag: 'Daily',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => StepChallengeGame(
+                                  healthSyncController: widget.healthSyncController,
+                                ),
+                              ),
+                            ),
+                          ),
+                          _buildGameTile(
+                            context,
+                            title: 'Walking Missions',
+                            description: 'Follow route goals with distance-based progress.',
+                            icon: Icons.route_rounded,
+                            color: const Color(0xFF4F46E5),
+                            tag: 'Outdoor',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const WalkingMissionsPage(),
+                              ),
+                            ),
+                          ),
+                          _buildGameTile(
+                            context,
+                            title: 'Fitness Quiz',
+                            description: 'Answer quick questions about health and training.',
+                            icon: Icons.quiz_rounded,
+                            color: const Color(0xFF16A34A),
+                            tag: 'Brain',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const FitnessQuizGame(),
+                              ),
+                            ),
+                          ),
+                          _buildGameTile(
+                            context,
+                            title: 'Reaction Test',
+                            description: 'See how quickly your reflexes respond.',
+                            icon: Icons.timer_outlined,
+                            color: const Color(0xFFF97316),
+                            tag: 'Speed',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ReactionTimeGame(),
+                              ),
+                            ),
+                          ),
+                          _buildGameTile(
+                            context,
+                            title: 'Memory Match',
+                            description: 'Flip cards and train recall with short rounds.',
+                            icon: Icons.memory_rounded,
+                            color: const Color(0xFF8B5CF6),
+                            tag: 'Focus',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const MemoryCardGame(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 24),
           ],
-          // Games Section
-          Text(
-            'Games',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildGameCard(
-            context,
-            title: 'Step Challenge',
-            description: 'Track your daily steps progress',
-            icon: Icons.directions_walk,
-            color: Colors.blue,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => StepChallengeGame(
-                  healthSyncController: widget.healthSyncController,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildGameCard(
-            context,
-            title: 'Walking Missions',
-            description: 'Take on route goals with live distance tracking',
-            icon: Icons.route_rounded,
-            color: Colors.indigo,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const WalkingMissionsPage(),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildGameCard(
-            context,
-            title: 'Fitness Quiz',
-            description: 'Test your knowledge about health and fitness',
-            icon: Icons.quiz,
-            color: Colors.green,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const FitnessQuizGame()),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildGameCard(
-            context,
-            title: 'Reaction Time Test',
-            description: 'Test your reflexes and reaction speed',
-            icon: Icons.timer,
-            color: Colors.orange,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ReactionTimeGame()),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildGameCard(
-            context,
-            title: 'Memory Card Game',
-            description: 'Match pairs and improve your memory',
-            icon: Icons.memory,
-            color: Colors.purple,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const MemoryCardGame()),
-            ),
-          ),
-        ],
         ),
       ),
     );
   }
 
-  Widget _buildGameCard(
+  Widget _buildGlowBlob({
+    required double size,
+    required Color color,
+  }) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: color,
+              blurRadius: size * 0.7,
+              spreadRadius: size * 0.12,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeroCard({
+    required bool isDark,
+    required Color surfaceColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: isDark
+            ? const LinearGradient(
+                colors: [Color(0xFF152544), Color(0xFF101C33)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : const LinearGradient(
+                colors: [Color(0xFFFDFEFF), Color(0xFFF4F8FF)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        border: Border.all(
+          color: Colors.white.withOpacity(isDark ? 0.08 : 0.85),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.22 : 0.06),
+            blurRadius: 28,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2E63FF).withOpacity(isDark ? 0.22 : 0.10),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              'Playful Progress',
+              style: TextStyle(
+                color: isDark ? const Color(0xFFAEC8FF) : const Color(0xFF2854D5),
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Games and challenges that keep your streak moving.',
+            style: TextStyle(
+              fontSize: 26,
+              height: 1.18,
+              fontWeight: FontWeight.w800,
+              color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF10213A),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Pick a quick game, stay sharp, or turn your steps into a light competition when you want the app to feel more alive.',
+            style: TextStyle(
+              fontSize: 14.5,
+              height: 1.45,
+              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF5C6B82),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _buildHeroMetric(
+                  isDark: isDark,
+                  label: 'Mini games',
+                  value: '5',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildHeroMetric(
+                  isDark: isDark,
+                  label: 'Challenge mode',
+                  value: _isAuthenticated ? 'Ready' : 'Sign in',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroMetric({
+    required bool isDark,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(isDark ? 0.06 : 0.72),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: isDark ? Colors.white : const Color(0xFF12233E),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: isDark ? const Color(0xFFB7C5DA) : const Color(0xFF6B7A90),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    Widget? action,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF12233E),
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  height: 1.4,
+                  color: isDark ? const Color(0xFFB7C5DA) : const Color(0xFF66768D),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (action != null) action,
+      ],
+    );
+  }
+
+  Widget _buildChallengePanel(
+    BuildContext context, {
+    required bool isDark,
+    required Color surfaceColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: surfaceColor.withOpacity(isDark ? 0.94 : 0.98),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withOpacity(isDark ? 0.06 : 0.88),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.18 : 0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: _isAuthenticated
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFB648).withOpacity(0.16),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.emoji_events_rounded,
+                        color: Color(0xFFEE8F05),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Launch a new challenge',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: isDark
+                                  ? const Color(0xFFF8FAFC)
+                                  : const Color(0xFF12233E),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Set the target, invite others, and keep the competition focused on steps.',
+                            style: TextStyle(
+                              height: 1.45,
+                              color: isDark
+                                  ? const Color(0xFFB8C5D8)
+                                  : const Color(0xFF617189),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _showCreateChallengeDialog(context),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Create Challenge'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2E63FF),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChallengesListPage(
+                              healthSyncController: widget.healthSyncController,
+                            ),
+                          ),
+                        ),
+                        icon: const Icon(Icons.flag_outlined),
+                        label: const Text('Browse'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isDark
+                              ? const Color(0xFFDCE6F7)
+                              : const Color(0xFF294466),
+                          side: BorderSide(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.10)
+                                : const Color(0xFFD8E2F1),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Challenges unlock after sign-in.',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: isDark
+                        ? const Color(0xFFF8FAFC)
+                        : const Color(0xFF12233E),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'You can still play the mini games right away, but group challenges need an account so invites and progress stay attached to you.',
+                  style: TextStyle(
+                    height: 1.45,
+                    color: isDark
+                        ? const Color(0xFFB8C5D8)
+                        : const Color(0xFF617189),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildGameTile(
     BuildContext context, {
     required String title,
     required String description,
     required IconData icon,
     required Color color,
+    required String tag,
     required VoidCallback onTap,
   }) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(20),
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+            borderRadius: BorderRadius.circular(24),
+            color: isDark ? const Color(0xFF111C31) : Colors.white,
+            border: Border.all(
+              color: Colors.white.withOpacity(isDark ? 0.06 : 0.90),
             ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color, size: 32),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.16 : 0.05),
+                blurRadius: 24,
+                offset: const Offset(0, 14),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        tag,
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11.5,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      description,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
+                    const Spacer(),
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
                       ),
+                      child: Icon(icon, color: color, size: 22),
                     ),
                   ],
                 ),
-              ),
-              Icon(Icons.arrow_forward_ios, color: color),
-            ],
+                const SizedBox(height: 20),
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF142640),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  description,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    height: 1.42,
+                    color: isDark ? const Color(0xFFB7C5DA) : const Color(0xFF66768D),
+                  ),
+                ),
+                const Spacer(),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Text(
+                      'Open game',
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(Icons.arrow_forward_rounded, color: color, size: 20),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -243,120 +682,382 @@ class _GamesAndChallengesPageState extends State<GamesAndChallengesPage> {
     final targetStepsController = TextEditingController(text: '10000');
     DateTime startDate = DateTime.now();
     DateTime endDate = DateTime.now().add(const Duration(days: 7));
+    String? errorText;
 
-    showDialog(
+    showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Create Challenge'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Challenge Title',
-                    border: OutlineInputBorder(),
+        builder: (context, setDialogState) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+
+          InputDecoration fieldDecoration(String label, {String? suffixText}) {
+            return InputDecoration(
+              labelText: label,
+              suffixText: suffixText,
+              filled: true,
+              fillColor: isDark
+                  ? const Color(0xFF182742)
+                  : const Color(0xFFF6F8FC),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.06)
+                      : const Color(0xFFD9E3F0),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: const BorderSide(
+                  color: Color(0xFF2E63FF),
+                  width: 1.4,
+                ),
+              ),
+            );
+          }
+
+          String formatDate(DateTime date) {
+            const months = [
+              'Jan',
+              'Feb',
+              'Mar',
+              'Apr',
+              'May',
+              'Jun',
+              'Jul',
+              'Aug',
+              'Sep',
+              'Oct',
+              'Nov',
+              'Dec',
+            ];
+            return '${date.day} ${months[date.month - 1]} ${date.year}';
+          }
+
+          Future<void> pickStartDate() async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: startDate,
+              firstDate: DateTime.now(),
+              lastDate: DateTime.now().add(const Duration(days: 365)),
+            );
+            if (picked != null) {
+              setDialogState(() {
+                startDate = picked;
+                if (endDate.isBefore(startDate)) {
+                  endDate = startDate.add(const Duration(days: 7));
+                }
+              });
+            }
+          }
+
+          Future<void> pickEndDate() async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: endDate,
+              firstDate: startDate,
+              lastDate: DateTime.now().add(const Duration(days: 365)),
+            );
+            if (picked != null) {
+              setDialogState(() {
+                endDate = picked;
+              });
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF111C31) : Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: Colors.white.withOpacity(isDark ? 0.06 : 0.90),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.28 : 0.10),
+                    blurRadius: 32,
+                    offset: const Offset(0, 18),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                top: false,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 48,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.14)
+                                : const Color(0xFFD5DDE8),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        'Create challenge',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: isDark
+                              ? const Color(0xFFF8FAFC)
+                              : const Color(0xFF10213A),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Set a clear step target, choose the dates, and launch a challenge people will actually want to join.',
+                        style: TextStyle(
+                          height: 1.45,
+                          color: isDark
+                              ? const Color(0xFFB8C5D8)
+                              : const Color(0xFF66768D),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      TextField(
+                        controller: titleController,
+                        decoration: fieldDecoration('Challenge name'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: descriptionController,
+                        maxLines: 3,
+                        decoration: fieldDecoration(
+                          'Description',
+                          suffixText: 'Optional',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: targetStepsController,
+                        keyboardType: TextInputType.number,
+                        decoration: fieldDecoration(
+                          'Target steps',
+                          suffixText: 'steps',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildChallengeDateTile(
+                              label: 'Start',
+                              value: formatDate(startDate),
+                              icon: Icons.event_available_rounded,
+                              isDark: isDark,
+                              onTap: pickStartDate,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildChallengeDateTile(
+                              label: 'End',
+                              value: formatDate(endDate),
+                              icon: Icons.flag_rounded,
+                              isDark: isDark,
+                              onTap: pickEndDate,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (errorText != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          errorText!,
+                          style: const TextStyle(
+                            color: Color(0xFFDC2626),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(context),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 15),
+                                foregroundColor: isDark
+                                    ? const Color(0xFFDCE6F7)
+                                    : const Color(0xFF294466),
+                                side: BorderSide(
+                                  color: isDark
+                                      ? Colors.white.withOpacity(0.10)
+                                      : const Color(0xFFD8E2F1),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                              ),
+                              child: const Text('Cancel'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () async {
+                                final title = titleController.text.trim();
+                                final targetSteps = int.tryParse(
+                                  targetStepsController.text,
+                                );
+                                if (title.isEmpty) {
+                                  setDialogState(() {
+                                    errorText = 'Please enter a challenge name.';
+                                  });
+                                  return;
+                                }
+                                if (targetSteps == null || targetSteps <= 0) {
+                                  setDialogState(() {
+                                    errorText = 'Please enter a valid step target.';
+                                  });
+                                  return;
+                                }
+                                Navigator.pop(context);
+                                final normalizedStartDate = DateTime(
+                                  startDate.year,
+                                  startDate.month,
+                                  startDate.day,
+                                );
+                                final normalizedEndDate = DateTime(
+                                  endDate.year,
+                                  endDate.month,
+                                  endDate.day,
+                                  23,
+                                  59,
+                                  59,
+                                );
+                                await _createChallenge(
+                                  title,
+                                  descriptionController.text.trim(),
+                                  targetSteps,
+                                  normalizedStartDate,
+                                  normalizedEndDate,
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2E63FF),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(vertical: 15),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                              ),
+                              child: const Text('Create'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Description (optional)',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 2,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: targetStepsController,
-                  decoration: const InputDecoration(
-                    labelText: 'Target Steps',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 12),
-                ListTile(
-                  title: const Text('Start Date'),
-                  subtitle: Text('${startDate.toLocal().toString().split('.')[0]}'),
-                  trailing: const Icon(Icons.calendar_today),
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: startDate,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                    );
-                    if (picked != null) {
-                      setDialogState(() {
-                        startDate = picked;
-                        if (endDate.isBefore(startDate)) {
-                          endDate = startDate.add(const Duration(days: 7));
-                        }
-                      });
-                    }
-                  },
-                ),
-                ListTile(
-                  title: const Text('End Date'),
-                  subtitle: Text('${endDate.toLocal().toString().split('.')[0]}'),
-                  trailing: const Icon(Icons.calendar_today),
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: endDate,
-                      firstDate: startDate,
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                    );
-                    if (picked != null) {
-                      setDialogState(() {
-                        endDate = picked;
-                      });
-                    }
-                  },
-                ),
-              ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildChallengeDateTile({
+    required String label,
+    required String value,
+    required IconData icon,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark
+                ? const Color(0xFF182742)
+                : const Color(0xFFF6F8FC),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withOpacity(0.06)
+                  : const Color(0xFFD9E3F0),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final title = titleController.text.trim();
-                final targetSteps = int.tryParse(targetStepsController.text);
-                if (title.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter a title')),
-                  );
-                  return;
-                }
-                if (targetSteps == null || targetSteps <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter valid target steps')),
-                  );
-                  return;
-                }
-                Navigator.pop(context);
-                // Normalize dates to start of day (midnight) to ensure proper status calculation
-                final normalizedStartDate = DateTime(startDate.year, startDate.month, startDate.day);
-                final normalizedEndDate = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59); // End of day
-                await _createChallenge(
-                  title,
-                  descriptionController.text.trim(),
-                  targetSteps,
-                  normalizedStartDate,
-                  normalizedEndDate,
-                );
-              },
-              child: const Text('Create'),
-            ),
-          ],
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E63FF).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.calendar_month_rounded,
+                  color: Color(0xFF2E63FF),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? const Color(0xFF9DB0CC)
+                            : const Color(0xFF70839B),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      value,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? const Color(0xFFF8FAFC)
+                            : const Color(0xFF10213A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                icon,
+                color: isDark
+                    ? const Color(0xFFB8C5D8)
+                    : const Color(0xFF66768D),
+                size: 18,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1627,6 +2328,15 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF1A2438) : Colors.white;
+    final primaryTextColor = isDark
+        ? const Color(0xFFF8FAFC)
+        : const Color(0xFF10213A);
+    final secondaryTextColor = isDark
+        ? const Color(0xFFB8C5D8)
+        : const Color(0xFF66768D);
+
     if (_isLoading && _challenge == null) {
       return Scaffold(
         appBar: AppBar(
@@ -1655,6 +2365,7 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
     final progress = (mySteps / targetSteps).clamp(0.0, 1.0);
 
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0B1324) : const Color(0xFFF4F7FC),
       appBar: AppBar(
         title: Text(_challenge!['title'] ?? 'Challenge'),
         backgroundColor: Colors.indigo.shade600,
@@ -1681,9 +2392,13 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
               margin: const EdgeInsets.only(bottom: 16),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.indigo.shade50,
+                color: isDark ? const Color(0xFF1A2340) : Colors.indigo.shade50,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.indigo.shade100),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.indigo.shade400.withOpacity(0.25)
+                      : Colors.indigo.shade100,
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1713,7 +2428,7 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                     _liveUpdateMessage ??
                         'Auto-refreshing every 10 seconds so rank changes show up without manual reload.',
                     style: TextStyle(
-                      color: Colors.grey.shade700,
+                      color: secondaryTextColor,
                       height: 1.4,
                     ),
                   ),
@@ -1722,7 +2437,7 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                     Text(
                       'Last updated at ${_lastRefreshAt!.hour.toString().padLeft(2, '0')}:${_lastRefreshAt!.minute.toString().padLeft(2, '0')}:${_lastRefreshAt!.second.toString().padLeft(2, '0')}',
                       style: TextStyle(
-                        color: Colors.grey.shade600,
+                        color: secondaryTextColor,
                         fontSize: 12,
                       ),
                     ),
@@ -1732,6 +2447,16 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
             ),
             // Challenge Info
             Card(
+              color: surfaceColor,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.06)
+                      : const Color(0xFFE2E8F0),
+                ),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -1739,9 +2464,10 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                   children: [
                     Text(
                       _challenge!['title'] ?? 'Untitled',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
+                        color: primaryTextColor,
                       ),
                     ),
                     if (_challenge!['description'] != null)
@@ -1749,7 +2475,7 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
                           _challenge!['description'],
-                          style: TextStyle(color: Colors.grey.shade600),
+                          style: TextStyle(color: secondaryTextColor),
                         ),
                       ),
                     const SizedBox(height: 16),
@@ -1760,13 +2486,15 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade700,
+                          color: primaryTextColor,
                         ),
                       ),
                       const SizedBox(height: 8),
                       LinearProgressIndicator(
                         value: progress,
-                        backgroundColor: Colors.grey.shade300,
+                        backgroundColor: isDark
+                            ? Colors.white.withOpacity(0.12)
+                            : Colors.grey.shade300,
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.indigo),
                         minHeight: 8,
                       ),
@@ -1774,10 +2502,16 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('$mySteps / $targetSteps steps'),
+                          Text(
+                            '$mySteps / $targetSteps steps',
+                            style: TextStyle(color: secondaryTextColor),
+                          ),
                           Text(
                             '${(progress * 100).toStringAsFixed(1)}%',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: primaryTextColor,
+                            ),
                           ),
                         ],
                       ),
@@ -1785,18 +2519,18 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                     ],
                     Row(
                       children: [
-                        Icon(Icons.directions_walk, size: 16, color: Colors.grey.shade600),
+                        Icon(Icons.directions_walk, size: 16, color: secondaryTextColor),
                         const SizedBox(width: 4),
                         Text(
                           'Target: $targetSteps steps',
-                          style: TextStyle(color: Colors.grey.shade600),
+                          style: TextStyle(color: secondaryTextColor),
                         ),
                         const SizedBox(width: 16),
-                        Icon(Icons.people, size: 16, color: Colors.grey.shade600),
+                        Icon(Icons.people, size: 16, color: secondaryTextColor),
                         const SizedBox(width: 4),
                         Text(
                           '${participants.length} participants',
-                          style: TextStyle(color: Colors.grey.shade600),
+                          style: TextStyle(color: secondaryTextColor),
                         ),
                       ],
                     ),
@@ -1806,11 +2540,12 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
             ),
             const SizedBox(height: 16),
             // Leaderboard
-            const Text(
+            Text(
               'Leaderboard',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
+                color: primaryTextColor,
               ),
             ),
             const SizedBox(height: 12),
@@ -1822,7 +2557,18 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
               
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
-                color: isMe ? Colors.indigo.shade50 : null,
+                color: isMe
+                    ? (isDark ? const Color(0xFF1A2340) : Colors.indigo.shade50)
+                    : surfaceColor,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  side: BorderSide(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.06)
+                        : const Color(0xFFE2E8F0),
+                  ),
+                ),
                 child: ListTile(
                   leading: CircleAvatar(
                     backgroundColor: rank == 1
@@ -1844,16 +2590,22 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                     participant['userName'] ?? 'Unknown',
                     style: TextStyle(
                       fontWeight: isMe ? FontWeight.bold : FontWeight.normal,
+                      color: primaryTextColor,
                     ),
                   ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('$pSteps steps'),
+                      Text(
+                        '$pSteps steps',
+                        style: TextStyle(color: secondaryTextColor),
+                      ),
                       const SizedBox(height: 4),
                       LinearProgressIndicator(
                         value: pProgress,
-                        backgroundColor: Colors.grey.shade200,
+                        backgroundColor: isDark
+                            ? Colors.white.withOpacity(0.10)
+                            : Colors.grey.shade200,
                         valueColor: AlwaysStoppedAnimation<Color>(
                           rank == 1 ? Colors.amber : Colors.indigo,
                         ),
@@ -1863,7 +2615,10 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                   ),
                   trailing: Text(
                     '${(pProgress * 100).toStringAsFixed(0)}%',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: primaryTextColor,
+                    ),
                   ),
                 ),
               );

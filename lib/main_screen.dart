@@ -22,7 +22,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   static const String _pendingUpdateTagKey = 'pending_update_tag';
   int _selectedIndex = 0;
-  final PageController _pageController = PageController();
+  final List<int> _tabHistory = <int>[0];
   final HealthSyncController _healthSyncController = HealthSyncController();
   final AuthController _authController = AuthController();
   final AppUpdateService _appUpdateService = AppUpdateService();
@@ -450,7 +450,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     setState(() {});
   }
 
-  void _onItemTapped(int index) {
+  void _switchToTab(int index, {required bool addToHistory}) {
     if (_authController.isGuest && (index == 1)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -460,15 +460,55 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       return;
     }
 
+    if (_selectedIndex == index) {
+      return;
+    }
+
     setState(() {
+      if (addToHistory) {
+        _tabHistory.add(index);
+      } else {
+        if (_tabHistory.isEmpty) {
+          _tabHistory.add(index);
+        } else {
+          _tabHistory[_tabHistory.length - 1] = index;
+        }
+      }
       _selectedIndex = index;
     });
+  }
 
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
+  void _onItemTapped(int index) {
+    _switchToTab(index, addToHistory: true);
+  }
+
+  void _handleBackNavigation() {
+    if (_selectedIndex == 1) {
+      final handledByCommunity =
+          _communityPageKey.currentState?.handleBackFromSystem() ?? false;
+      if (handledByCommunity) {
+        return;
+      }
+    }
+
+    if (_tabHistory.length > 1) {
+      setState(() {
+        _tabHistory.removeLast();
+        _selectedIndex = _tabHistory.last;
+      });
+      return;
+    }
+
+    if (_selectedIndex != 0) {
+      setState(() {
+        _selectedIndex = 0;
+        if (_tabHistory.isEmpty) {
+          _tabHistory.add(0);
+        } else {
+          _tabHistory[_tabHistory.length - 1] = 0;
+        }
+      });
+    }
   }
 
   Widget _buildNavItem(IconData icon, String label, int index) {
@@ -543,40 +583,16 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
 
     return PopScope(
-      // Allow pop only if on home page
-      // For Community tab: CommunityPage's PopScope handles all back navigation
-      canPop: _selectedIndex == 0,
+      canPop: _selectedIndex == 0 && _tabHistory.length <= 1,
       onPopInvoked: (didPop) {
-        if (!didPop && _selectedIndex != 0) {
-          if (_selectedIndex == 1) {
-            final handledByCommunity =
-                _communityPageKey.currentState?.handleBackFromSystem() ?? false;
-            if (handledByCommunity) {
-              return;
-            }
-          }
-          // Handle back button - go to previous tab
-          setState(() {
-            _selectedIndex--;
-          });
-
-          _pageController.animateToPage(
-            _selectedIndex,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
+        if (!didPop && (_selectedIndex != 0 || _tabHistory.length > 1)) {
+          _handleBackNavigation();
         }
       },
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: PageView(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
-          onPageChanged: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
+        body: IndexedStack(
+          index: _selectedIndex,
           children: [
             HomePage(
               controller: _healthSyncController,
@@ -637,7 +653,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _updateSubscription?.cancel();
     _authController.removeListener(_onAuthChanged);
-    _pageController.dispose();
     _healthSyncController.dispose();
     _authController.dispose();
     super.dispose();

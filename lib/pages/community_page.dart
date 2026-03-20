@@ -1524,9 +1524,13 @@ class CommunityPageState
 
     // Community selection view - shown when no community is selected
     return Scaffold(
-      backgroundColor: Theme.of(
-        context,
-      ).scaffoldBackgroundColor,
+      backgroundColor: isDark
+          ? const Color(
+              0xFF071120,
+            )
+          : const Color(
+              0xFFF4F7FC,
+            ),
       appBar: AppBar(
         title: const Text(
           'Community',
@@ -1538,9 +1542,38 @@ class CommunityPageState
           0xFF2563EB,
         ),
         foregroundColor: Colors.white,
+        elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color(
+                  0xFF1D4ED8,
+                ),
+                Color(
+                  0xFF2563EB,
+                ),
+                Color(
+                  0xFF3B82F6,
+                ),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: Colors.white,
+          indicatorSize: TabBarIndicatorSize.tab,
+          dividerColor: Colors.transparent,
+          indicator: BoxDecoration(
+            borderRadius: BorderRadius.circular(
+              14,
+            ),
+            color: Colors.white.withOpacity(
+              0.14,
+            ),
+          ),
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
           tabs: const [
@@ -1586,26 +1619,295 @@ class CommunityPageState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Create Community Section
                         Container(
+                          padding: const EdgeInsets.all(
+                            20,
+                          ),
                           decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(
-                                    0xFF1E293B,
-                                  )
-                                : Colors.white,
                             borderRadius: BorderRadius.circular(
-                              20,
+                              28,
+                            ),
+                            gradient: isDark
+                                ? const LinearGradient(
+                                    colors: [
+                                      Color(
+                                        0xFF152544,
+                                      ),
+                                      Color(
+                                        0xFF101C33,
+                                      ),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  )
+                                : const LinearGradient(
+                                    colors: [
+                                      Color(
+                                        0xFFFDFEFF,
+                                      ),
+                                      Color(
+                                        0xFFF3F8FF,
+                                      ),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(
+                                isDark
+                                    ? 0.08
+                                    : 0.88,
+                              ),
                             ),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withOpacity(
-                                  0.05,
+                                  isDark
+                                      ? 0.20
+                                      : 0.06,
                                 ),
-                                blurRadius: 20,
+                                blurRadius: 28,
                                 offset: const Offset(
                                   0,
-                                  5,
+                                  16,
+                                ),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF2E63FF,
+                                  ).withOpacity(
+                                    isDark
+                                        ? 0.22
+                                        : 0.10,
+                                  ),
+                                  borderRadius: BorderRadius.circular(
+                                    999,
+                                  ),
+                                ),
+                                child: Text(
+                                  'Community Hub',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? const Color(
+                                            0xFFAEC8FF,
+                                          )
+                                        : const Color(
+                                            0xFF2854D5,
+                                          ),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(
+                                height: 16,
+                              ),
+                              Text(
+                                'Build your circle, join groups, and keep the conversation alive.',
+                                style: TextStyle(
+                                  fontSize: 25,
+                                  height: 1.18,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark
+                                      ? const Color(
+                                          0xFFF8FAFC,
+                                        )
+                                      : const Color(
+                                          0xFF10213A,
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(
+                                height: 10,
+                              ),
+                              Text(
+                                'Create a private space, join with a code, or jump into a public community and start chatting.',
+                                style: TextStyle(
+                                  height: 1.45,
+                                  color: isDark
+                                      ? const Color(
+                                          0xFFCBD5E1,
+                                        )
+                                      : const Color(
+                                          0xFF5C6B82,
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(
+                                height: 18,
+                              ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 12,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(
+                                          isDark
+                                              ? 0.06
+                                              : 0.72,
+                                        ),
+                                        borderRadius: BorderRadius.circular(
+                                          18,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '${_myCommunities.length}',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w800,
+                                              color: isDark
+                                                  ? Colors.white
+                                                  : const Color(
+                                                      0xFF12233E,
+                                                    ),
+                                            ),
+                                          ),
+                                          const SizedBox(
+                                            height: 2,
+                                          ),
+                                          Text(
+                                            'Joined groups',
+                                            style: TextStyle(
+                                              fontSize: 12.5,
+                                              color: isDark
+                                                  ? const Color(
+                                                      0xFFB7C5DA,
+                                                    )
+                                                  : const Color(
+                                                      0xFF6B7A90,
+                                                    ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(
+                                    width: 10,
+                                  ),
+                                  Expanded(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 12,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(
+                                          isDark
+                                              ? 0.06
+                                              : 0.72,
+                                        ),
+                                        borderRadius: BorderRadius.circular(
+                                          18,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '${_publicCommunities.length}',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w800,
+                                              color: isDark
+                                                  ? Colors.white
+                                                  : const Color(
+                                                      0xFF12233E,
+                                                    ),
+                                            ),
+                                          ),
+                                          const SizedBox(
+                                            height: 2,
+                                          ),
+                                          Text(
+                                            'Public spaces',
+                                            style: TextStyle(
+                                              fontSize: 12.5,
+                                              color: isDark
+                                                  ? const Color(
+                                                      0xFFB7C5DA,
+                                                    )
+                                                  : const Color(
+                                                      0xFF6B7A90,
+                                                    ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 18,
+                        ),
+                        // Create Community Section
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: isDark
+                                ? const LinearGradient(
+                                    colors: [
+                                      Color(
+                                        0xFF111C31,
+                                      ),
+                                      Color(
+                                        0xFF16233C,
+                                      ),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  )
+                                : const LinearGradient(
+                                    colors: [
+                                      Colors.white,
+                                      Color(
+                                        0xFFF7FAFF,
+                                      ),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                            borderRadius: BorderRadius.circular(
+                              20,
+                            ),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(
+                                isDark
+                                    ? 0.06
+                                    : 0.88,
+                              ),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(
+                                  isDark
+                                      ? 0.18
+                                      : 0.05,
+                                ),
+                                blurRadius: 24,
+                                offset: const Offset(
+                                  0,
+                                  12,
                                 ),
                               ),
                             ],
@@ -1708,23 +2010,50 @@ class CommunityPageState
                         // Join with Code Section
                         Container(
                           decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(
-                                    0xFF1E293B,
+                            gradient: isDark
+                                ? const LinearGradient(
+                                    colors: [
+                                      Color(
+                                        0xFF111C31,
+                                      ),
+                                      Color(
+                                        0xFF16233C,
+                                      ),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
                                   )
-                                : Colors.white,
+                                : const LinearGradient(
+                                    colors: [
+                                      Colors.white,
+                                      Color(
+                                        0xFFF7FAFF,
+                                      ),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
                             borderRadius: BorderRadius.circular(
                               20,
+                            ),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(
+                                isDark
+                                    ? 0.06
+                                    : 0.88,
+                              ),
                             ),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withOpacity(
-                                  0.05,
+                                  isDark
+                                      ? 0.18
+                                      : 0.05,
                                 ),
-                                blurRadius: 20,
+                                blurRadius: 24,
                                 offset: const Offset(
                                   0,
-                                  5,
+                                  12,
                                 ),
                               ),
                             ],
@@ -1842,23 +2171,50 @@ class CommunityPageState
                                     bottom: 12,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: isDark
-                                        ? const Color(
-                                            0xFF1E293B,
+                                    gradient: isDark
+                                        ? const LinearGradient(
+                                            colors: [
+                                              Color(
+                                                0xFF111C31,
+                                              ),
+                                              Color(
+                                                0xFF16233C,
+                                              ),
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
                                           )
-                                        : Colors.white,
+                                        : const LinearGradient(
+                                            colors: [
+                                              Colors.white,
+                                              Color(
+                                                0xFFF8FBFF,
+                                              ),
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
                                     borderRadius: BorderRadius.circular(
                                       16,
+                                    ),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(
+                                        isDark
+                                            ? 0.06
+                                            : 0.88,
+                                      ),
                                     ),
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.black.withOpacity(
-                                          0.05,
+                                          isDark
+                                              ? 0.14
+                                              : 0.05,
                                         ),
-                                        blurRadius: 10,
+                                        blurRadius: 18,
                                         offset: const Offset(
                                           0,
-                                          2,
+                                          10,
                                         ),
                                       ),
                                     ],
@@ -2014,23 +2370,50 @@ class CommunityPageState
                                   bottom: 12,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: isDark
-                                      ? const Color(
-                                          0xFF1E293B,
+                                  gradient: isDark
+                                      ? const LinearGradient(
+                                          colors: [
+                                            Color(
+                                              0xFF111C31,
+                                            ),
+                                            Color(
+                                              0xFF16233C,
+                                            ),
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
                                         )
-                                      : Colors.white,
+                                      : const LinearGradient(
+                                          colors: [
+                                            Colors.white,
+                                            Color(
+                                              0xFFF8FBFF,
+                                            ),
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
                                   borderRadius: BorderRadius.circular(
                                     16,
+                                  ),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(
+                                      isDark
+                                          ? 0.06
+                                          : 0.88,
+                                    ),
                                   ),
                                   boxShadow: [
                                     BoxShadow(
                                       color: Colors.black.withOpacity(
-                                        0.05,
+                                        isDark
+                                            ? 0.14
+                                            : 0.05,
                                       ),
-                                      blurRadius: 10,
+                                      blurRadius: 18,
                                       offset: const Offset(
                                         0,
-                                        2,
+                                        10,
                                       ),
                                     ),
                                   ],
