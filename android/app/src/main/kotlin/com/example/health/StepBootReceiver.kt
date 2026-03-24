@@ -1,8 +1,10 @@
 package com.example.health
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 
@@ -13,11 +15,19 @@ class StepBootReceiver : BroadcastReceiver() {
         val action = intent?.action ?: return
         val shouldRestart =
             action == Intent.ACTION_BOOT_COMPLETED ||
+            action == Intent.ACTION_LOCKED_BOOT_COMPLETED ||
             action == Intent.ACTION_MY_PACKAGE_REPLACED ||
             action == "android.intent.action.QUICKBOOT_POWERON" ||
             action == StepCounterService.ACTION_RESTART_SERVICE
 
         if (!shouldRestart) {
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            context.checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED
+        ) {
+            Log.i(tag, "Skipping step service restart because ACTIVITY_RECOGNITION is not granted.")
             return
         }
 

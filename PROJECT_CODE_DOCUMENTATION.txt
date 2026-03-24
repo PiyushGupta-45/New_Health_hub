@@ -1,0 +1,826 @@
+HEALTHHUB PROJECT DOCUMENTATION
+Text documentation for the complete project
+
+============================================================
+1. PROJECT PURPOSE
+============================================================
+
+This repository contains a Flutter application called HealthHub plus a Node.js backend.
+
+At a high level, the project tries to be an all-in-one health and fitness app with these major capabilities:
+
+- user authentication
+- daily step tracking
+- Health Connect integration
+- manual workout logging
+- AI workout planning
+- AI diet planning
+- meal tracking
+- habit tracking
+- posture analysis using camera and pose detection
+- walking missions using geolocation
+- communities and chat
+- step challenges and mini games
+- progress dashboard and streak/reward logic
+- Android in-app APK update flow based on GitHub releases
+
+The codebase is split into two main parts:
+
+- Flutter frontend in `lib/`
+- Express + MongoDB backend in `backend/`
+
+There are also Android, iOS, web, Linux, macOS, and Windows folders created by Flutter. Most of those platform folders are project scaffolding and runtime configuration rather than business logic.
+
+
+============================================================
+2. HIGH LEVEL ARCHITECTURE
+============================================================
+
+The app architecture is a pragmatic feature-based Flutter structure, not a heavy layered architecture.
+
+Main building blocks:
+
+- `pages/` contains UI screens and major feature views.
+- `services/` contains data access, API wrappers, local storage helpers, AI helpers, update logic, step logic, and workout logic.
+- `controllers/` contains app-level state coordinators for auth and health sync.
+- `models/` contains reusable data models and enums.
+- `widgets/` contains reusable UI widgets.
+- `painters/` contains custom drawing helpers.
+- native Android Kotlin code handles low-level step sensor access and update/install helper methods.
+- `backend/server.js` provides REST APIs and MongoDB persistence.
+
+Typical data flow:
+
+1. A page asks a controller or service for data.
+2. Controllers coordinate multiple services and expose UI-friendly state.
+3. Services either call backend APIs, read local `SharedPreferences`, call native Android through `MethodChannel`, call Hugging Face text generation, or process local device health and sensor data.
+4. UI rebuilds using the latest state.
+
+
+============================================================
+3. APP STARTUP FLOW
+============================================================
+
+Startup order:
+
+1. `lib/main.dart` starts Flutter, attempts to load `.env`, and launches `MyApp`.
+2. `MyApp` creates a `ThemeService` provider and builds the main `MaterialApp`.
+3. Home screen of the app is `SplashScreen`.
+4. `lib/pages/splash_screen.dart` shows a branded splash for 2 seconds.
+5. After the timer finishes, it pushes `MainScreen`.
+6. `lib/main_screen.dart` becomes the real app shell.
+7. `MainScreen` creates `AuthController`, `HealthSyncController`, and `AppUpdateService`.
+8. `MainScreen` decides whether to show the auth flow or the main tabbed application.
+9. After first render, `MainScreen` also checks for Android app updates.
+
+Main tabs managed by `MainScreen`:
+
+- Home
+- Community
+- Features
+- Dashboard
+
+
+============================================================
+4. IMPORTANT DIFFICULT CONCEPTS
+============================================================
+
+4.1 Authentication model
+
+Authentication is handled by Flutter `AuthService` and `AuthController`, backend `/api/auth/*` routes in `backend/server.js`, and local persistence through `SharedPreferences`.
+
+Important detail:
+
+- The app supports full sign-in and guest mode.
+- On the first launch after install or reinstall, `AuthController` deliberately clears stored user data and some step baseline data so the app does not accidentally reuse stale state.
+- Session validation is intentionally done in the background after the UI becomes usable. This means startup can still work offline using the last locally stored session.
+
+4.2 Step counting model
+
+This is one of the most complex parts of the codebase.
+
+There are multiple step sources:
+
+- direct Android step sensor through native Kotlin
+- Health Connect through the `health` package
+- backend cloud-stored daily steps
+
+Why this is hard:
+
+- Android hardware step sensors usually report cumulative steps since boot, not "today's steps".
+- The app therefore needs a baseline to compute daily steps.
+- Devices behave differently when the app is killed, when sensors batch events, or when permissions are missing.
+- The app also wants the displayed value, backend value, and background tracked value to stay consistent.
+
+How the app solves it:
+
+- `DirectStepService` talks to native Kotlin via `MethodChannel`.
+- Native Android also runs `StepCounterService` as a foreground service to keep step tracking alive in the background.
+- The service stores "today's steps" in native shared preferences.
+- Flutter keeps its own baseline data too.
+- `HealthSyncController` merges sensor data, cached values, backend sync, and Health Connect sync into one UI snapshot.
+
+4.3 Auto-download and install update model
+
+The app does not use Play Store in-app updates. Instead it uses GitHub releases plus direct APK installation.
+
+The flow is:
+
+1. `MainScreen` calls `_checkForUpdates()` after the first frame.
+2. `AppUpdateService.checkForUpdate()` reads `GITHUB_REPO` from `.env`.
+3. It calls `https://api.github.com/repos/<owner>/<repo>/releases/latest`.
+4. It reads the latest release tag and compares it against the installed app version and build using `PackageInfo`.
+5. It looks through the release assets and picks the `.apk` file.
+6. If a newer APK exists, `MainScreen` shows an update dialog.
+7. Before installation, the app checks whether Android allows this app to install unknown APKs.
+8. If not allowed, `MainActivity` opens the system settings page for "Install unknown apps".
+9. If allowed, `AppUpdateService.startUpdate()` calls the `ota_update` plugin and downloads the APK into internal storage.
+10. The downloaded APK is handed to Android installer UI.
+11. The app stores a `pending_update_tag` in `SharedPreferences` so it knows an update is already downloaded or in progress.
+12. On a later app start, if the installed version is now at least that tag, the app removes the pending state and deletes leftover APK files.
+
+4.4 Local-first plus backend-sync design
+
+Many features save locally first and sync later or additionally.
+
+Examples:
+
+- auth session is stored locally
+- goals are stored locally
+- habits are stored locally
+- posture history is stored locally
+- recovery check-ins are stored locally
+- meal logs are stored locally
+- walking missions history is stored locally
+- some workout plan data is stored locally and also sent to backend
+- steps are synced to backend on intervals
+
+
+============================================================
+5. DETAILED FILE-BY-FILE DOCUMENTATION
+============================================================
+
+5A. ROOT FILES
+
+`.env`
+- Environment file for secrets and configuration.
+- Based on the code, it can contain `API_BASE_URL`, `API_KEY`, `GOOGLE_WEB_CLIENT_ID`, `GITHUB_REPO`, and AI/Hugging Face configuration values.
+
+`.gitignore`
+- Standard ignore rules for Flutter, Dart, build output, and local/generated files.
+
+`.metadata`
+- Flutter tool metadata for project tracking.
+
+`.flutter-plugins-dependencies`
+- Auto-generated plugin resolution metadata.
+
+`analysis_options.yaml`
+- Dart analyzer and lint configuration.
+
+`README.md`
+- Very small project readme.
+- Mentions the Android in-app update setup and `GITHUB_REPO`.
+
+`pubspec.yaml`
+- Main Flutter package manifest.
+- Declares project name, version, dependencies, assets, and launcher icons.
+- Important dependencies include `health`, `permission_handler`, `shared_preferences`, `http`, `google_sign_in`, `flutter_dotenv`, `camera`, `tflite_flutter`, `google_mlkit_pose_detection`, `provider`, `package_info_plus`, `ota_update`, `geolocator`, `flutter_tts`, and `image_picker`.
+
+`pubspec.lock`
+- Locked dependency versions.
+
+`EXERCISE_POSTURE_ANALYSIS_IMPLEMENTATION.md`
+- Separate design and implementation notes for posture analysis.
+
+`hf_payload.json`
+- Small payload or test body related to Hugging Face requests.
+
+5B. FLUTTER APP ENTRY AND SHELL
+
+`lib/main.dart`
+- True Flutter entry point.
+- Calls `WidgetsFlutterBinding.ensureInitialized()`.
+- Tries to load `.env`.
+- Builds `MyApp`.
+- Sets theme system and app-wide visual configuration.
+- Uses `ThemeService` through Provider.
+- Routes initially to `SplashScreen`.
+
+`lib/main_screen.dart`
+- Core application shell after splash.
+- Handles auth gate, tab navigation, back navigation history, app lifecycle resume behavior, update dialog, and update install dialog.
+- Owns `HealthSyncController`, `AuthController`, and `AppUpdateService`.
+- Tabs are `HomePage`, `CommunityPage`, `FeaturesView`, and `ProgressDashboardView`.
+
+5C. CONTROLLERS
+
+`lib/controllers/auth_controller.dart`
+- UI-facing auth state manager.
+- Wraps `AuthService`.
+- Tracks current user, loading state, authenticated state, and guest mode state.
+- Handles sign up, sign in, Google sign in, sign out, session refresh, and guest sign-in.
+
+`lib/controllers/health_sync_controller.dart`
+- Most complex controller in the project.
+- Orchestrates `HealthSyncService`, `DirectStepService`, and `StepsSyncService`.
+- Tracks sync status, current health snapshot, sensor baselines, periodic sync timers, and backend sync results.
+- Starts listeners, requests permissions, syncs steps, hydrates from backend, and helps open Health Connect install flow.
+
+5D. MODELS
+
+`lib/models/exercise_type.dart`
+- Enum and metadata for supported exercise and posture-analysis exercise types.
+
+`lib/models/manual_workout_template.dart`
+- Data model for manual workout templates used by workout pages.
+
+5E. WIDGETS
+
+`lib/widgets/ai_result_renderer.dart`
+- Reusable renderer for AI text output.
+- Parses structured text into cleaner sections for display.
+
+`lib/widgets/health_chatbot_widget.dart`
+- Large reusable chat widget for health Q and A.
+- Uses `HealthChatbotService`.
+
+`lib/widgets/theme_toggle_button.dart`
+- Small reusable button to switch app theme through `ThemeService`.
+
+5F. PAINTERS AND LEGACY SCREEN
+
+`lib/painters/pose_painter.dart`
+- Small custom painter for drawing pose landmarks or pose skeleton overlays.
+
+`lib/screens/PostureAnalyzerScreen.dart`
+- Older or alternate posture analyzer screen using camera directly.
+
+5G. PAGES AND SCREENS
+
+`lib/pages/splash_screen.dart`
+- 2-second branded splash screen that transitions into `MainScreen`.
+
+`lib/pages/auth_page.dart`
+- Authentication UI with sign in, sign up, Google sign in, and guest access.
+
+`lib/pages/home_page.dart`
+- Main dashboard-style landing page inside the app.
+- Uses health sync, auth, permissions, theme, and step-goal logic.
+
+`lib/pages/community_page.dart`
+- Very large community hub screen.
+- Covers community membership, chat, message loading, and navigation into challenge-related features.
+
+`lib/pages/community_info_page.dart`
+- Focused details page for a single community.
+
+`lib/pages/games_and_challenges_page.dart`
+- Huge combined feature page.
+- Contains challenge flows plus mini games and walking mission entry.
+
+`lib/pages/features_view.dart`
+- Feature discovery and navigation page.
+- Routes users into AI diet, AI workout, habit tracking, health metrics, meal tracking, posture analysis, recovery, streaks, and workout tracker views.
+
+`lib/pages/progress_dashboard_view.dart`
+- Analytics-style dashboard combining goals, workouts, posture, steps, and coach insights.
+
+`lib/pages/about_page.dart`
+- About screen showing app information and package version.
+
+`lib/pages/account_page.dart`
+- User account management for profile update, password change, deactivate, delete, sign out, theme, and about page access.
+
+`lib/pages/ai_diet_view.dart`
+- AI diet plan generator and local saver.
+
+`lib/pages/ai_workout_plan_view.dart`
+- AI workout generator with local and backend persistence plus adaptive regeneration support.
+
+`lib/pages/habit_tracker_page.dart`
+- Daily habit logging screen backed by `HabitTrackerService`.
+
+`lib/pages/health_metrics_view.dart`
+- Manual metrics and workout intensity related screen.
+
+`lib/pages/meal_tracker_page.dart`
+- Meal log page with calorie tracking and image picking support.
+
+`lib/pages/personalized_goals_view.dart`
+- Large goals-management page.
+- Defines the `Goal` model inside the page file and handles schedules, history, and reminders.
+
+`lib/pages/posture_analysis_view.dart`
+- Small wrapper page that opens the posture-analysis flow.
+
+`lib/pages/exercise_selection_page.dart`
+- Chooses exercise mode for posture analysis and shows posture history summary.
+
+`lib/pages/pose_camera_page.dart`
+- Main posture-analysis engine UI using camera, ML Kit pose detection, voice feedback, overlays, and session saving.
+
+`lib/pages/recovery_checkin_page.dart`
+- Daily recovery and readiness tracking screen.
+
+`lib/pages/steps_history_view.dart`
+- Historical steps page using backend-synced steps.
+
+`lib/pages/streaks_rewards_page.dart`
+- Streak and rewards screen aggregating habits, posture, recovery, workouts, and steps.
+
+`lib/pages/walking_missions_page.dart`
+- Geolocation-based walking mission page.
+
+`lib/pages/workout_details_page.dart`
+- Detailed workout inspection page.
+
+`lib/pages/workout_session_page.dart`
+- Active manual workout session tracker and saver.
+
+`lib/pages/workout_tracker_view.dart`
+- Major workout management page combining manual workouts, AI plans, schedules, goal progress, and log history.
+
+5H. SERVICES
+
+`lib/services/theme_service.dart`
+- Stores and exposes current theme mode using `SharedPreferences`.
+
+`lib/services/auth_service.dart`
+- Backend client for authentication and account management.
+- Handles email auth, Google auth, session validation, profile update, password change, deactivation, deletion, and local auth persistence.
+
+`lib/services/app_update_service.dart`
+- Full update checker and installer helper.
+- Calls GitHub latest release API, compares versions, picks APK assets, launches `ota_update`, opens Android settings if needed, and cleans old APKs.
+
+`lib/services/community_service.dart`
+- REST client for community endpoints such as create, list, join, leave, delete, transfer owner, and messaging.
+
+`lib/services/community_notification_controller.dart`
+- Very small stub-like controller for community-related notification handling.
+
+`lib/services/challenge_service.dart`
+- REST client for challenge create, list, join, detail, step updates, and delete flows.
+
+`lib/services/direct_step_service.dart`
+- Flutter bridge to native Android step counting through `MethodChannel`.
+- Handles sensor reads, daily-step resolution, baseline persistence, battery-optimization helpers, auto-start settings, and live streaming.
+
+`lib/services/direct_step_service_example.dart`
+- Example/demo screen for testing `DirectStepService`.
+
+`lib/services/health_sync_service.dart`
+- Wrapper around the `health` package and Health Connect logic.
+- Requests permissions, opens install flow, fetches steps and workouts, and aggregates data by source.
+
+`lib/services/steps_sync_service.dart`
+- Backend client for storing and reading step history and today's step total.
+
+`lib/services/weekly_workout_plan_service.dart`
+- Saves and loads AI weekly workout plans from both local storage and backend APIs.
+
+`lib/services/workout_plan_schedule_service.dart`
+- Converts a plan into trackable tasks and per-day completion state.
+
+`lib/services/adaptive_workout_service.dart`
+- Small helper that adjusts or regenerates workout plans from schedule state.
+
+`lib/services/workout_log_service.dart`
+- Higher-level workout log API used by UI.
+
+`lib/services/workout_storage_service.dart`
+- Low-level local persistence for workout logs.
+
+`lib/services/goal_progress_service.dart`
+- Calculates goal progress snapshots from goals and workout logs.
+
+`lib/services/goals_storage_service.dart`
+- Saves and loads goal definitions locally.
+
+`lib/services/habit_tracker_service.dart`
+- Saves and loads daily habit entries.
+
+`lib/services/meal_tracker_service.dart`
+- Saves and loads meal log entries.
+
+`lib/services/ai_diet_plan_storage_service.dart`
+- Saves the latest AI diet plan locally.
+
+`lib/services/recovery_checkin_service.dart`
+- Saves recovery check-ins and produces recovery insights.
+
+`lib/services/posture_history_service.dart`
+- Saves posture sessions and builds posture summaries.
+
+`lib/services/streaks_service.dart`
+- Computes streak stats, badges, XP, and summary values across multiple features.
+
+`lib/services/walking_mission_service.dart`
+- Stores walking mission history and completion results.
+
+`lib/services/health_chatbot_service.dart`
+- Builds health-chat responses on top of `HuggingFaceService`.
+
+`lib/services/health_coach_service.dart`
+- Creates lightweight coaching insights for dashboard use.
+
+`lib/services/hugging_face_service.dart`
+- Generic Hugging Face text generation client used by diet, workout, and chatbot features.
+
+`lib/services/notification_service.dart`
+- Notification abstraction layer that currently looks lightweight and partly placeholder-oriented.
+
+`lib/services/movenet_services.dart`
+- Loads MoveNet TFLite model.
+
+`lib/services/pose_estimator.dart`
+- Alternate or lower-level pose-estimation helper using TFLite and `image`.
+
+5I. BACKEND
+
+`backend/package.json`
+- Backend package manifest with scripts for `start` and `dev`.
+
+`backend/package-lock.json`
+- Locked backend dependency tree.
+
+`backend/README.md`
+- Short backend setup instructions.
+
+`backend/server.js`
+- Entire backend API in one large file.
+- Connects to MongoDB, defines Mongoose schemas and helper formatters, exposes auth, AI, steps, workouts, plans, community, user, and challenge routes.
+
+Main backend route groups:
+
+- Auth: signup, signin, Google auth
+- Health: health check
+- AI: text generation
+- Steps: create and read daily step history
+- Workouts: create and read workout logs
+- Workout plans: create and fetch saved plans
+- Community: create, list, join, leave, delete, owner transfer, message send/read
+- User account: profile read/update, password change, deactivate, delete
+- Challenges: create, list, join, detail, update steps, delete
+
+5J. ANDROID NATIVE FILES
+
+`android/app/src/main/kotlin/com/example/health/MainActivity.kt`
+- Main Android host activity.
+- Registers method channels for step counting and app updates.
+- Exposes install-permission checks and APK cleanup to Flutter.
+
+`android/app/src/main/kotlin/com/example/health/StepCounterService.kt`
+- Foreground Android service that keeps step tracking alive in the background.
+- Stores daily step state in native preferences and restarts itself when needed.
+
+`android/app/src/main/kotlin/com/example/health/StepBootReceiver.kt`
+- Broadcast receiver that restarts step tracking after boot, package replacement, quick boot, or explicit restart.
+
+`android/app/src/main/AndroidManifest.xml`
+- Central Android permission and component registration file.
+- Essential for health data, foreground step service, OTA install provider, and boot receiver setup.
+
+`android/app/src/main/res/xml/filepaths.xml`
+- FileProvider path config used by OTA update flow to expose APK files safely to Android installer.
+
+5K. TESTS
+
+`test/widget_test.dart`
+- Default Flutter widget test scaffold.
+
+5L. ASSETS
+
+`assets/main_logo.png`
+- App branding image.
+
+`assets/models/movenet_singlepose_lightning.tflite`
+- Embedded pose model asset.
+
+5M. WEB
+
+`web/index.html`
+- Web host HTML.
+
+`web/manifest.json`
+- Web manifest metadata.
+
+`web/favicon.png`
+- Browser icon.
+
+`web/icons/Icon-192.png`
+`web/icons/Icon-512.png`
+`web/icons/Icon-maskable-192.png`
+`web/icons/Icon-maskable-512.png`
+- Web app icon assets.
+
+5N. OTHER PLATFORM AND BUILD FILES
+
+The following are mostly Flutter-generated or platform build configuration files. They matter for compiling and packaging the app, but they are not where the main business logic lives.
+
+Android build files:
+- `android/build.gradle.kts`
+- `android/settings.gradle.kts`
+- `android/gradle.properties`
+- `android/gradle/wrapper/gradle-wrapper.properties`
+- `android/app/build.gradle.kts`
+- `android/app/proguard-rules.pro`
+- `android/app/src/debug/AndroidManifest.xml`
+- `android/app/src/profile/AndroidManifest.xml`
+- `android/app/src/main/res/values/styles.xml`
+- `android/app/src/main/res/values-night/styles.xml`
+- `android/app/src/main/res/drawable/launch_background.xml`
+- `android/app/src/main/res/drawable-v21/launch_background.xml`
+- `android/app/src/main/res/mipmap-*/ic_launcher.png`
+- `android/build/reports/problems/problems-report.html`
+
+iOS project files:
+- `ios/Runner/AppDelegate.swift`
+- `ios/Runner/Info.plist`
+- `ios/Runner/Runner-Bridging-Header.h`
+- `ios/Runner/Base.lproj/LaunchScreen.storyboard`
+- `ios/Runner/Base.lproj/Main.storyboard`
+- `ios/Runner/Assets.xcassets/...`
+- `ios/Runner.xcodeproj/...`
+- `ios/Runner.xcworkspace/...`
+- `ios/Flutter/*.xcconfig`
+- `ios/Flutter/AppFrameworkInfo.plist`
+- `ios/RunnerTests/RunnerTests.swift`
+
+macOS project files:
+- `macos/Runner/AppDelegate.swift`
+- `macos/Runner/MainFlutterWindow.swift`
+- `macos/Runner/Info.plist`
+- `macos/Runner/DebugProfile.entitlements`
+- `macos/Runner/Release.entitlements`
+- `macos/Runner/Base.lproj/MainMenu.xib`
+- `macos/Runner/Configs/*.xcconfig`
+- `macos/Runner/Assets.xcassets/...`
+- `macos/Runner.xcodeproj/...`
+- `macos/Runner.xcworkspace/...`
+- `macos/Flutter/*.xcconfig`
+- `macos/Flutter/GeneratedPluginRegistrant.swift`
+- `macos/RunnerTests/RunnerTests.swift`
+
+Windows project files:
+- `windows/CMakeLists.txt`
+- `windows/flutter/CMakeLists.txt`
+- `windows/flutter/generated_plugin_registrant.*`
+- `windows/flutter/generated_plugins.cmake`
+- `windows/runner/main.cpp`
+- `windows/runner/flutter_window.*`
+- `windows/runner/win32_window.*`
+- `windows/runner/utils.*`
+- `windows/runner/resource.h`
+- `windows/runner/Runner.rc`
+- `windows/runner/runner.exe.manifest`
+- `windows/runner/resources/app_icon.ico`
+
+Linux project files:
+- `linux/CMakeLists.txt`
+- `linux/flutter/CMakeLists.txt`
+- `linux/flutter/generated_plugin_registrant.*`
+- `linux/flutter/generated_plugins.cmake`
+- `linux/runner/main.cc`
+- `linux/runner/my_application.*`
+- `linux/runner/CMakeLists.txt`
+
+
+============================================================
+6. HOW THE AUTO DOWNLOAD AND INSTALL SYSTEM WORKS
+============================================================
+
+This section explains the updater in more depth because it is one of the most special parts of this project.
+
+Step 1. Trigger
+
+- `MainScreen.initState()` schedules `_checkForUpdates()` after the first frame.
+- This means the app UI loads first, then update logic runs.
+- Update failure does not block startup.
+
+Step 2. Pending update recovery
+
+- `MainScreen` reads `pending_update_tag` from `SharedPreferences`.
+- If it exists, the app asks `AppUpdateService.isInstalledVersionAtLeast(tag)`.
+- If the currently installed version is already equal or newer, the app removes the pending tag and calls `cleanupDownloadedApks()`.
+- This is post-install cleanup logic.
+
+Step 3. Release discovery
+
+- `AppUpdateService.checkForUpdate()` reads `GITHUB_REPO`.
+- Expected format is `owner/repository`.
+- It calls GitHub latest release API and parses the JSON response.
+
+Step 4. Version comparison
+
+- Local version comes from `PackageInfo`.
+- Remote version comes from GitHub `tag_name`.
+- `_normalizeVersion()` strips prefixes like `v`, replaces separators, and compares version segments numerically.
+- If the remote version is not newer, the flow ends quietly.
+
+Step 5. APK asset selection
+
+- The service searches release assets for a URL ending in `.apk`.
+- If the release has no APK, update flow stops.
+
+Step 6. User prompt
+
+- `MainScreen` shows an "Update Available" dialog.
+- Release title, version tag, and notes are shown.
+- The user can choose to update now or later.
+
+Step 7. Android unknown-source permission
+
+- Before installation, the app calls `canRequestPackageInstalls()` via native `MethodChannel`.
+- On Android 8 and above, this checks whether this app can request package installs.
+- If false, `MainActivity` opens the system settings screen for "Install unknown apps".
+
+Step 8. Download and installer handoff
+
+- `AppUpdateService.startUpdate()` calls `OtaUpdate().execute(...)`.
+- It creates a safe file name like `healthhub_update_<tag>.apk`.
+- The `ota_update` plugin downloads the APK into app internal storage.
+- Android installer UI is then opened for the downloaded APK.
+
+Step 9. Progress state
+
+- `MainScreen` listens to the `OtaEvent` stream.
+- It updates UI labels for states such as downloading, installing, or failure.
+- It stores `pending_update_tag` while download is happening.
+
+Step 10. Native file exposure and cleanup
+
+- `AndroidManifest.xml` registers `sk.fourq.otaupdate.OtaUpdateFileProvider`.
+- `filepaths.xml` grants safe access to files under the internal OTA folder.
+- `MainActivity.cleanupDownloadedApks()` deletes leftover APK files from:
+  - `filesDir/ota_update`
+  - legacy APK files in `filesDir`
+
+Why cleanup matters:
+
+- prevents storage waste
+- avoids stale APK confusion
+- avoids repeated install of an old file
+
+Design strengths:
+
+- simple release pipeline
+- no Play Store dependency
+- recoverable state through `pending_update_tag`
+- user-visible progress
+
+Design tradeoffs:
+
+- effectively Android-only
+- requires "install unknown apps" permission
+- depends on GitHub release hygiene
+- depends on a valid `.apk` asset being attached to the release
+
+
+============================================================
+7. HOW STEP TRACKING AND BACKGROUND COUNTING WORK
+============================================================
+
+This is the other subsystem that deserves deeper explanation.
+
+7.1 Native sensor layer
+
+- `MainActivity` registers listeners for:
+  - `TYPE_STEP_COUNTER`
+  - `TYPE_STEP_DETECTOR`
+- `TYPE_STEP_COUNTER` gives cumulative steps since boot.
+- `TYPE_STEP_DETECTOR` gives one callback per step.
+
+7.2 Foreground service layer
+
+- `StepCounterService` runs as a foreground service.
+- It continues listening even outside the Flutter page lifecycle.
+- It stores values in Android shared preferences.
+
+Important stored values:
+
+- last cumulative count
+- current day key
+- day start cumulative count
+- today's step total
+
+7.3 Boot and restart recovery
+
+- `StepBootReceiver` restarts the service on:
+  - device boot
+  - app package replacement
+  - quick boot
+  - explicit restart broadcast
+
+- `StepCounterService` also tries to restart itself if the task is removed.
+
+7.4 Flutter bridge layer
+
+- `DirectStepService` calls native methods with `MethodChannel`.
+- Flutter can ask for:
+  - current count
+  - today's steps
+  - start listening
+  - battery settings state
+  - auto-start settings
+
+7.5 Controller merge layer
+
+- `HealthSyncController` merges:
+  - direct sensor data
+  - native today-step data
+  - local baseline logic
+  - backend sync
+  - Health Connect data
+
+Why this merge exists:
+
+- some devices delay cumulative events
+- some devices keep native daily count correct even if callbacks are stale
+- backend may already have a higher confirmed value
+- UI should not jump backward
+
+7.6 Backend sync layer
+
+- `HealthSyncController` periodically sends current step totals to backend through `StepsSyncService`.
+- It also hydrates from backend so the app can recover state after restart or reinstall.
+
+Net effect:
+
+- The app tries to be resilient against Android sensor quirks, app restarts, and inconsistent event timing.
+
+
+============================================================
+8. STRENGTHS OF THE CURRENT CODEBASE
+============================================================
+
+- feature-rich app with many health modules
+- practical offline and local-first behavior in many areas
+- strong Android-native step tracking effort
+- custom GitHub-based updater is already implemented
+- posture analysis is more advanced than a typical CRUD app
+- backend already supports communities and challenges
+
+
+============================================================
+9. MAINTAINABILITY NOTES
+============================================================
+
+Areas that are hardest to maintain:
+
+- `backend/server.js` because it is very large and mixes many domains
+- `health_sync_controller.dart` because it carries a lot of state and timing logic
+- `community_page.dart` and `games_and_challenges_page.dart` because of their size
+- `pose_camera_page.dart` because computer vision code is naturally complex
+
+Files that currently look partly placeholder or lightweight:
+
+- `community_notification_controller.dart`
+- `notification_service.dart`
+- starter test scaffolding and generated platform files
+
+Refactor opportunities if this project grows:
+
+- split backend routes, models, and controllers into separate files
+- move page-local models like `Goal` into shared model files
+- standardize repository or service pattern for backend APIs
+- add stronger automated tests for step sync, auth, and update logic
+
+
+============================================================
+10. FINAL SUMMARY
+============================================================
+
+HealthHub is a multi-feature Flutter health platform with a Node backend.
+
+The app is built around four especially important systems:
+
+- auth and account management
+- step tracking and sync
+- workout, goals, and AI planning
+- community and challenge engagement
+
+The two most technically special parts are:
+
+- background Android step tracking with native services
+- APK auto-update from GitHub releases with direct installer handoff
+
+Recommended reading order for someone new to the codebase:
+
+1. `lib/main.dart`
+2. `lib/main_screen.dart`
+3. `lib/controllers/auth_controller.dart`
+4. `lib/controllers/health_sync_controller.dart`
+5. `lib/services/auth_service.dart`
+6. `lib/services/app_update_service.dart`
+7. `lib/services/direct_step_service.dart`
+8. `lib/services/health_sync_service.dart`
+9. `lib/pages/home_page.dart`
+10. `lib/pages/features_view.dart`
+11. `lib/pages/workout_tracker_view.dart`
+12. `lib/pages/community_page.dart`
+13. `backend/server.js`
+14. Android native Kotlin files for step and update integration
+
+That reading order gives the fastest understanding of how the project works end to end.

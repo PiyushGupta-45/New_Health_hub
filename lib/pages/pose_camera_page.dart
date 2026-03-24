@@ -19,6 +19,20 @@ enum _PostureQuality {
   neutral,
 }
 
+class _AnalysisFeedback {
+  const _AnalysisFeedback({
+    required this.label,
+    required this.voicePrompt,
+    required this.quality,
+    required this.frameScore,
+  });
+
+  final String label;
+  final String voicePrompt;
+  final _PostureQuality quality;
+  final double frameScore;
+}
+
 class PoseCameraPage
     extends
         StatefulWidget {
@@ -62,9 +76,14 @@ class _PoseCameraPageState
   DateTime _lastVoiceAt = DateTime.fromMillisecondsSinceEpoch(0);
   String _lastSpokenMessage = '';
   String _cameraGuidance = 'Align your body in the center of the frame';
+  String _voicePrompt = 'Stand tall and stay centered in frame.';
+  _PostureQuality _currentQuality = _PostureQuality.neutral;
+  int _cameraGuidanceFrames = 0;
+  double _currentFrameScore = 0;
   int _correctFrames = 0;
   int _incorrectFrames = 0;
   int _neutralFrames = 0;
+  double _frameScoreTotal = 0;
   final PostureHistoryService _postureHistoryService = PostureHistoryService();
 
   @override
@@ -239,8 +258,9 @@ class _PoseCameraPageState
   ) async {
     if (_isDetecting ||
         _poseDetector ==
-            null)
+            null) {
       return;
+    }
     _isDetecting = true;
 
     try {
@@ -320,6 +340,8 @@ class _PoseCameraPageState
         );
       } else {
         // No pose detected - update UI to show detection status
+        _currentQuality = _PostureQuality.neutral;
+        _voicePrompt = 'Step into view so I can start analyzing your posture.';
         _setPostureTone(
           _PostureQuality.neutral,
         );
@@ -385,8 +407,9 @@ class _PoseCameraPageState
 
     if (magBA *
             magBC ==
-        0)
+        0) {
       return 0.0;
+    }
     double cosAngle =
         dot /
         (magBA *
@@ -467,7 +490,7 @@ class _PoseCameraPageState
         break;
     }
 
-    final quality = _classifyPostureLabel(_postureLabel);
+    final quality = _currentQuality;
     _setPostureTone(quality);
     switch (quality) {
       case _PostureQuality.correct:
@@ -480,6 +503,7 @@ class _PoseCameraPageState
         _neutralFrames++;
         break;
     }
+    _frameScoreTotal += _currentFrameScore.clamp(0, 100);
     unawaited(
       _speakFeedbackIfNeeded(),
     );
@@ -491,7 +515,7 @@ class _PoseCameraPageState
     if (totalFrames < 10) return;
 
     _sessionSaved = true;
-    final score = (_correctFrames / totalFrames) * 100;
+    final score = (_frameScoreTotal / totalFrames).clamp(0, 100).toDouble();
     final feedback = _sanitizeFeedback(_postureLabel);
 
     await _postureHistoryService.saveSession(
@@ -514,49 +538,6 @@ class _PoseCameraPageState
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim()
         .replaceAll('Good ', 'Good ');
-  }
-
-  _PostureQuality _classifyPostureLabel(
-    String label,
-  ) {
-    final normalized = label
-        .toLowerCase()
-        .trim();
-
-    if (normalized.startsWith(
-          'good',
-        ) ||
-        normalized.contains(
-          'excellent',
-        ) ||
-        normalized.contains(
-          'perfect',
-        )) {
-      return _PostureQuality.correct;
-    }
-
-    if (normalized.contains(
-          'position yourself',
-        ) ||
-        normalized.contains(
-          'person not fully visible',
-        ) ||
-        normalized.contains(
-          'detecting',
-        ) ||
-        normalized.contains(
-          'permission denied',
-        ) ||
-        normalized.contains(
-          'no cameras found',
-        ) ||
-        normalized.startsWith(
-          'error',
-        )) {
-      return _PostureQuality.neutral;
-    }
-
-    return _PostureQuality.incorrect;
   }
 
   void _setPostureTone(
@@ -665,17 +646,23 @@ class _PoseCameraPageState
     String message = 'Camera framing looks good';
 
     if (widthRatio < 0.18 || heightRatio < 0.28) {
-      message = 'Move closer to the camera';
+      message = 'Step a little closer so your joints are easier to track';
     } else if (widthRatio > 0.92 || heightRatio > 0.95) {
-      message = 'Move slightly away from the camera';
+      message = 'Move slightly back so your full body stays visible';
     } else if (centerX < frameW * 0.35) {
-      message = 'Move slightly to your right';
+      message = 'Shift a little to your right to center your body';
     } else if (centerX > frameW * 0.65) {
-      message = 'Move slightly to your left';
+      message = 'Shift a little to your left to center your body';
     } else if (centerY < frameH * 0.30) {
-      message = 'Lower the camera or step down slightly';
+      message = 'Lower the camera a touch so your full body fits in frame';
     } else if (centerY > frameH * 0.75) {
-      message = 'Raise the camera or step up slightly';
+      message = 'Raise the camera slightly so I can see more of your posture';
+    }
+
+    if (message == 'Camera framing looks good') {
+      _cameraGuidanceFrames = 0;
+    } else {
+      _cameraGuidanceFrames++;
     }
 
     if (message != _cameraGuidance) {
@@ -690,71 +677,16 @@ class _PoseCameraPageState
   }
 
   String _buildVoicePrompt() {
-    if (_cameraGuidance != 'Camera framing looks good') {
+    final shouldPrioritizeCamera =
+        _currentQuality == _PostureQuality.neutral &&
+        _cameraGuidance != 'Camera framing looks good' &&
+        _cameraGuidanceFrames >= 18;
+
+    if (shouldPrioritizeCamera) {
       return _cameraGuidance;
     }
 
-    final normalized = _postureLabel.toLowerCase();
-    if (_activeTone == _PostureQuality.correct) {
-      return 'Good posture. Hold this form.';
-    }
-
-    if (normalized.contains('slouch')) {
-      return 'Straighten your upper back and lift your chest.';
-    }
-    if (normalized.contains('shoulder tilt') ||
-        normalized.contains('shoulders level')) {
-      return 'Keep both shoulders level and relaxed.';
-    }
-    if (normalized.contains('back straighter') ||
-        normalized.contains('back straight')) {
-      return 'Keep your spine neutral and avoid rounding your back.';
-    }
-    if (normalized.contains('knees aligned')) {
-      return 'Track your knees over your toes.';
-    }
-    if (normalized.contains('knee over ankle')) {
-      return 'Keep your front knee stacked over your ankle.';
-    }
-    if (normalized.contains('go deeper')) {
-      return 'Bend your knees more to reach proper depth.';
-    }
-    if (normalized.contains('go lower')) {
-      return 'Lower your chest a little more while staying controlled.';
-    }
-    if (normalized.contains('hips too high')) {
-      return 'Lower your hips to keep a straight body line.';
-    }
-    if (normalized.contains('hips sagging')) {
-      return 'Lift your hips slightly and brace your core.';
-    }
-    if (normalized.contains('torso upright')) {
-      return 'Keep your torso upright and chest open.';
-    }
-    if (normalized.contains('extend arms fully')) {
-      return 'Press up until your arms are fully extended.';
-    }
-    if (normalized.contains('pull higher')) {
-      return 'Pull higher so your chin clears the bar.';
-    }
-    if (normalized.contains('avoid kipping')) {
-      return 'Control the movement and avoid swinging.';
-    }
-    if (normalized.contains('lift hips higher')) {
-      return 'Drive through your heels and lift your hips higher.';
-    }
-    if (normalized.contains('body level') ||
-        normalized.contains('body aligned')) {
-      return 'Keep your body level from shoulders to hips.';
-    }
-
-    final cleanedLabel = _postureLabel
-        .replaceAll(RegExp(r'[^ -~]'), '')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    return cleanedLabel.isEmpty
-        ? 'Adjust your posture and stay centered in frame.'
-        : cleanedLabel;
+    return _voicePrompt;
   }
 
   Future<void> _speakFeedbackIfNeeded() async {
@@ -928,6 +860,162 @@ class _PoseCameraPageState
     };
   }
 
+  Offset? _midpoint(
+    Offset? a,
+    Offset? b,
+  ) {
+    if (a != null && b != null) {
+      return Offset(
+        (a.dx + b.dx) / 2,
+        (a.dy + b.dy) / 2,
+      );
+    }
+    return a ?? b;
+  }
+
+  double _distance(
+    Offset a,
+    Offset b,
+  ) {
+    final dx = a.dx - b.dx;
+    final dy = a.dy - b.dy;
+    return sqrt(dx * dx + dy * dy);
+  }
+
+  double _distanceToLine(
+    Offset point,
+    Offset lineA,
+    Offset lineB,
+  ) {
+    final numerator =
+        ((lineB.dy - lineA.dy) * point.dx) -
+        ((lineB.dx - lineA.dx) * point.dy) +
+        (lineB.dx * lineA.dy) -
+        (lineB.dy * lineA.dx);
+    final denominator = _distance(lineA, lineB);
+    if (denominator == 0) {
+      return 0;
+    }
+    return numerator.abs() / denominator;
+  }
+
+  double? _averageValue(
+    List<double?> values,
+  ) {
+    final filtered = values.whereType<double>().toList();
+    if (filtered.isEmpty) {
+      return null;
+    }
+    final total = filtered.fold<double>(
+      0,
+      (sum, value) => sum + value,
+    );
+    return total / filtered.length;
+  }
+
+  double _referenceScale(
+    Map<String, Offset?> landmarks,
+  ) {
+    final shoulderCenter = _midpoint(
+      landmarks['leftShoulder'],
+      landmarks['rightShoulder'],
+    );
+    final hipCenter = _midpoint(
+      landmarks['leftHip'],
+      landmarks['rightHip'],
+    );
+    final ankleCenter = _midpoint(
+      landmarks['leftAnkle'],
+      landmarks['rightAnkle'],
+    );
+
+    final torso = shoulderCenter != null && hipCenter != null
+        ? _distance(shoulderCenter, hipCenter)
+        : 0.0;
+    final leg = hipCenter != null && ankleCenter != null
+        ? _distance(hipCenter, ankleCenter)
+        : 0.0;
+
+    return max(max(torso, leg), 40.0);
+  }
+
+  void _applyFeedback(
+    _AnalysisFeedback feedback,
+  ) {
+    _currentQuality = feedback.quality;
+    _voicePrompt = feedback.voicePrompt;
+    _currentFrameScore = feedback.frameScore;
+    setState(() {
+      _postureLabel = feedback.label;
+    });
+  }
+
+  _AnalysisFeedback _neutralFeedback({
+    required String label,
+    required String voicePrompt,
+  }) {
+    return _AnalysisFeedback(
+      label: label,
+      voicePrompt: voicePrompt,
+      quality: _PostureQuality.neutral,
+      frameScore: 50,
+    );
+  }
+
+  _AnalysisFeedback _buildExerciseFeedback({
+    required String successLabel,
+    required String successVoice,
+    required List<String> corrections,
+    List<String> highlights = const <String>[],
+  }) {
+    if (corrections.length >= 3) {
+      final label = corrections.take(2).join(' ');
+      final voice = corrections.length > 1
+          ? '${corrections[0]} Then ${corrections[1].toLowerCase()}'
+          : corrections.first;
+      return _AnalysisFeedback(
+        label: label,
+        voicePrompt: '$voice Stay smooth and controlled.',
+        quality: _PostureQuality.incorrect,
+        frameScore: 45,
+      );
+    }
+
+    if (corrections.length == 2) {
+      final label = 'Good overall. ${corrections[0]} ${corrections[1]}';
+      final voice =
+          '${corrections[0]} Then ${corrections[1].toLowerCase()} Overall form is close.';
+      return _AnalysisFeedback(
+        label: label,
+        voicePrompt: voice,
+        quality: _PostureQuality.neutral,
+        frameScore: 62,
+      );
+    }
+
+    if (corrections.length == 1) {
+      final label = 'Almost there. ${corrections.first}';
+      final voice = '${corrections.first} The rest of the movement looks good.';
+      return _AnalysisFeedback(
+        label: label,
+        voicePrompt: voice,
+        quality: _PostureQuality.neutral,
+        frameScore: 78,
+      );
+    }
+
+    final label = highlights.isNotEmpty ? highlights.first : successLabel;
+    final voice = highlights.isNotEmpty
+        ? '${highlights.first} $successVoice'
+        : successVoice;
+    return _AnalysisFeedback(
+      label: label,
+      voicePrompt: voice,
+      quality: _PostureQuality.correct,
+      frameScore: highlights.isNotEmpty ? 94 : 90,
+    );
+  }
+
   // General Posture Analysis
   void _analyzeGeneralPosture(
     Pose pose,
@@ -938,70 +1026,83 @@ class _PoseCameraPageState
     final leftShoulderPt = landmarks['leftShoulder'];
     final rightShoulderPt = landmarks['rightShoulder'];
     final leftHipPt = landmarks['leftHip'];
+    final rightHipPt = landmarks['rightHip'];
+    final shoulderCenter = _midpoint(leftShoulderPt, rightShoulderPt);
+    final hipCenter = _midpoint(leftHipPt, rightHipPt);
     final nosePt = landmarks['nose'];
-    final earPt =
-        landmarks['leftEar'] ??
-        landmarks['rightEar'] ??
-        nosePt;
+    final earPt = landmarks['leftEar'] ?? landmarks['rightEar'] ?? nosePt;
 
-    if (leftShoulderPt ==
-            null ||
-        leftHipPt ==
-            null ||
-        nosePt ==
-            null ||
-        rightShoulderPt ==
-            null) {
-      setState(
-        () {
-          _postureLabel = "Person not fully visible";
-        },
+    if (shoulderCenter == null || hipCenter == null || nosePt == null) {
+      _applyFeedback(
+        _neutralFeedback(
+          label: 'Person not fully visible',
+          voicePrompt:
+              'Show your head, shoulders, and hips clearly so I can read your posture.',
+        ),
       );
       return;
     }
 
-    _neckAngle = _calculateAngle(
-      earPt!,
-      leftShoulderPt,
-      leftHipPt,
-    );
-    _shoulderAngle = _calculateAngle(
-      leftShoulderPt,
-      rightShoulderPt,
-      nosePt,
-    );
+    final scale = _referenceScale(landmarks);
+    final corrections = <String>[];
+    final highlights = <String>[];
+    final referenceDown = Offset(hipCenter.dx, hipCenter.dy + scale);
+
     _spineAngle = _calculateAngle(
-      leftShoulderPt,
-      leftHipPt,
-      landmarks['rightHip'] ??
-          leftHipPt,
+      shoulderCenter,
+      hipCenter,
+      referenceDown,
     );
+    _shoulderAngle = leftShoulderPt != null && rightShoulderPt != null
+        ? _calculateAngle(
+            leftShoulderPt,
+            shoulderCenter,
+            rightShoulderPt,
+          )
+        : 180.0;
+    _neckAngle = earPt != null
+        ? _calculateAngle(
+            earPt,
+            shoulderCenter,
+            hipCenter,
+          )
+        : 180.0;
 
-    String label = "Good Posture 🙂";
-    final shoulderDiff =
-        (leftShoulderPt.dy -
-                rightShoulderPt.dy)
-            .abs();
+    final shoulderTilt = leftShoulderPt != null && rightShoulderPt != null
+        ? (leftShoulderPt.dy - rightShoulderPt.dy).abs() / scale
+        : 0.0;
+    final hipTilt = leftHipPt != null && rightHipPt != null
+        ? (leftHipPt.dy - rightHipPt.dy).abs() / scale
+        : 0.0;
+    final trunkShift = (shoulderCenter.dx - hipCenter.dx).abs() / scale;
+    final headShift =
+        earPt != null ? (earPt.dx - shoulderCenter.dx).abs() / scale : 0.0;
 
-    if (_neckAngle <
-        150) {
-      label = "Slouching 😣";
+    if (headShift > 0.40) {
+      corrections.add('Bring your head back over your shoulders.');
     }
-    if (shoulderDiff >
-        20) {
-      label = "Shoulder Tilt ⚠️";
+    if (trunkShift > 0.24) {
+      corrections.add('Stack your ribs over your hips and stand taller.');
     }
-    if (_neckAngle <
-            140 &&
-        shoulderDiff >
-            25) {
-      label = "Bad posture — adjust back & shoulders";
+    if (shoulderTilt > 0.18) {
+      corrections.add('Level your shoulders and relax your upper traps.');
+    }
+    if (hipTilt > 0.16) {
+      corrections.add('Balance your weight evenly through both legs.');
     }
 
-    setState(
-      () {
-        _postureLabel = label;
-      },
+    if (corrections.isEmpty) {
+      highlights.add('Posture looks tall and balanced.');
+    }
+
+    _applyFeedback(
+      _buildExerciseFeedback(
+        successLabel: 'Good posture alignment',
+        successVoice:
+            'Keep your chest open, chin neutral, and weight evenly distributed.',
+        corrections: corrections,
+        highlights: highlights,
+      ),
     );
   }
 
@@ -1013,89 +1114,86 @@ class _PoseCameraPageState
       pose,
     );
     final leftHipPt = landmarks['leftHip'];
+    final rightHipPt = landmarks['rightHip'];
     final leftKneePt = landmarks['leftKnee'];
-    final leftAnklePt = landmarks['leftAnkle'];
     final rightKneePt = landmarks['rightKnee'];
+    final leftAnklePt = landmarks['leftAnkle'];
     final rightAnklePt = landmarks['rightAnkle'];
     final leftShoulderPt = landmarks['leftShoulder'];
+    final rightShoulderPt = landmarks['rightShoulder'];
+    final shoulderCenter = _midpoint(leftShoulderPt, rightShoulderPt);
+    final hipCenter = _midpoint(leftHipPt, rightHipPt);
+    final ankleCenter = _midpoint(leftAnklePt, rightAnklePt);
 
-    if (leftHipPt ==
-            null ||
-        leftKneePt ==
-            null ||
-        leftAnklePt ==
-            null) {
-      setState(
-        () {
-          _postureLabel = "Position yourself in frame";
-        },
+    if (shoulderCenter == null ||
+        hipCenter == null ||
+        ankleCenter == null ||
+        leftKneePt == null ||
+        rightKneePt == null) {
+      _applyFeedback(
+        _neutralFeedback(
+          label: 'Position yourself in frame',
+          voicePrompt:
+              'Show your shoulders, hips, knees, and ankles for squat analysis.',
+        ),
       );
       return;
     }
 
-    // Calculate knee angle (hip-knee-ankle)
-    final kneeAngle = _calculateAngle(
-      leftHipPt,
-      leftKneePt,
-      leftAnklePt,
-    );
-    // Calculate hip angle (shoulder-hip-knee)
-    final hipAngle =
-        leftShoulderPt !=
-            null
-        ? _calculateAngle(
-            leftShoulderPt,
-            leftHipPt,
-            leftKneePt,
-          )
+    final scale = _referenceScale(landmarks);
+    final kneeAngle = _averageValue([
+          leftHipPt != null && leftAnklePt != null
+              ? _calculateAngle(leftHipPt, leftKneePt, leftAnklePt)
+              : null,
+          rightHipPt != null && rightAnklePt != null
+              ? _calculateAngle(rightHipPt, rightKneePt, rightAnklePt)
+              : null,
+        ]) ??
+        180.0;
+    final hipAngle = _averageValue([
+          leftShoulderPt != null && leftHipPt != null
+              ? _calculateAngle(leftShoulderPt, leftHipPt, leftKneePt)
+              : null,
+          rightShoulderPt != null && rightHipPt != null
+              ? _calculateAngle(rightShoulderPt, rightHipPt, rightKneePt)
+              : null,
+        ]) ??
+        180.0;
+
+    _neckAngle = kneeAngle;
+    _spineAngle = hipAngle;
+    _shoulderAngle = leftShoulderPt != null && rightShoulderPt != null
+        ? _calculateAngle(leftShoulderPt, shoulderCenter, rightShoulderPt)
         : 180.0;
 
-    _spineAngle = hipAngle;
-    _neckAngle = kneeAngle;
+    final corrections = <String>[];
+    final highlights = <String>[];
+    final leftTrack =
+        leftAnklePt != null ? (leftKneePt.dx - leftAnklePt.dx).abs() / scale : 0.0;
+    final rightTrack =
+        rightAnklePt != null ? (rightKneePt.dx - rightAnklePt.dx).abs() / scale : 0.0;
+    final trunkShift = (shoulderCenter.dx - ankleCenter.dx).abs() / scale;
 
-    String label = "Good Squat Form 💪";
-
-    // Check depth (knee angle should be less than 90 degrees at bottom)
-    if (kneeAngle >
-        120) {
-      label = "Go deeper! Knees should bend more ⬇️";
-    } else if (kneeAngle <
-        60) {
-      label = "Excellent depth! 🎯";
+    if (kneeAngle > 145) {
+      corrections.add('Sink a little deeper by bending your knees more.');
+    } else if (kneeAngle < 80) {
+      highlights.add('Squat depth looks strong.');
+    }
+    if (max(leftTrack, rightTrack) > 0.46) {
+      corrections.add('Track your knees over the middle of each foot.');
+    }
+    if (hipAngle < 138 || trunkShift > 0.82) {
+      corrections.add('Keep your chest prouder and your spine more neutral.');
     }
 
-    // Check knee alignment (knees should track over toes)
-    if (rightKneePt !=
-            null &&
-        rightAnklePt !=
-            null) {
-      final leftKneeX = leftKneePt.dx;
-      final leftAnkleX = leftAnklePt.dx;
-      final rightKneeX = rightKneePt.dx;
-      final rightAnkleX = rightAnklePt.dx;
-
-      if ((leftKneeX -
-                      leftAnkleX)
-                  .abs() >
-              30 ||
-          (rightKneeX -
-                      rightAnkleX)
-                  .abs() >
-              30) {
-        label = "Keep knees aligned over toes ⚠️";
-      }
-    }
-
-    // Check back alignment
-    if (hipAngle <
-        150) {
-      label = "Keep your back straighter ⚠️";
-    }
-
-    setState(
-      () {
-        _postureLabel = label;
-      },
+    _applyFeedback(
+      _buildExerciseFeedback(
+        successLabel: 'Good squat mechanics',
+        successVoice:
+            'Keep driving through the feet and stay balanced through the whole rep.',
+        corrections: corrections,
+        highlights: highlights,
+      ),
     );
   }
 
@@ -1107,76 +1205,82 @@ class _PoseCameraPageState
       pose,
     );
     final leftShoulderPt = landmarks['leftShoulder'];
-    final leftElbowPt = landmarks['leftElbow'];
-    final leftWristPt = landmarks['leftWrist'];
     final rightShoulderPt = landmarks['rightShoulder'];
+    final leftElbowPt = landmarks['leftElbow'];
+    final rightElbowPt = landmarks['rightElbow'];
+    final leftWristPt = landmarks['leftWrist'];
+    final rightWristPt = landmarks['rightWrist'];
     final leftHipPt = landmarks['leftHip'];
+    final rightHipPt = landmarks['rightHip'];
+    final leftAnklePt = landmarks['leftAnkle'];
+    final rightAnklePt = landmarks['rightAnkle'];
 
-    if (leftShoulderPt ==
-            null ||
-        leftElbowPt ==
-            null ||
-        leftWristPt ==
-            null ||
-        leftHipPt ==
-            null) {
-      setState(
-        () {
-          _postureLabel = "Position yourself in frame";
-        },
+    if (leftShoulderPt == null ||
+        leftElbowPt == null ||
+        leftWristPt == null ||
+        leftHipPt == null ||
+        leftAnklePt == null) {
+      _applyFeedback(
+        _neutralFeedback(
+          label: 'Position yourself in frame',
+          voicePrompt:
+              'Show your shoulders, elbows, hips, and ankles for push-up analysis.',
+        ),
       );
       return;
     }
 
-    // Calculate arm angle (shoulder-elbow-wrist)
-    final armAngle = _calculateAngle(
-      leftShoulderPt,
-      leftElbowPt,
-      leftWristPt,
-    );
-    // Calculate body alignment (shoulder-hip)
-    final bodyAlignment =
-        (leftShoulderPt.dy -
-                leftHipPt.dy)
-            .abs();
+    final scale = _referenceScale(landmarks);
+    final armAngle = _averageValue([
+          _calculateAngle(leftShoulderPt, leftElbowPt, leftWristPt),
+          rightShoulderPt != null && rightElbowPt != null && rightWristPt != null
+              ? _calculateAngle(rightShoulderPt, rightElbowPt, rightWristPt)
+              : null,
+        ]) ??
+        180.0;
+    final bodyLineOffset = rightShoulderPt != null &&
+            rightHipPt != null &&
+            rightAnklePt != null
+        ? _averageValue([
+              _distanceToLine(leftHipPt, leftShoulderPt, leftAnklePt) / scale,
+              _distanceToLine(rightHipPt, rightShoulderPt, rightAnklePt) / scale,
+            ]) ??
+            0.0
+        : _distanceToLine(leftHipPt, leftShoulderPt, leftAnklePt) / scale;
+    final wristStack = _averageValue([
+          (leftWristPt.dx - leftShoulderPt.dx).abs() / scale,
+          rightWristPt != null && rightShoulderPt != null
+              ? (rightWristPt.dx - rightShoulderPt.dx).abs() / scale
+              : null,
+        ]) ??
+        0.0;
 
     _shoulderAngle = armAngle;
-    _spineAngle = bodyAlignment;
+    _spineAngle = 180 - (bodyLineOffset * 100).clamp(0, 90);
 
-    String label = "Good Push-Up Form 💪";
+    final corrections = <String>[];
+    final highlights = <String>[];
 
-    // Check arm position (at bottom, arm angle should be around 90 degrees)
-    if (armAngle >
-        120) {
-      label = "Go lower! Chest closer to ground ⬇️";
-    } else if (armAngle <
-        70) {
-      label = "Excellent depth! 🎯";
+    if (armAngle > 145) {
+      corrections.add('Lower your chest a little more with control.');
+    } else if (armAngle < 95) {
+      highlights.add('Push-up depth looks strong.');
+    }
+    if (bodyLineOffset > 0.24) {
+      corrections.add('Keep your body in one straight line and brace your core.');
+    }
+    if (wristStack > 0.68) {
+      corrections.add('Stack your wrists more directly under your shoulders.');
     }
 
-    // Check body alignment (shoulders and hips should be aligned)
-    if (bodyAlignment >
-        30) {
-      label = "Keep body straight! No sagging ⚠️";
-    }
-
-    // Check shoulder alignment
-    if (rightShoulderPt !=
-        null) {
-      final shoulderDiff =
-          (leftShoulderPt.dy -
-                  rightShoulderPt.dy)
-              .abs();
-      if (shoulderDiff >
-          15) {
-        label = "Keep shoulders level ⚠️";
-      }
-    }
-
-    setState(
-      () {
-        _postureLabel = label;
-      },
+    _applyFeedback(
+      _buildExerciseFeedback(
+        successLabel: 'Good push-up alignment',
+        successVoice:
+            'Stay tight through the core and press the floor away evenly.',
+        corrections: corrections,
+        highlights: highlights,
+      ),
     );
   }
 
@@ -1188,73 +1292,71 @@ class _PoseCameraPageState
       pose,
     );
     final leftShoulderPt = landmarks['leftShoulder'];
-    final leftHipPt = landmarks['leftHip'];
-    final leftAnklePt = landmarks['leftAnkle'];
     final rightShoulderPt = landmarks['rightShoulder'];
+    final leftHipPt = landmarks['leftHip'];
     final rightHipPt = landmarks['rightHip'];
+    final leftAnklePt = landmarks['leftAnkle'];
+    final rightAnklePt = landmarks['rightAnkle'];
 
-    if (leftShoulderPt ==
-            null ||
-        leftHipPt ==
-            null ||
-        leftAnklePt ==
-            null) {
-      setState(
-        () {
-          _postureLabel = "Position yourself in frame";
-        },
+    if (leftShoulderPt == null || leftHipPt == null || leftAnklePt == null) {
+      _applyFeedback(
+        _neutralFeedback(
+          label: 'Position yourself in frame',
+          voicePrompt:
+              'Show your shoulders, hips, and ankles for plank analysis.',
+        ),
       );
       return;
     }
 
-    // Calculate body alignment angle (shoulder-hip-ankle should be straight)
-    final alignmentAngle = _calculateAngle(
-      leftShoulderPt,
-      leftHipPt,
-      leftAnklePt,
-    );
+    final scale = _referenceScale(landmarks);
+    final alignmentAngle = _averageValue([
+          _calculateAngle(leftShoulderPt, leftHipPt, leftAnklePt),
+          rightShoulderPt != null && rightHipPt != null && rightAnklePt != null
+              ? _calculateAngle(rightShoulderPt, rightHipPt, rightAnklePt)
+              : null,
+        ]) ??
+        180.0;
+    final bodyLineOffset = rightShoulderPt != null &&
+            rightHipPt != null &&
+            rightAnklePt != null
+        ? _averageValue([
+              _distanceToLine(leftHipPt, leftShoulderPt, leftAnklePt) / scale,
+              _distanceToLine(rightHipPt, rightShoulderPt, rightAnklePt) / scale,
+            ]) ??
+            0.0
+        : _distanceToLine(leftHipPt, leftShoulderPt, leftAnklePt) / scale;
+    final levelError = _averageValue([
+          rightShoulderPt != null
+              ? (leftShoulderPt.dy - rightShoulderPt.dy).abs() / scale
+              : null,
+          rightHipPt != null ? (leftHipPt.dy - rightHipPt.dy).abs() / scale : null,
+        ]) ??
+        0.0;
 
     _spineAngle = alignmentAngle;
 
-    String label = "Good Plank Form 💪";
+    final corrections = <String>[];
+    final highlights = <String>[];
 
-    // Ideal plank: body should be straight (angle close to 180 degrees)
-    if (alignmentAngle <
-        160) {
-      label = "Hips too high! Lower them ⬇️";
-    } else if (alignmentAngle >
-        190) {
-      label = "Hips sagging! Lift them up ⬆️";
-    } else {
-      label = "Perfect alignment! 🎯";
+    if (alignmentAngle < 158 || bodyLineOffset > 0.22) {
+      corrections.add('Keep your shoulders, hips, and ankles in one long line.');
+    }
+    if (levelError > 0.18) {
+      corrections.add('Level your shoulders and hips so the plank stays square.');
+    }
+    if (corrections.isEmpty) {
+      highlights.add('Plank alignment looks solid.');
     }
 
-    // Check shoulder alignment
-    if (rightShoulderPt !=
-            null &&
-        rightHipPt !=
-            null) {
-      final shoulderDiff =
-          (leftShoulderPt.dy -
-                  rightShoulderPt.dy)
-              .abs();
-      final hipDiff =
-          (leftHipPt.dy -
-                  rightHipPt.dy)
-              .abs();
-
-      if (shoulderDiff >
-              15 ||
-          hipDiff >
-              15) {
-        label = "Keep body level and straight ⚠️";
-      }
-    }
-
-    setState(
-      () {
-        _postureLabel = label;
-      },
+    _applyFeedback(
+      _buildExerciseFeedback(
+        successLabel: 'Good plank position',
+        successVoice:
+            'Keep squeezing your glutes and brace your core as you breathe.',
+        corrections: corrections,
+        highlights: highlights,
+      ),
     );
   }
 
@@ -1266,79 +1368,72 @@ class _PoseCameraPageState
       pose,
     );
     final leftHipPt = landmarks['leftHip'];
-    final leftKneePt = landmarks['leftKnee'];
-    final leftAnklePt = landmarks['leftAnkle'];
     final rightHipPt = landmarks['rightHip'];
+    final leftKneePt = landmarks['leftKnee'];
     final rightKneePt = landmarks['rightKnee'];
+    final leftAnklePt = landmarks['leftAnkle'];
+    final rightAnklePt = landmarks['rightAnkle'];
     final leftShoulderPt = landmarks['leftShoulder'];
+    final rightShoulderPt = landmarks['rightShoulder'];
+    final shoulderCenter = _midpoint(leftShoulderPt, rightShoulderPt);
+    final hipCenter = _midpoint(leftHipPt, rightHipPt);
 
-    if (leftHipPt ==
-            null ||
-        leftKneePt ==
-            null ||
-        leftAnklePt ==
-            null ||
-        rightHipPt ==
-            null ||
-        rightKneePt ==
-            null) {
-      setState(
-        () {
-          _postureLabel = "Position yourself in frame";
-        },
+    if (leftHipPt == null ||
+        rightHipPt == null ||
+        leftKneePt == null ||
+        rightKneePt == null ||
+        leftAnklePt == null ||
+        rightAnklePt == null ||
+        shoulderCenter == null ||
+        hipCenter == null) {
+      _applyFeedback(
+        _neutralFeedback(
+          label: 'Position yourself in frame',
+          voicePrompt: 'Show both legs and your torso clearly for lunge analysis.',
+        ),
       );
       return;
     }
 
-    // Calculate front knee angle
-    final frontKneeAngle = _calculateAngle(
-      leftHipPt,
-      leftKneePt,
-      leftAnklePt,
-    );
-    // Calculate torso alignment
-    final torsoAngle =
-        leftShoulderPt !=
-            null
-        ? _calculateAngle(
-            leftShoulderPt,
-            leftHipPt,
-            rightHipPt,
-          )
-        : 180.0;
+    final scale = _referenceScale(landmarks);
+    final leftFrontAngle = _calculateAngle(leftHipPt, leftKneePt, leftAnklePt);
+    final rightFrontAngle = _calculateAngle(rightHipPt, rightKneePt, rightAnklePt);
+    final usingLeftFront = leftFrontAngle <= rightFrontAngle;
+    final frontKneeAngle = usingLeftFront ? leftFrontAngle : rightFrontAngle;
+    final frontKneePt = usingLeftFront ? leftKneePt : rightKneePt;
+    final frontAnklePt = usingLeftFront ? leftAnklePt : rightAnklePt;
+    final torsoShift = (shoulderCenter.dx - hipCenter.dx).abs() / scale;
+    final hipTilt = (leftHipPt.dy - rightHipPt.dy).abs() / scale;
 
-    _spineAngle = torsoAngle;
+    _spineAngle = 180 - (torsoShift * 100).clamp(0, 90);
     _neckAngle = frontKneeAngle;
 
-    String label = "Good Lunge Form 💪";
+    final corrections = <String>[];
+    final highlights = <String>[];
 
-    // Front knee should be at 90 degrees
-    if (frontKneeAngle >
-        110) {
-      label = "Step forward more! ⬇️";
-    } else if (frontKneeAngle <
-        80) {
-      label = "Excellent depth! 🎯";
+    if (frontKneeAngle > 122) {
+      corrections.add('Lower a little deeper or lengthen your stance.');
+    } else if (frontKneeAngle < 78) {
+      highlights.add('Lunge depth looks strong.');
+    }
+    if ((frontKneePt.dx - frontAnklePt.dx).abs() / scale > 0.42) {
+      corrections.add('Keep your front knee stacked more directly over the ankle.');
+    }
+    if (torsoShift > 0.30) {
+      corrections.add('Keep your torso taller and chest more upright.');
+    }
+    if (hipTilt > 0.20) {
+      corrections.add('Square your hips and stay balanced through both legs.');
     }
 
-    // Check if front knee is over ankle
-    if ((leftKneePt.dx -
-                leftAnklePt.dx)
-            .abs() >
-        30) {
-      label = "Keep front knee over ankle ⚠️";
-    }
-
-    // Check torso alignment
-    if (torsoAngle <
-        170) {
-      label = "Keep torso upright! ⚠️";
-    }
-
-    setState(
-      () {
-        _postureLabel = label;
-      },
+    _applyFeedback(
+      _buildExerciseFeedback(
+        successLabel: 'Good lunge alignment',
+        successVoice:
+            'Stay tall through the torso and push evenly through the floor.',
+        corrections: corrections,
+        highlights: highlights,
+      ),
     );
   }
 
@@ -1350,70 +1445,76 @@ class _PoseCameraPageState
       pose,
     );
     final leftShoulderPt = landmarks['leftShoulder'];
-    final leftHipPt = landmarks['leftHip'];
-    final leftKneePt = landmarks['leftKnee'];
-    final leftAnklePt = landmarks['leftAnkle'];
     final rightShoulderPt = landmarks['rightShoulder'];
+    final leftHipPt = landmarks['leftHip'];
+    final rightHipPt = landmarks['rightHip'];
+    final leftKneePt = landmarks['leftKnee'];
+    final rightKneePt = landmarks['rightKnee'];
+    final leftAnklePt = landmarks['leftAnkle'];
+    final rightAnklePt = landmarks['rightAnkle'];
 
-    if (leftShoulderPt ==
-            null ||
-        leftHipPt ==
-            null ||
-        leftKneePt ==
-            null) {
-      setState(
-        () {
-          _postureLabel = "Position yourself in frame";
-        },
+    if (leftShoulderPt == null ||
+        leftHipPt == null ||
+        leftKneePt == null ||
+        leftAnklePt == null) {
+      _applyFeedback(
+        _neutralFeedback(
+          label: 'Position yourself in frame',
+          voicePrompt:
+              'Show your shoulders, hips, knees, and ankles for deadlift analysis.',
+        ),
       );
       return;
     }
 
-    // Calculate back angle (shoulder-hip-knee)
-    final backAngle = _calculateAngle(
-      leftShoulderPt,
-      leftHipPt,
-      leftKneePt,
-    );
-    // Calculate knee angle
-    final kneeAngle =
-        leftAnklePt !=
-            null
-        ? _calculateAngle(
-            leftHipPt,
-            leftKneePt,
-            leftAnklePt,
-          )
-        : 180.0;
+    final scale = _referenceScale(landmarks);
+    final backAngle = _averageValue([
+          _calculateAngle(leftShoulderPt, leftHipPt, leftKneePt),
+          rightShoulderPt != null && rightHipPt != null && rightKneePt != null
+              ? _calculateAngle(rightShoulderPt, rightHipPt, rightKneePt)
+              : null,
+        ]) ??
+        180.0;
+    final kneeAngle = _averageValue([
+          _calculateAngle(leftHipPt, leftKneePt, leftAnklePt),
+          rightHipPt != null && rightKneePt != null && rightAnklePt != null
+              ? _calculateAngle(rightHipPt, rightKneePt, rightAnklePt)
+              : null,
+        ]) ??
+        180.0;
+    final shoulderLevel = rightShoulderPt != null
+        ? (leftShoulderPt.dy - rightShoulderPt.dy).abs() / scale
+        : 0.0;
 
     _spineAngle = backAngle;
     _neckAngle = kneeAngle;
 
-    String label = "Good Deadlift Form 💪";
+    final corrections = <String>[];
+    final highlights = <String>[];
 
-    // Back should be relatively straight (angle > 150)
-    if (backAngle <
-        140) {
-      label = "Keep back straighter! ⚠️";
+    if (backAngle < 138) {
+      corrections.add('Flatten your back more and keep the spine neutral.');
+    }
+    if (kneeAngle < 102) {
+      corrections.add('Raise your hips slightly so this stays a hip hinge.');
+    } else if (kneeAngle > 176) {
+      corrections.add('Unlock your knees a bit more and load the hips.');
+    }
+    if (shoulderLevel > 0.18) {
+      corrections.add('Level your shoulders and keep tension even on both sides.');
+    }
+    if (corrections.isEmpty) {
+      highlights.add('Deadlift hinge looks controlled.');
     }
 
-    // Check shoulder alignment
-    if (rightShoulderPt !=
-        null) {
-      final shoulderDiff =
-          (leftShoulderPt.dy -
-                  rightShoulderPt.dy)
-              .abs();
-      if (shoulderDiff >
-          15) {
-        label = "Keep shoulders level ⚠️";
-      }
-    }
-
-    setState(
-      () {
-        _postureLabel = label;
-      },
+    _applyFeedback(
+      _buildExerciseFeedback(
+        successLabel: 'Good deadlift setup',
+        successVoice:
+            'Keep your lats tight, chest proud, and drive through the floor.',
+        corrections: corrections,
+        highlights: highlights,
+      ),
     );
   }
 
@@ -1425,77 +1526,76 @@ class _PoseCameraPageState
       pose,
     );
     final leftShoulderPt = landmarks['leftShoulder'];
-    final leftElbowPt = landmarks['leftElbow'];
-    final leftWristPt = landmarks['leftWrist'];
     final rightShoulderPt = landmarks['rightShoulder'];
+    final leftElbowPt = landmarks['leftElbow'];
+    final rightElbowPt = landmarks['rightElbow'];
+    final leftWristPt = landmarks['leftWrist'];
+    final rightWristPt = landmarks['rightWrist'];
     final leftHipPt = landmarks['leftHip'];
+    final rightHipPt = landmarks['rightHip'];
+    final shoulderCenter = _midpoint(leftShoulderPt, rightShoulderPt);
+    final hipCenter = _midpoint(leftHipPt, rightHipPt);
+    final wristCenter = _midpoint(leftWristPt, rightWristPt);
 
-    if (leftShoulderPt ==
-            null ||
-        leftElbowPt ==
-            null ||
-        leftWristPt ==
-            null ||
-        leftHipPt ==
-            null) {
-      setState(
-        () {
-          _postureLabel = "Position yourself in frame";
-        },
+    if (leftShoulderPt == null ||
+        leftElbowPt == null ||
+        leftWristPt == null ||
+        shoulderCenter == null ||
+        hipCenter == null ||
+        wristCenter == null) {
+      _applyFeedback(
+        _neutralFeedback(
+          label: 'Position yourself in frame',
+          voicePrompt:
+              'Show your shoulders, elbows, wrists, and hips for overhead press analysis.',
+        ),
       );
       return;
     }
 
-    // Calculate arm angle
-    final armAngle = _calculateAngle(
-      leftShoulderPt,
-      leftElbowPt,
-      leftWristPt,
-    );
-    // Calculate torso alignment
-    final torsoAngle = _calculateAngle(
-      leftShoulderPt,
-      leftHipPt,
-      landmarks['rightHip'] ??
-          leftHipPt,
-    );
+    final scale = _referenceScale(landmarks);
+    final armAngle = _averageValue([
+          _calculateAngle(leftShoulderPt, leftElbowPt, leftWristPt),
+          rightShoulderPt != null && rightElbowPt != null && rightWristPt != null
+              ? _calculateAngle(rightShoulderPt, rightElbowPt, rightWristPt)
+              : null,
+        ]) ??
+        180.0;
+    final wristStack = (wristCenter.dx - shoulderCenter.dx).abs() / scale;
+    final torsoShift = (shoulderCenter.dx - hipCenter.dx).abs() / scale;
+    final shoulderLevel = rightShoulderPt != null
+        ? (leftShoulderPt.dy - rightShoulderPt.dy).abs() / scale
+        : 0.0;
 
     _shoulderAngle = armAngle;
-    _spineAngle = torsoAngle;
+    _spineAngle = 180 - (torsoShift * 100).clamp(0, 90);
 
-    String label = "Good Overhead Press Form 💪";
+    final corrections = <String>[];
+    final highlights = <String>[];
 
-    // Check if arms are fully extended (angle close to 180)
-    if (armAngle <
-        160) {
-      label = "Extend arms fully! ⬆️";
+    if (armAngle < 154) {
+      corrections.add('Finish the press by extending the elbows fully overhead.');
     } else {
-      label = "Perfect extension! 🎯";
+      highlights.add('Overhead lockout looks strong.');
+    }
+    if (wristStack > 0.40) {
+      corrections.add('Stack your wrists more directly over the shoulders.');
+    }
+    if (torsoShift > 0.26) {
+      corrections.add('Brace your core and avoid leaning your torso back.');
+    }
+    if (shoulderLevel > 0.18) {
+      corrections.add('Keep both shoulders level as you press.');
     }
 
-    // Check torso alignment
-    if (torsoAngle <
-        170) {
-      label = "Keep core engaged, back straight ⚠️";
-    }
-
-    // Check shoulder alignment
-    if (rightShoulderPt !=
-        null) {
-      final shoulderDiff =
-          (leftShoulderPt.dy -
-                  rightShoulderPt.dy)
-              .abs();
-      if (shoulderDiff >
-          15) {
-        label = "Keep shoulders level ⚠️";
-      }
-    }
-
-    setState(
-      () {
-        _postureLabel = label;
-      },
+    _applyFeedback(
+      _buildExerciseFeedback(
+        successLabel: 'Good overhead press alignment',
+        successVoice:
+            'Keep your ribs down, press straight up, and stay tall through the torso.',
+        corrections: corrections,
+        highlights: highlights,
+      ),
     );
   }
 
@@ -1507,77 +1607,78 @@ class _PoseCameraPageState
       pose,
     );
     final leftShoulderPt = landmarks['leftShoulder'];
-    final leftElbowPt = landmarks['leftElbow'];
-    final leftWristPt = landmarks['leftWrist'];
     final rightShoulderPt = landmarks['rightShoulder'];
+    final leftElbowPt = landmarks['leftElbow'];
+    final rightElbowPt = landmarks['rightElbow'];
+    final leftWristPt = landmarks['leftWrist'];
+    final rightWristPt = landmarks['rightWrist'];
     final leftHipPt = landmarks['leftHip'];
+    final rightHipPt = landmarks['rightHip'];
+    final leftAnklePt = landmarks['leftAnkle'];
+    final rightAnklePt = landmarks['rightAnkle'];
 
-    if (leftShoulderPt ==
-            null ||
-        leftElbowPt ==
-            null ||
-        leftWristPt ==
-            null) {
-      setState(
-        () {
-          _postureLabel = "Position yourself in frame";
-        },
+    if (leftShoulderPt == null ||
+        leftElbowPt == null ||
+        leftWristPt == null ||
+        leftHipPt == null) {
+      _applyFeedback(
+        _neutralFeedback(
+          label: 'Position yourself in frame',
+          voicePrompt:
+              'Show your shoulders, elbows, hips, and legs for pull-up analysis.',
+        ),
       );
       return;
     }
 
-    // Calculate arm angle (at top, should be close to 0)
-    final armAngle = _calculateAngle(
-      leftShoulderPt,
-      leftElbowPt,
-      leftWristPt,
-    );
-    // Calculate body alignment
-    final bodyAlignment =
-        leftHipPt !=
-            null
-        ? (leftShoulderPt.dy -
-                  leftHipPt.dy)
-              .abs()
+    final scale = _referenceScale(landmarks);
+    final armAngle = _averageValue([
+          _calculateAngle(leftShoulderPt, leftElbowPt, leftWristPt),
+          rightShoulderPt != null && rightElbowPt != null && rightWristPt != null
+              ? _calculateAngle(rightShoulderPt, rightElbowPt, rightWristPt)
+              : null,
+        ]) ??
+        180.0;
+    final swingOffset = rightShoulderPt != null &&
+            rightHipPt != null &&
+            rightAnklePt != null &&
+            leftAnklePt != null
+        ? _averageValue([
+              _distanceToLine(leftHipPt, leftShoulderPt, leftAnklePt) / scale,
+              _distanceToLine(rightHipPt, rightShoulderPt, rightAnklePt) / scale,
+            ]) ??
+            0.0
+        : 0.0;
+    final shoulderLevel = rightShoulderPt != null
+        ? (leftShoulderPt.dy - rightShoulderPt.dy).abs() / scale
         : 0.0;
 
     _shoulderAngle = armAngle;
-    _spineAngle = bodyAlignment;
+    _spineAngle = 180 - (swingOffset * 100).clamp(0, 90);
 
-    String label = "Good Pull-Up Form 💪";
+    final corrections = <String>[];
+    final highlights = <String>[];
 
-    // At top position, arm angle should be small
-    if (armAngle >
-        60) {
-      label = "Pull higher! Chin over bar ⬆️";
-    } else if (armAngle <
-        30) {
-      label = "Excellent! Full range of motion 🎯";
+    if (armAngle > 82) {
+      corrections.add('Pull higher so the chin clears the bar.');
+    } else if (armAngle < 32) {
+      highlights.add('Pull-up range of motion looks strong.');
+    }
+    if (swingOffset > 0.24) {
+      corrections.add('Reduce swing and keep your body quieter through the rep.');
+    }
+    if (shoulderLevel > 0.18) {
+      corrections.add('Keep your shoulders level as you pull.');
     }
 
-    // Check for kipping (body swinging)
-    if (bodyAlignment >
-        40) {
-      label = "Avoid kipping! Keep body still ⚠️";
-    }
-
-    // Check shoulder alignment
-    if (rightShoulderPt !=
-        null) {
-      final shoulderDiff =
-          (leftShoulderPt.dy -
-                  rightShoulderPt.dy)
-              .abs();
-      if (shoulderDiff >
-          15) {
-        label = "Keep shoulders level ⚠️";
-      }
-    }
-
-    setState(
-      () {
-        _postureLabel = label;
-      },
+    _applyFeedback(
+      _buildExerciseFeedback(
+        successLabel: 'Good pull-up control',
+        successVoice:
+            'Stay tight through the trunk and drive the elbows down smoothly.',
+        corrections: corrections,
+        highlights: highlights,
+      ),
     );
   }
 
@@ -1589,83 +1690,77 @@ class _PoseCameraPageState
       pose,
     );
     final leftShoulderPt = landmarks['leftShoulder'];
-    final leftHipPt = landmarks['leftHip'];
-    final leftKneePt = landmarks['leftKnee'];
-    final leftAnklePt = landmarks['leftAnkle'];
     final rightShoulderPt = landmarks['rightShoulder'];
+    final leftHipPt = landmarks['leftHip'];
     final rightHipPt = landmarks['rightHip'];
+    final leftKneePt = landmarks['leftKnee'];
+    final rightKneePt = landmarks['rightKnee'];
+    final leftAnklePt = landmarks['leftAnkle'];
+    final rightAnklePt = landmarks['rightAnkle'];
 
-    if (leftShoulderPt ==
-            null ||
-        leftHipPt ==
-            null ||
-        leftKneePt ==
-            null) {
-      setState(
-        () {
-          _postureLabel = "Position yourself in frame";
-        },
+    if (leftShoulderPt == null ||
+        leftHipPt == null ||
+        leftKneePt == null ||
+        leftAnklePt == null) {
+      _applyFeedback(
+        _neutralFeedback(
+          label: 'Position yourself in frame',
+          voicePrompt:
+              'Show your shoulders, hips, knees, and ankles for bridge analysis.',
+        ),
       );
       return;
     }
 
-    // Calculate hip angle (shoulder-hip-knee)
-    final hipAngle = _calculateAngle(
-      leftShoulderPt,
-      leftHipPt,
-      leftKneePt,
-    );
-    // Calculate knee angle
-    final kneeAngle =
-        leftAnklePt !=
-            null
-        ? _calculateAngle(
-            leftHipPt,
-            leftKneePt,
-            leftAnklePt,
-          )
-        : 180.0;
+    final scale = _referenceScale(landmarks);
+    final hipAngle = _averageValue([
+          _calculateAngle(leftShoulderPt, leftHipPt, leftKneePt),
+          rightShoulderPt != null && rightHipPt != null && rightKneePt != null
+              ? _calculateAngle(rightShoulderPt, rightHipPt, rightKneePt)
+              : null,
+        ]) ??
+        180.0;
+    final kneeStack = _averageValue([
+          (leftKneePt.dx - leftAnklePt.dx).abs() / scale,
+          rightKneePt != null && rightAnklePt != null
+              ? (rightKneePt.dx - rightAnklePt.dx).abs() / scale
+              : null,
+        ]) ??
+        0.0;
+    final levelError = _averageValue([
+          rightShoulderPt != null
+              ? (leftShoulderPt.dy - rightShoulderPt.dy).abs() / scale
+              : null,
+          rightHipPt != null ? (leftHipPt.dy - rightHipPt.dy).abs() / scale : null,
+        ]) ??
+        0.0;
 
     _spineAngle = hipAngle;
-    _neckAngle = kneeAngle;
+    _neckAngle = kneeStack * 100;
 
-    String label = "Good Bridge Form 💪";
+    final corrections = <String>[];
+    final highlights = <String>[];
 
-    // Hip should be lifted (angle > 150)
-    if (hipAngle <
-        140) {
-      label = "Lift hips higher! ⬆️";
-    } else if (hipAngle >
-        170) {
-      label = "Perfect bridge! 🎯";
+    if (hipAngle < 142) {
+      corrections.add('Drive through your heels and lift the hips a little higher.');
+    } else {
+      highlights.add('Bridge height looks strong.');
+    }
+    if (kneeStack > 0.44) {
+      corrections.add('Keep your knees stacked more directly over your ankles.');
+    }
+    if (levelError > 0.20) {
+      corrections.add('Keep your shoulders and hips level from side to side.');
     }
 
-    // Check alignment
-    if (rightShoulderPt !=
-            null &&
-        rightHipPt !=
-            null) {
-      final shoulderDiff =
-          (leftShoulderPt.dy -
-                  rightShoulderPt.dy)
-              .abs();
-      final hipDiff =
-          (leftHipPt.dy -
-                  rightHipPt.dy)
-              .abs();
-
-      if (shoulderDiff >
-              15 ||
-          hipDiff >
-              15) {
-        label = "Keep body aligned ⚠️";
-      }
-    }
-
-    setState(
-      () {
-        _postureLabel = label;
-      },
+    _applyFeedback(
+      _buildExerciseFeedback(
+        successLabel: 'Good bridge alignment',
+        successVoice:
+            'Squeeze the glutes and keep the ribs quiet as you hold the bridge.',
+        corrections: corrections,
+        highlights: highlights,
+      ),
     );
   }
 
@@ -1677,90 +1772,90 @@ class _PoseCameraPageState
       pose,
     );
     final leftShoulderPt = landmarks['leftShoulder'];
-    final leftHipPt = landmarks['leftHip'];
-    final leftKneePt = landmarks['leftKnee'];
-    final leftAnklePt = landmarks['leftAnkle'];
     final rightShoulderPt = landmarks['rightShoulder'];
+    final leftHipPt = landmarks['leftHip'];
     final rightHipPt = landmarks['rightHip'];
+    final leftKneePt = landmarks['leftKnee'];
+    final rightKneePt = landmarks['rightKnee'];
+    final leftAnklePt = landmarks['leftAnkle'];
+    final rightAnklePt = landmarks['rightAnkle'];
+    final leftElbowPt = landmarks['leftElbow'];
+    final rightElbowPt = landmarks['rightElbow'];
 
-    if (leftShoulderPt ==
-            null ||
-        leftHipPt ==
-            null ||
-        leftKneePt ==
-            null) {
-      setState(
-        () {
-          _postureLabel = "Position yourself in frame";
-        },
+    if (leftShoulderPt == null ||
+        leftHipPt == null ||
+        leftKneePt == null ||
+        leftAnklePt == null) {
+      _applyFeedback(
+        _neutralFeedback(
+          label: 'Position yourself in frame',
+          voicePrompt:
+              'Show your shoulders, hips, knees, and ankles for mountain climber analysis.',
+        ),
       );
       return;
     }
 
-    // Calculate body alignment (shoulder-hip-ankle)
-    final alignmentAngle =
-        leftAnklePt !=
-            null
-        ? _calculateAngle(
-            leftShoulderPt,
-            leftHipPt,
-            leftAnklePt,
-          )
-        : 180.0;
-    // Calculate knee position relative to hip
-    final kneePosition =
-        (leftKneePt.dy -
-        leftHipPt.dy);
+    final scale = _referenceScale(landmarks);
+    final alignmentAngle = _averageValue([
+          _calculateAngle(leftShoulderPt, leftHipPt, leftAnklePt),
+          rightShoulderPt != null && rightHipPt != null && rightAnklePt != null
+              ? _calculateAngle(rightShoulderPt, rightHipPt, rightAnklePt)
+              : null,
+        ]) ??
+        180.0;
+    final bodyLineOffset = rightShoulderPt != null &&
+            rightHipPt != null &&
+            rightAnklePt != null
+        ? _averageValue([
+              _distanceToLine(leftHipPt, leftShoulderPt, leftAnklePt) / scale,
+              _distanceToLine(rightHipPt, rightShoulderPt, rightAnklePt) / scale,
+            ]) ??
+            0.0
+        : _distanceToLine(leftHipPt, leftShoulderPt, leftAnklePt) / scale;
+    final kneeDrive = _averageValue([
+          leftElbowPt != null ? _distance(leftKneePt, leftElbowPt) / scale : null,
+          rightKneePt != null && rightElbowPt != null
+              ? _distance(rightKneePt, rightElbowPt) / scale
+              : null,
+        ]) ??
+        10.0;
+    final levelError = _averageValue([
+          rightShoulderPt != null
+              ? (leftShoulderPt.dy - rightShoulderPt.dy).abs() / scale
+              : null,
+          rightHipPt != null ? (leftHipPt.dy - rightHipPt.dy).abs() / scale : null,
+        ]) ??
+        0.0;
 
     _spineAngle = alignmentAngle;
-    _neckAngle = kneePosition.abs();
+    _neckAngle = max(0, 200 - (kneeDrive * 50));
 
-    String label = "Good Mountain Climber Form 💪";
+    final corrections = <String>[];
+    final highlights = <String>[];
 
-    // Body should be in plank position (alignment close to 180)
-    if (alignmentAngle <
-        160) {
-      label = "Keep body straight! Hips down ⬇️";
-    } else if (alignmentAngle >
-        190) {
-      label = "Hips too high! Lower them ⬇️";
+    if (alignmentAngle < 158 || bodyLineOffset > 0.24) {
+      corrections.add('Keep the plank line strong while you drive the knees.');
+    }
+    if (kneeDrive > 1.65) {
+      corrections.add('Drive each knee a little closer toward the chest.');
+    } else {
+      highlights.add('Knee drive looks active and controlled.');
+    }
+    if (levelError > 0.20) {
+      corrections.add('Keep your shoulders and hips level as you switch legs.');
     }
 
-    // Check if knee is being brought forward (mountain climber movement)
-    if (kneePosition <
-        -20) {
-      label = "Good! Bring knee forward 🎯";
-    }
-
-    // Check alignment
-    if (rightShoulderPt !=
-            null &&
-        rightHipPt !=
-            null) {
-      final shoulderDiff =
-          (leftShoulderPt.dy -
-                  rightShoulderPt.dy)
-              .abs();
-      final hipDiff =
-          (leftHipPt.dy -
-                  rightHipPt.dy)
-              .abs();
-
-      if (shoulderDiff >
-              15 ||
-          hipDiff >
-              15) {
-        label = "Keep body level ⚠️";
-      }
-    }
-
-    setState(
-      () {
-        _postureLabel = label;
-      },
+    _applyFeedback(
+      _buildExerciseFeedback(
+        successLabel: 'Good mountain climber control',
+        successVoice:
+            'Keep the core braced and move the knees fast without losing body line.',
+        corrections: corrections,
+        highlights: highlights,
+      ),
     );
   }
-
   // Transform ML kit image coordinates (x,y) to widget coordinates for drawing overlay
   // This mapping is approximate and works well with typical CameraPreview sizes.
   // It assumes the preview is fit into the available widget bounds maintaining aspect ratio.
@@ -1769,8 +1864,9 @@ class _PoseCameraPageState
     Size widgetSize,
   ) {
     if (_imageSize ==
-        null)
+        null) {
       return Offset.zero;
+    }
 
     final imageW = _imageSize!.width;
     final imageH = _imageSize!.height;
@@ -1931,8 +2027,8 @@ class _PoseCameraPageState
                                     Text(
                                       widget.exerciseType.instructions,
                                       style: TextStyle(
-                                        color: Colors.white.withOpacity(
-                                          0.9,
+                                        color: Colors.white.withValues(
+                                          alpha: 0.9,
                                         ),
                                         fontSize: 12,
                                       ),
@@ -1958,7 +2054,7 @@ class _PoseCameraPageState
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Angle: ${_spineAngle.toStringAsFixed(1)}°',
+                                      'Angle: ${_spineAngle.toStringAsFixed(1)} deg',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 12,
@@ -1997,14 +2093,15 @@ class _PoseCameraPageState
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
+          final messenger = ScaffoldMessenger.of(
+            context,
+          );
           try {
             // toggle camera direction (if multiple cameras)
             final cameras = await availableCameras();
             if (cameras.length <
                 2) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(
+              messenger.showSnackBar(
                 const SnackBar(
                   content: Text(
                     'Only one camera available',
@@ -2050,9 +2147,7 @@ class _PoseCameraPageState
               'Error switching camera: $e',
             );
             if (mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(
+              messenger.showSnackBar(
                 SnackBar(
                   content: Text(
                     'Error switching camera: $e',
@@ -2174,8 +2269,9 @@ class _PosePainter
       if (a ==
               null ||
           b ==
-              null)
+              null) {
         continue;
+      }
       final pa = transformPoint(
         Offset(
           a.x,
@@ -2228,7 +2324,7 @@ class _PosePainter
         ),
       );
       tp.text = TextSpan(
-        text: '${neckAngle.toStringAsFixed(1)}°',
+        text: '${neckAngle.toStringAsFixed(1)} deg',
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
@@ -2254,7 +2350,7 @@ class _PosePainter
         ),
       );
       tp.text = TextSpan(
-        text: '${spineAngle.toStringAsFixed(1)}°',
+        text: '${spineAngle.toStringAsFixed(1)} deg',
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
@@ -2280,7 +2376,7 @@ class _PosePainter
         ),
       );
       tp.text = TextSpan(
-        text: '${shoulderAngle.toStringAsFixed(1)}°',
+        text: '${shoulderAngle.toStringAsFixed(1)} deg',
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
@@ -2304,3 +2400,4 @@ class _PosePainter
     covariant _PosePainter old,
   ) => true;
 }
+

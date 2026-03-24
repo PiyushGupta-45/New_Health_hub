@@ -61,7 +61,12 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
         
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         stepCounterSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-        stepDetectorSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
+        stepDetectorSensor =
+            if (stepCounterSensor == null) {
+                sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
+            } else {
+                null
+            }
 
         // Start background step service (foreground service) so steps keep counting.
         if (!didStartService) {
@@ -391,7 +396,7 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                 }
             }
             Sensor.TYPE_STEP_DETECTOR -> {
-                if (isListening) {
+                if (stepCounterSensor == null && isListening) {
                     lastDetectorTodaySteps = StepCounterService.incrementTodaySteps(this)
                     methodChannel?.invokeMethod("onStepCountUpdate", lastStepCount)
                 }

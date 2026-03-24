@@ -36,7 +36,12 @@ class StepCounterService : Service(), SensorEventListener {
         super.onCreate()
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         stepCounterSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-        stepDetectorSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
+        stepDetectorSensor =
+            if (stepCounterSensor == null) {
+                sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
+            } else {
+                null
+            }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -95,21 +100,20 @@ class StepCounterService : Service(), SensorEventListener {
                     }
 
                     val todaySteps = (newCount - dayStartCount).coerceAtLeast(0)
-                    val storedTodaySteps =
-                        if (previousDate == today) prefs.getInt(PREF_TODAY_STEPS, 0).coerceAtLeast(0) else 0
-                    val resolvedTodaySteps = maxOf(todaySteps, storedTodaySteps)
                     prefs.edit()
                         .putInt(PREF_LAST_STEP_COUNT, newCount)
                         .putString(PREF_DAY_START_DATE, today)
                         .putInt(PREF_DAY_START_COUNT, dayStartCount)
-                        .putInt(PREF_TODAY_STEPS, resolvedTodaySteps)
+                        .putInt(PREF_TODAY_STEPS, todaySteps)
                         .apply()
                 }
             }
             Sensor.TYPE_STEP_DETECTOR -> {
-                // Detector gives a per-step callback, which keeps background
-                // counting moving even when the cumulative counter is batched.
-                incrementTodaySteps(this)
+                // Use the detector only as a fallback on devices that do not
+                // expose the cumulative hardware step counter.
+                if (stepCounterSensor == null) {
+                    incrementTodaySteps(this)
+                }
             }
         }
     }
