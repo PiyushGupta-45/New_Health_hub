@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/adaptive_workout_service.dart';
 import '../services/hugging_face_service.dart';
 import '../services/workout_plan_schedule_service.dart';
@@ -22,6 +23,46 @@ class _AiWorkoutPlanViewState extends State<AiWorkoutPlanView> {
   final _changeRequestController = TextEditingController();
   final _adaptiveReasonController = TextEditingController();
 
+  static const List<String> _goalOptions = [
+    'Fat loss',
+    'Muscle gain',
+    'Strength',
+    'Endurance',
+    'Mobility',
+    'General fitness',
+    'Other',
+  ];
+  static const List<String> _durationOptions = [
+    '30 minutes',
+    '60 minutes',
+    '90 minutes',
+    '120 minutes',
+    'Other',
+  ];
+  static const List<String> _equipmentOptions = [
+    'None',
+    'Dumbbells',
+    'Resistance bands',
+    'Yoga mat',
+    'Full gym',
+    'Other',
+  ];
+  static const List<String> _intensityOptions = [
+    'Easy',
+    'Moderate',
+    'Hard',
+    'High intensity',
+    'Other',
+  ];
+  static const List<String> _injuryOptions = [
+    'No injury',
+    'Knee pain',
+    'Lower back pain',
+    'Shoulder pain',
+    'Wrist pain',
+    'Other',
+  ];
+
   bool _isLoading = false;
   bool _isInitializing = true;
   bool _isApproving = false;
@@ -35,6 +76,11 @@ class _AiWorkoutPlanViewState extends State<AiWorkoutPlanView> {
   WeeklyWorkoutPlan? _savedPlan;
   WorkoutPlanSchedule? _schedule;
   int _selectedDayIndex = 0;
+  String? _selectedGoal;
+  String? _selectedDuration;
+  String? _selectedEquipment;
+  String? _selectedIntensity;
+  String? _selectedInjury;
 
   late final HuggingFaceService _aiService;
   late final WeeklyWorkoutPlanService _planService;
@@ -75,17 +121,11 @@ class _AiWorkoutPlanViewState extends State<AiWorkoutPlanView> {
       }
     });
 
-    final goal = _goalController.text.trim();
-    final duration = _durationController.text.trim();
-    final equipment = _equipmentController.text.trim();
-    final intensity = _intensityController.text.trim();
-    final injury = _injuryController.text.trim();
-
-    final selectedGoal = goal.isEmpty ? 'Not specified' : goal;
-    final selectedDuration = duration.isEmpty ? '30 minutes' : duration;
-    final selectedEquipment = equipment.isEmpty ? 'None' : equipment;
-    final selectedIntensity = intensity.isEmpty ? 'Moderate' : intensity;
-    final selectedInjury = injury.isEmpty ? 'No injury' : injury;
+    final selectedGoal = _resolvedGoal();
+    final selectedDuration = _resolvedDuration();
+    final selectedEquipment = _resolvedEquipment();
+    final selectedIntensity = _resolvedIntensity();
+    final selectedInjury = _resolvedInjury();
 
     const systemPrompt = '''
 You are a strict workout planning assistant.
@@ -273,11 +313,7 @@ Output format (follow exactly):
       _error = null;
       _schedule = null;
       _selectedDayIndex = 0;
-      _goalController.clear();
-      _durationController.clear();
-      _equipmentController.clear();
-      _intensityController.clear();
-      _injuryController.clear();
+      _resetFormSelections();
       _changeRequestController.clear();
       _showChangeBox = false;
     });
@@ -307,21 +343,11 @@ Output format (follow exactly):
     });
 
     final result = await _planService.saveApprovedPlan(
-      goal: _goalController.text.trim().isEmpty
-          ? 'Not specified'
-          : _goalController.text.trim(),
-      duration: _durationController.text.trim().isEmpty
-          ? '30 minutes'
-          : _durationController.text.trim(),
-      equipment: _equipmentController.text.trim().isEmpty
-          ? 'None'
-          : _equipmentController.text.trim(),
-      intensity: _intensityController.text.trim().isEmpty
-          ? 'Moderate'
-          : _intensityController.text.trim(),
-      injury: _injuryController.text.trim().isEmpty
-          ? 'No injury'
-          : _injuryController.text.trim(),
+      goal: _resolvedGoal(),
+      duration: _resolvedDuration(),
+      equipment: _resolvedEquipment(),
+      intensity: _resolvedIntensity(),
+      injury: _resolvedInjury(),
       notes: _lastRefinementNote,
       planText: planText,
     );
@@ -362,6 +388,60 @@ Output format (follow exactly):
     final changeText = _changeRequestController.text.trim();
     if (changeText.isEmpty) return;
     await _generatePlan(refinement: changeText);
+  }
+
+  void _resetFormSelections() {
+    _goalController.clear();
+    _durationController.clear();
+    _equipmentController.clear();
+    _intensityController.clear();
+    _injuryController.clear();
+    _selectedGoal = null;
+    _selectedDuration = null;
+    _selectedEquipment = null;
+    _selectedIntensity = null;
+    _selectedInjury = null;
+  }
+
+  void _handleDropdownSelection({
+    required String? value,
+    required TextEditingController controller,
+    required void Function(String?) assign,
+  }) {
+    assign(value);
+    if (value == null || value == 'Other') {
+      controller.clear();
+      return;
+    }
+    controller.text = value;
+  }
+
+  String _resolvedGoal() {
+    final goal = _goalController.text.trim();
+    return goal.isEmpty ? 'Not specified' : goal;
+  }
+
+  String _resolvedDuration() {
+    final duration = _durationController.text.trim();
+    if (_selectedDuration == 'Other') {
+      return duration.isEmpty ? '30 minutes' : '$duration minutes';
+    }
+    return duration.isEmpty ? '30 minutes' : duration;
+  }
+
+  String _resolvedEquipment() {
+    final equipment = _equipmentController.text.trim();
+    return equipment.isEmpty ? 'None' : equipment;
+  }
+
+  String _resolvedIntensity() {
+    final intensity = _intensityController.text.trim();
+    return intensity.isEmpty ? 'Moderate' : intensity;
+  }
+
+  String _resolvedInjury() {
+    final injury = _injuryController.text.trim();
+    return injury.isEmpty ? 'No injury' : injury;
   }
 
   Future<void> _runAdaptiveRegeneration() async {
@@ -741,32 +821,94 @@ Output format (follow exactly):
                 children: [
                   _Field(
                     label: 'Goal',
-                    hint: 'Strength, endurance, fat loss',
+                    hint: 'Choose your goal',
                     controller: _goalController,
+                    value: _selectedGoal,
+                    options: _goalOptions,
+                    onChanged: (value) {
+                      setState(() {
+                        _handleDropdownSelection(
+                          value: value,
+                          controller: _goalController,
+                          assign: (next) => _selectedGoal = next,
+                        );
+                      });
+                    },
+                    otherHint: 'Type your goal',
                   ),
                   const SizedBox(height: 14),
                   _Field(
                     label: 'Duration',
-                    hint: '20, 30, 45 minutes',
+                    hint: 'Choose workout duration',
                     controller: _durationController,
+                    value: _selectedDuration,
+                    options: _durationOptions,
+                    onChanged: (value) {
+                      setState(() {
+                        _handleDropdownSelection(
+                          value: value,
+                          controller: _durationController,
+                          assign: (next) => _selectedDuration = next,
+                        );
+                      });
+                    },
+                    otherHint: 'Enter minutes',
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   ),
                   const SizedBox(height: 14),
                   _Field(
                     label: 'Equipment',
-                    hint: 'None, dumbbells, gym',
+                    hint: 'Choose available equipment',
                     controller: _equipmentController,
+                    value: _selectedEquipment,
+                    options: _equipmentOptions,
+                    onChanged: (value) {
+                      setState(() {
+                        _handleDropdownSelection(
+                          value: value,
+                          controller: _equipmentController,
+                          assign: (next) => _selectedEquipment = next,
+                        );
+                      });
+                    },
+                    otherHint: 'Type available equipment',
                   ),
                   const SizedBox(height: 14),
                   _Field(
                     label: 'Intensity',
-                    hint: 'Easy, moderate, hard',
+                    hint: 'Choose workout intensity',
                     controller: _intensityController,
+                    value: _selectedIntensity,
+                    options: _intensityOptions,
+                    onChanged: (value) {
+                      setState(() {
+                        _handleDropdownSelection(
+                          value: value,
+                          controller: _intensityController,
+                          assign: (next) => _selectedIntensity = next,
+                        );
+                      });
+                    },
+                    otherHint: 'Type your preferred intensity',
                   ),
                   const SizedBox(height: 14),
                   _Field(
                     label: 'Injury (if any)',
-                    hint: 'Knee pain, lower back strain, none',
+                    hint: 'Choose an injury or concern',
                     controller: _injuryController,
+                    value: _selectedInjury,
+                    options: _injuryOptions,
+                    onChanged: (value) {
+                      setState(() {
+                        _handleDropdownSelection(
+                          value: value,
+                          controller: _injuryController,
+                          assign: (next) => _selectedInjury = next,
+                        );
+                      });
+                    },
+                    otherHint: 'Type the injury or issue',
                   ),
                   const SizedBox(height: 18),
                   SizedBox(
@@ -848,11 +990,23 @@ class _Field extends StatelessWidget {
     required this.label,
     required this.hint,
     required this.controller,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.otherHint,
+    this.keyboardType,
+    this.inputFormatters,
   });
 
   final String label;
   final String hint;
   final TextEditingController controller;
+  final String? value;
+  final List<String> options;
+  final ValueChanged<String?> onChanged;
+  final String? otherHint;
+  final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -860,30 +1014,54 @@ class _Field extends StatelessWidget {
     final border = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
     final text = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
     final sub = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    final showOtherField = value == 'Other';
+    final decoration = InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: sub),
+      filled: true,
+      fillColor: isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: border),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: TextStyle(color: text, fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(color: sub),
-            filled: true,
-            fillColor: isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: border),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          ),
+        DropdownButtonFormField<String>(
+          value: value,
+          items: options
+              .map(
+                (option) => DropdownMenuItem<String>(
+                  value: option,
+                  child: Text(option),
+                ),
+              )
+              .toList(),
+          onChanged: onChanged,
+          decoration: decoration,
+          hint: Text(hint, style: TextStyle(color: sub)),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded),
         ),
+        if (showOtherField) ...[
+          const SizedBox(height: 10),
+          TextField(
+            controller: controller,
+            keyboardType: keyboardType,
+            inputFormatters: inputFormatters,
+            decoration: decoration.copyWith(
+              hintText: otherHint ?? 'Type here',
+            ),
+          ),
+        ],
       ],
     );
   }

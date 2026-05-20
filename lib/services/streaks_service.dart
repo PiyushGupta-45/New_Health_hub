@@ -1,6 +1,4 @@
-import '../services/habit_tracker_service.dart';
 import '../services/posture_history_service.dart';
-import '../services/recovery_checkin_service.dart';
 import '../services/workout_log_service.dart';
 
 class StreakStat {
@@ -46,8 +44,6 @@ class StreaksService {
     required int todaySteps,
     required Map<String, int> stepsByDate,
     required List<ManualWorkoutLog> logs,
-    required Map<String, HabitEntry> habits,
-    required Map<String, RecoveryCheckIn> recoveryEntries,
     required List<PostureSessionRecord> postureSessions,
   }) {
     final stepStreak = _countBackwards((dateKey) {
@@ -62,15 +58,6 @@ class StreaksService {
     };
     final workoutStreak = _countBackwards(workoutDays.contains);
 
-    final habitStreak = _countBackwards((dateKey) {
-      final entry = habits[dateKey];
-      return entry != null && entry.completedCoreHabits;
-    });
-
-    final recoveryStreak = _countBackwards((dateKey) {
-      return recoveryEntries.containsKey(dateKey);
-    });
-
     final postureDays = <String>{
       for (final session in postureSessions) _dateKey(session.recordedAt),
     };
@@ -79,8 +66,6 @@ class StreaksService {
     final stats = <StreakStat>[
       StreakStat(title: 'Step Streak', days: stepStreak, detail: 'Days hitting 8k steps'),
       StreakStat(title: 'Workout Streak', days: workoutStreak, detail: 'Days with at least one workout'),
-      StreakStat(title: 'Habit Streak', days: habitStreak, detail: 'Days completing core habits'),
-      StreakStat(title: 'Recovery Streak', days: recoveryStreak, detail: 'Daily readiness check-ins'),
       StreakStat(title: 'Posture Streak', days: postureStreak, detail: 'Days with posture analysis'),
     ];
 
@@ -96,16 +81,6 @@ class StreaksService {
         unlocked: workoutStreak >= 3,
       ),
       BadgeAward(
-        title: 'Wellness Loop',
-        description: 'Complete habits 5 days in a row',
-        unlocked: habitStreak >= 5,
-      ),
-      BadgeAward(
-        title: 'Recovery Aware',
-        description: 'Check in 4 days in a row',
-        unlocked: recoveryStreak >= 4,
-      ),
-      BadgeAward(
         title: 'Form First',
         description: 'Do posture analysis 3 days in a row',
         unlocked: postureStreak >= 3,
@@ -113,7 +88,7 @@ class StreaksService {
     ];
 
     final totalXp =
-        (stepStreak * 20) + (workoutStreak * 25) + (habitStreak * 20) + (recoveryStreak * 15) + (postureStreak * 20);
+        (stepStreak * 20) + (workoutStreak * 25) + (postureStreak * 20);
 
     return StreakSummary(
       stats: stats,

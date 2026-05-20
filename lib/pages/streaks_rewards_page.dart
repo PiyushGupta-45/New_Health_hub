@@ -3,9 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../controllers/auth_controller.dart';
 import '../controllers/health_sync_controller.dart';
-import '../services/habit_tracker_service.dart';
 import '../services/posture_history_service.dart';
-import '../services/recovery_checkin_service.dart';
 import '../services/streaks_service.dart';
 import '../services/steps_sync_service.dart';
 import '../services/workout_log_service.dart';
@@ -26,9 +24,6 @@ class StreaksRewardsPage extends StatefulWidget {
 
 class _StreaksRewardsPageState extends State<StreaksRewardsPage> {
   final WorkoutLogService _workoutLogService = WorkoutLogService();
-  final HabitTrackerService _habitTrackerService = HabitTrackerService();
-  final RecoveryCheckInService _recoveryCheckInService =
-      RecoveryCheckInService();
   final PostureHistoryService _postureHistoryService = PostureHistoryService();
   final StepsSyncService _stepsSyncService = StepsSyncService();
   final StreaksService _streaksService = const StreaksService();
@@ -51,8 +46,6 @@ class _StreaksRewardsPageState extends State<StreaksRewardsPage> {
 
     try {
       final logsFuture = _workoutLogService.fetchLogs(limit: 120);
-      final habitsFuture = _habitTrackerService.loadEntries();
-      final recoveryFuture = _recoveryCheckInService.loadEntries();
       final postureFuture = _postureHistoryService.loadSessions(limit: 120);
       final stepsFuture = widget.authController.isAuthenticated
           ? _stepsSyncService.getStepsHistory(limit: 30)
@@ -60,17 +53,13 @@ class _StreaksRewardsPageState extends State<StreaksRewardsPage> {
 
       final results = await Future.wait([
         logsFuture,
-        habitsFuture,
-        recoveryFuture,
         postureFuture,
         stepsFuture,
       ]);
 
       final logs = results[0] as List<ManualWorkoutLog>;
-      final habits = results[1] as Map<String, HabitEntry>;
-      final recovery = results[2] as Map<String, RecoveryCheckIn>;
-      final postureSessions = results[3] as List<PostureSessionRecord>;
-      final stepsResult = results[4] as Map<String, dynamic>;
+      final postureSessions = results[1] as List<PostureSessionRecord>;
+      final stepsResult = results[2] as Map<String, dynamic>;
       final stepsHistory = stepsResult['data'] is List
           ? List<Map<String, dynamic>>.from(stepsResult['data'] as List)
           : <Map<String, dynamic>>[];
@@ -89,8 +78,6 @@ class _StreaksRewardsPageState extends State<StreaksRewardsPage> {
         todaySteps: widget.controller.todaySteps,
         stepsByDate: stepsByDate,
         logs: logs,
-        habits: habits,
-        recoveryEntries: recovery,
         postureSessions: postureSessions,
       );
 

@@ -6,11 +6,9 @@ import '../controllers/auth_controller.dart';
 import '../controllers/health_sync_controller.dart';
 import 'ai_diet_view.dart';
 import 'ai_workout_plan_view.dart';
-import 'habit_tracker_page.dart';
 import 'health_metrics_view.dart';
 import 'meal_tracker_page.dart';
 import 'posture_analysis_view.dart';
-import 'recovery_checkin_page.dart';
 import 'streaks_rewards_page.dart';
 import 'walking_missions_page.dart';
 import 'workout_tracker_view.dart';
@@ -129,24 +127,6 @@ class FeaturesView extends StatelessWidget {
         builder: (context) => const HealthMetricsView(),
       ),
       FeatureData(
-        icon: Icons.water_drop_rounded,
-        title: 'Habit Tracker',
-        subtitle: 'Stay on top of water, sleep, mood, and recovery patterns.',
-        badge: 'Consistency',
-        kicker: 'Everyday habit rituals',
-        accentColor: const Color(0xFF0EA5E9),
-        builder: (context) => const HabitTrackerPage(),
-      ),
-      FeatureData(
-        icon: Icons.spa_rounded,
-        title: 'Recovery Check-In',
-        subtitle: 'Score readiness before training and adjust the day wisely.',
-        badge: 'Coach',
-        kicker: 'Readiness before you push',
-        accentColor: const Color(0xFF10B981),
-        builder: (context) => const RecoveryCheckInPage(),
-      ),
-      FeatureData(
         icon: Icons.workspace_premium_rounded,
         title: 'Streaks & Rewards',
         subtitle: 'Watch streaks, XP, and badges turn progress into momentum.',
@@ -260,7 +240,7 @@ class FeaturesView extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Training, nutrition, recovery, and AI tools in a cleaner layout that matches the rest of the app.',
+                      'Training, nutrition, posture, and AI tools in a cleaner layout that matches the rest of the app.',
                       style: TextStyle(
                         fontSize: 14.5,
                         height: 1.45,
@@ -368,7 +348,7 @@ class _FeatureHero extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Text(
-            'Everything you need to train, recover, and stay consistent.',
+            'Everything you need to train, eat well, and stay consistent.',
             style: TextStyle(
               color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
               fontSize: 26,
@@ -379,7 +359,7 @@ class _FeatureHero extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Explore $featureCount features across workouts, nutrition, posture, recovery, and habit tracking.',
+            'Explore $featureCount features across workouts, nutrition, posture, progress, and AI planning.',
             style: TextStyle(
               color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               fontSize: 14.5,

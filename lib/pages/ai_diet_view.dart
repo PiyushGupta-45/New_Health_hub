@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/hugging_face_service.dart';
 import '../services/ai_diet_plan_storage_service.dart';
 import '../widgets/ai_result_renderer.dart';
@@ -17,11 +18,47 @@ class _AiDietViewState extends State<AiDietView> {
   final _allergyController = TextEditingController();
   final _mealsController = TextEditingController();
 
+  static const List<String> _goalOptions = [
+    'Fat loss',
+    'Muscle gain',
+    'Maintenance',
+    'High energy',
+    'Healthy eating',
+    'Other',
+  ];
+  static const List<String> _dietOptions = [
+    'Balanced',
+    'Vegetarian',
+    'Vegan',
+    'Keto',
+    'High-protein',
+    'Other',
+  ];
+  static const List<String> _allergyOptions = [
+    'None',
+    'Nuts',
+    'Dairy',
+    'Gluten',
+    'Eggs',
+    'Other',
+  ];
+  static const List<String> _mealOptions = [
+    '3',
+    '4',
+    '5',
+    '6',
+    'Other',
+  ];
+
   bool _isLoading = false;
   bool _isInitializing = true;
   String? _error;
   String? _result;
   AiDietPlan? _savedPlan;
+  String? _selectedGoal;
+  String? _selectedDiet;
+  String? _selectedAllergy;
+  String? _selectedMeals;
 
   late final HuggingFaceService _aiService;
   late final AiDietPlanStorageService _dietPlanStorage;
@@ -52,15 +89,10 @@ class _AiDietViewState extends State<AiDietView> {
       _result = null;
     });
 
-    final goal = _goalController.text.trim();
-    final diet = _dietController.text.trim();
-    final allergy = _allergyController.text.trim();
-    final meals = _mealsController.text.trim();
-
-    final selectedGoal = goal.isEmpty ? 'Not specified' : goal;
-    final selectedDiet = diet.isEmpty ? 'Not specified' : diet;
-    final selectedAllergy = allergy.isEmpty ? 'None' : allergy;
-    final selectedMeals = meals.isEmpty ? '3' : meals;
+    final selectedGoal = _resolvedGoal();
+    final selectedDiet = _resolvedDiet();
+    final selectedAllergy = _resolvedAllergy();
+    final selectedMeals = _resolvedMeals();
 
     const systemPrompt = '''
 You are a strict diet planning assistant.
@@ -149,10 +181,7 @@ Output format (follow exactly):
       _savedPlan = null;
       _result = null;
       _error = null;
-      _goalController.clear();
-      _dietController.clear();
-      _allergyController.clear();
-      _mealsController.clear();
+      _resetFormSelections();
     });
   }
 
@@ -162,6 +191,50 @@ Output format (follow exactly):
       _result = null;
       _error = null;
     });
+  }
+
+  void _resetFormSelections() {
+    _goalController.clear();
+    _dietController.clear();
+    _allergyController.clear();
+    _mealsController.clear();
+    _selectedGoal = null;
+    _selectedDiet = null;
+    _selectedAllergy = null;
+    _selectedMeals = null;
+  }
+
+  void _handleDropdownSelection({
+    required String? value,
+    required TextEditingController controller,
+    required void Function(String?) assign,
+  }) {
+    assign(value);
+    if (value == null || value == 'Other') {
+      controller.clear();
+      return;
+    }
+    controller.text = value;
+  }
+
+  String _resolvedGoal() {
+    final goal = _goalController.text.trim();
+    return goal.isEmpty ? 'Not specified' : goal;
+  }
+
+  String _resolvedDiet() {
+    final diet = _dietController.text.trim();
+    return diet.isEmpty ? 'Not specified' : diet;
+  }
+
+  String _resolvedAllergy() {
+    final allergy = _allergyController.text.trim();
+    return allergy.isEmpty ? 'None' : allergy;
+  }
+
+  String _resolvedMeals() {
+    final meals = _mealsController.text.trim();
+    return meals.isEmpty ? '3' : meals;
   }
 
   @override
@@ -274,26 +347,76 @@ Output format (follow exactly):
                 children: [
                   _Field(
                     label: 'Goal',
-                    hint: 'Fat loss, muscle gain, maintenance',
+                    hint: 'Choose your goal',
                     controller: _goalController,
+                    value: _selectedGoal,
+                    options: _goalOptions,
+                    onChanged: (value) {
+                      setState(() {
+                        _handleDropdownSelection(
+                          value: value,
+                          controller: _goalController,
+                          assign: (next) => _selectedGoal = next,
+                        );
+                      });
+                    },
+                    otherHint: 'Type your goal',
                   ),
                   const SizedBox(height: 14),
                   _Field(
                     label: 'Diet Type',
-                    hint: 'Vegetarian, keto, high-protein',
+                    hint: 'Choose a diet type',
                     controller: _dietController,
+                    value: _selectedDiet,
+                    options: _dietOptions,
+                    onChanged: (value) {
+                      setState(() {
+                        _handleDropdownSelection(
+                          value: value,
+                          controller: _dietController,
+                          assign: (next) => _selectedDiet = next,
+                        );
+                      });
+                    },
+                    otherHint: 'Type your diet type',
                   ),
                   const SizedBox(height: 14),
                   _Field(
                     label: 'Allergies',
-                    hint: 'Nuts, dairy, gluten',
+                    hint: 'Choose an allergy',
                     controller: _allergyController,
+                    value: _selectedAllergy,
+                    options: _allergyOptions,
+                    onChanged: (value) {
+                      setState(() {
+                        _handleDropdownSelection(
+                          value: value,
+                          controller: _allergyController,
+                          assign: (next) => _selectedAllergy = next,
+                        );
+                      });
+                    },
+                    otherHint: 'Type your allergy or restriction',
                   ),
                   const SizedBox(height: 14),
                   _Field(
                     label: 'Meals per day',
-                    hint: '3, 4, or 5',
+                    hint: 'Choose meals per day',
                     controller: _mealsController,
+                    value: _selectedMeals,
+                    options: _mealOptions,
+                    onChanged: (value) {
+                      setState(() {
+                        _handleDropdownSelection(
+                          value: value,
+                          controller: _mealsController,
+                          assign: (next) => _selectedMeals = next,
+                        );
+                      });
+                    },
+                    otherHint: 'Enter number of meals',
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   ),
                   const SizedBox(height: 18),
                   SizedBox(
@@ -383,11 +506,23 @@ class _Field extends StatelessWidget {
     required this.label,
     required this.hint,
     required this.controller,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.otherHint,
+    this.keyboardType,
+    this.inputFormatters,
   });
 
   final String label;
   final String hint;
   final TextEditingController controller;
+  final String? value;
+  final List<String> options;
+  final ValueChanged<String?> onChanged;
+  final String? otherHint;
+  final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -395,30 +530,54 @@ class _Field extends StatelessWidget {
     final border = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
     final text = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
     final sub = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    final showOtherField = value == 'Other';
+    final decoration = InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: sub),
+      filled: true,
+      fillColor: isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: border),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: TextStyle(color: text, fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(color: sub),
-            filled: true,
-            fillColor: isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: border),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          ),
+        DropdownButtonFormField<String>(
+          value: value,
+          items: options
+              .map(
+                (option) => DropdownMenuItem<String>(
+                  value: option,
+                  child: Text(option),
+                ),
+              )
+              .toList(),
+          onChanged: onChanged,
+          decoration: decoration,
+          hint: Text(hint, style: TextStyle(color: sub)),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded),
         ),
+        if (showOtherField) ...[
+          const SizedBox(height: 10),
+          TextField(
+            controller: controller,
+            keyboardType: keyboardType,
+            inputFormatters: inputFormatters,
+            decoration: decoration.copyWith(
+              hintText: otherHint ?? 'Type here',
+            ),
+          ),
+        ],
       ],
     );
   }
